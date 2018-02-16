@@ -1,0 +1,22 @@
+pipeline:
+    build:
+        image: golang
+        commands:
+            - go get github.com/pstuifzand/microsub-server/cmd/server
+            - go build github.com/pstuifzand/microsub-server/cmd/server
+
+    publish:
+        image: plugins/docker
+        repo: registry.stuifzandapp.com/microsub-server
+        registry: registry.stuifzandapp.com
+        secrets: [ docker_username, docker_password ]
+
+    # deploy:
+    #     image: appleboy/drone-ssh
+    #     host: microsub.stuifzandapp.com
+    #     username: hub
+    #     secrets: ['ssh_key']
+    #     script:
+    #         - cd /home/hub/hub
+    #         - docker-compose pull
+    #         - docker-compose up -d
