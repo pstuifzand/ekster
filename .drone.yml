@@ -11,12 +11,12 @@ pipeline:
         registry: registry.stuifzandapp.com
         secrets: [ docker_username, docker_password ]
 
-    # deploy:
-    #     image: appleboy/drone-ssh
-    #     host: microsub.stuifzandapp.com
-    #     username: hub
-    #     secrets: ['ssh_key']
-    #     script:
-    #         - cd /home/hub/hub
-    #         - docker-compose pull
-    #         - docker-compose up -d
+    deploy:
+        image: appleboy/drone-ssh
+        host: microsub.stuifzandapp.com
+        username: hub
+        secrets: ['ssh_key']
+        script:
+            - cd /home/hub/hub
+            - docker-compose pull web
+            - docker-compose up -d
