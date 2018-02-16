@@ -25,7 +25,7 @@ func (b *memoryBackend) Debug() {
 }
 
 func (b *memoryBackend) load() {
-	filename := "/tmp/backend.json"
+	filename := "backend.json"
 	f, _ := os.Open(filename)
 	defer f.Close()
 	jw := json.NewDecoder(f)
@@ -33,7 +33,7 @@ func (b *memoryBackend) load() {
 }
 
 func (b *memoryBackend) save() {
-	filename := "/tmp/backend.json"
+	filename := "backend.json"
 	f, _ := os.Create(filename)
 	defer f.Close()
 	jw := json.NewEncoder(f)
