@@ -43,6 +43,7 @@ func (b *memoryBackend) save() {
 func loadMemoryBackend() microsub.Microsub {
 	backend := &memoryBackend{}
 	backend.load()
+
 	return backend
 }
 
