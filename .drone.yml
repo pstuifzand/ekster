@@ -14,9 +14,9 @@ pipeline:
     deploy:
         image: appleboy/drone-ssh
         host: microsub.stuifzandapp.com
-        username: hub
+        username: microsub
         secrets: ['ssh_key']
         script:
-            - cd /home/hub/hub
+            - cd /home/microsub/microsub
             - docker-compose pull web
             - docker-compose up -d
