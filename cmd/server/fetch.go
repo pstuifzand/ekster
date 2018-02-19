@@ -37,10 +37,10 @@ func Fetch2(fetchURL string) (*microformats.Data, error) {
 
 	if data, e := cache[u.String()]; e {
 		if data.created.After(time.Now().Add(time.Minute * -10)) {
-			log.Printf("HIT %s\n", u.String())
+			log.Printf("HIT %s - %s\n", u.String(), time.Now().Sub(data.created).String())
 			return data.item, nil
 		} else {
-			log.Printf("EVICT %s\n", u.String())
+			log.Printf("EXPIRE %s\n", u.String())
 			delete(cache, u.String())
 		}
 	} else {
