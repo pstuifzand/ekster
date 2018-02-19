@@ -194,7 +194,6 @@ func (b *memoryBackend) UnfollowURL(uid string, url string) {
 func (b *memoryBackend) Search(query string) []microsub.Feed {
 	return []microsub.Feed{
 		microsub.Feed{"feed", query},
-		//microsub.Feed{"feed", "https://peterstuifzand.nl/rss.xml"},
 	}
 }
 
