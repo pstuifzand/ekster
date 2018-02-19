@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/pstuifzand/microsub-server/microsub"
@@ -157,6 +158,15 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 			items = append(items, results...)
 		}
 	}
+
+	sort.Slice(items, func(a, b int) bool {
+		timeA, okA := items[a]["published"].(string)
+		timeB, okB := items[b]["published"].(string)
+		if okA && okB {
+			return strings.Compare(timeA, timeB) > 0
+		}
+		return false
+	})
 
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
