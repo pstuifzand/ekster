@@ -157,7 +157,7 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 
 			// Filter items with "published" date
 			for _, r := range results {
-				if p, e := r["published"]; e {
+				if _, e := r["published"]; e {
 					items = append(items, r)
 				}
 			}
@@ -165,8 +165,8 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 	}
 
 	sort.Slice(items, func(a, b int) bool {
-		timeA, okA := items[a]["published"].(string)
-		timeB, okB := items[b]["published"].(string)
+		timeA, _ := items[a]["published"].(string)
+		timeB, _ := items[b]["published"].(string)
 		return strings.Compare(timeA, timeB) > 0
 	})
 
