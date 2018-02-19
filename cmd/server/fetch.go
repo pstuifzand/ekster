@@ -8,15 +8,21 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pstuifzand/microsub-server/microsub"
 	"willnorris.com/go/microformats"
 )
 
-var cache map[string]*microformats.Data
+type cacheItem struct {
+	item    *microformats.Data
+	created time.Time
+}
+
+var cache map[string]cacheItem
 
 func init() {
-	cache = make(map[string]*microformats.Data)
+	cache = make(map[string]cacheItem)
 }
 
 func Fetch2(fetchURL string) (*microformats.Data, error) {
@@ -30,11 +36,16 @@ func Fetch2(fetchURL string) (*microformats.Data, error) {
 	}
 
 	if data, e := cache[u.String()]; e {
-		log.Printf("HIT %s\n", u.String())
-		return data, nil
+		if data.created.After(time.Now().Add(time.Minute * -10)) {
+			log.Printf("HIT %s\n", u.String())
+			return data.item, nil
+		} else {
+			log.Printf("EVICT %s\n", u.String())
+			delete(cache, u.String())
+		}
+	} else {
+		log.Printf("MISS %s\n", u.String())
 	}
-
-	log.Printf("MISS %s\n", u.String())
 
 	resp, err := http.Get(u.String())
 	if err != nil {
@@ -47,7 +58,7 @@ func Fetch2(fetchURL string) (*microformats.Data, error) {
 
 	defer resp.Body.Close()
 	data := microformats.Parse(resp.Body, u)
-	cache[u.String()] = data
+	cache[u.String()] = cacheItem{data, time.Now()}
 	return data, nil
 }
 
