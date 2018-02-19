@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,6 +10,12 @@ import (
 	"github.com/pstuifzand/microsub-server/microsub"
 	"willnorris.com/go/microformats"
 )
+
+var port int
+
+func init() {
+	flag.IntVar(&port, "port", 80, "port for serving api")
+}
 
 type microsubHandler struct {
 	Backend microsub.Microsub
@@ -196,9 +203,25 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	backend := loadMemoryBackend()
-	//backend := createMemoryBackend()
+	flag.Parse()
+
+	createBackend := false
+	args := flag.Args()
+
+	if len(args) >= 1 {
+		if args[0] == "new" {
+			createBackend = true
+		}
+	}
+
+	var backend microsub.Microsub
+
+	if createBackend {
+		backend = createMemoryBackend()
+	} else {
+		backend = loadMemoryBackend()
+	}
 
 	http.Handle("/microsub", &microsubHandler{backend})
-	log.Fatal(http.ListenAndServe(":80", nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }
