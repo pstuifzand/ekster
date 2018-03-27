@@ -24,11 +24,16 @@ import (
 	"log"
 	"net/http"
 
+	//	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
 	"willnorris.com/go/microformats"
 )
 
-var port int
+var (
+	// pool        redis.Pool
+	port int
+	// redisServer = flag.String("redis", "redis:6379", "")
+)
 
 func init() {
 	flag.IntVar(&port, "port", 80, "port for serving api")
@@ -54,14 +59,21 @@ func simplify(item map[string][]interface{}) map[string]interface{} {
 			if content, ok := v[0].(map[string]interface{}); ok {
 				if text, e := content["value"]; e {
 					delete(content, "value")
-					if _, e := content["html"]; !e {
-						content["text"] = text
-					}
+					content["text"] = text
+					// if _, e := content["html"]; !e {
+					// 	content["text"] = text
+					// }
 				}
 				feedItem[k] = content
 			}
 		} else if k == "photo" {
-			feedItem[k] = v
+			if len(v) == 1 {
+				if value, ok := v[0].(string); ok {
+					feedItem[k] = value
+				}
+			} else {
+				feedItem[k] = v
+			}
 		} else if k == "video" {
 			feedItem[k] = v
 		} else if k == "featured" {
@@ -78,6 +90,20 @@ func simplify(item map[string][]interface{}) map[string]interface{} {
 			feedItem[k] = value
 		}
 	}
+
+	// Remove "name" when it's equals to "content[text]"
+	if name, e := feedItem["name"]; e {
+		if content, e2 := feedItem["content"]; e2 {
+			if contentMap, ok := content.(map[string]interface{}); ok {
+				if text, e3 := contentMap["text"]; e3 {
+					if name == text {
+						delete(feedItem, "name")
+					}
+				}
+			}
+		}
+	}
+
 	return feedItem
 }
 
@@ -120,8 +146,64 @@ func simplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
 	return items
 }
 
+// TokenResponse is the information that we get back from the token endpoint of the user...
+type TokenResponse struct {
+	Me       string `json:"me"`
+	ClientID string `json:"client_id"`
+	Scope    string `json:"scope"`
+	IssuedAt int64  `json:"issued_at"`
+	Nonce    int64  `json:"nonce"`
+}
+
+func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bool {
+	req, err := http.NewRequest("GET", "https://publog.stuifzandapp.com/authtoken", nil)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	req.Header.Add("Authorization", header)
+	req.Header.Add("Accept", "application/json")
+
+	client := http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return false
+	}
+
+	dec := json.NewDecoder(res.Body)
+	err = dec.Decode(&token)
+
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.URL.String())
+	//conn := pool.Get()
+	//defer conn.Close()
+
+	//authorization := r.Header.Get("Authorization")
+
+	// var token TokenResponse
+
+	// if !h.checkAuthToken(authorization, &token) {
+	// 	http.Error(w, "Can't validate token", 403)
+	// 	return
+	// }
+
+	// if token.Me != "https://publog.stuifzandapp.com/" {
+	// 	http.Error(w, "Wrong me", 403)
+	// 	return
+	// }
 
 	if r.Method == http.MethodGet {
 		values := r.URL.Query()
@@ -219,6 +301,14 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// func newPool(addr string) *redis.Pool {
+// 	return &redis.Pool{
+// 		MaxIdle:     3,
+// 		IdleTimeout: 240 * time.Second,
+// 		Dial:        func() (redis.Conn, error) { return redis.Dial("tcp", addr) },
+// 	}
+// }
+
 func main() {
 	flag.Parse()
 
@@ -238,6 +328,8 @@ func main() {
 	} else {
 		backend = loadMemoryBackend()
 	}
+
+	//pool = newPool(*redisServer)
 
 	http.Handle("/microsub", &microsubHandler{backend})
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))

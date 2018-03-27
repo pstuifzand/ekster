@@ -30,8 +30,7 @@ import (
 type memoryBackend struct {
 	Channels map[string]microsub.Channel
 	Feeds    map[string][]microsub.Feed
-	//Items    map[string]map[string][]microsub.Item
-	NextUid int
+	NextUid  int
 }
 
 type Debug interface {
@@ -71,10 +70,10 @@ func createMemoryBackend() microsub.Microsub {
 	backend.Channels = make(map[string]microsub.Channel)
 	backend.Feeds = make(map[string][]microsub.Feed)
 	channels := []microsub.Channel{
-		microsub.Channel{"0000", "default"},
-		microsub.Channel{"0001", "notifications"},
-		microsub.Channel{"1000", "Friends"},
-		microsub.Channel{"1001", "Family"},
+		microsub.Channel{UID: "0000", Name: "default"},
+		microsub.Channel{UID: "0001", Name: "notifications"},
+		microsub.Channel{UID: "1000", Name: "Friends"},
+		microsub.Channel{UID: "1001", Name: "Family"},
 	}
 	for _, c := range channels {
 		backend.Channels[c.UID] = c

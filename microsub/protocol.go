@@ -15,6 +15,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+// Package microsub describes the protocol methods of the Microsub protocol
 package microsub
 
 /*

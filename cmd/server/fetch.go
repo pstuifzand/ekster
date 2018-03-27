@@ -223,6 +223,8 @@ func convertMfToItem(mf *microformats.Microformat) microsub.Item {
 	if item.Name == strings.TrimSpace(item.Content.Text) {
 		item.Name = ""
 	}
+
+	// TODO: for like name is the field that is set
 	if item.Content.HTML == "" && len(item.LikeOf) > 0 {
 		item.Name = ""
 	}
