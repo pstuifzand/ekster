@@ -101,7 +101,7 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 		if content, e2 := feedItem["content"]; e2 {
 			if contentMap, ok := content.(map[string]interface{}); ok {
 				if text, e3 := contentMap["text"]; e3 {
-					if name == text {
+					if strings.TrimSpace(name) == strings.TrimSpace(text) {
 						delete(feedItem, "name")
 					}
 				}
