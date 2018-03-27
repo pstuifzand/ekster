@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	//	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
@@ -101,7 +102,7 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 		if content, e2 := feedItem["content"]; e2 {
 			if contentMap, ok := content.(map[string]interface{}); ok {
 				if text, e3 := contentMap["text"]; e3 {
-					if strings.TrimSpace(name) == strings.TrimSpace(text) {
+					if strings.TrimSpace(name.(string)) == strings.TrimSpace(text.(string)) {
 						delete(feedItem, "name")
 					}
 				}
