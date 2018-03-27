@@ -174,6 +174,7 @@ func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bo
 	defer res.Body.Close()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		log.Printf("HTTP StatusCode when verifying token: %d\n", res.StatusCode)
 		return false
 	}
 
@@ -181,6 +182,7 @@ func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bo
 	err = dec.Decode(&token)
 
 	if err != nil {
+		log.Printf("Error in json object: %v", err)
 		return false
 	}
 
