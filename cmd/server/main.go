@@ -195,6 +195,8 @@ func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bo
 }
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s\n", r.Method, r.URL)
+	log.Println(r.URL.Query())
 	authorization := r.Header.Get("Authorization")
 
 	var token TokenResponse
