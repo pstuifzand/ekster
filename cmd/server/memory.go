@@ -183,7 +183,7 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 	sort.Slice(items, func(a, b int) bool {
 		timeA, _ := items[a]["published"].(string)
 		timeB, _ := items[b]["published"].(string)
-		return strings.Compare(timeA, timeB) > 0
+		return strings.Compare(timeB, timeA) > 0
 	})
 
 	return microsub.Timeline{
