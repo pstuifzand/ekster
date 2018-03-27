@@ -20,14 +20,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 	"strings"
 
+	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
 )
 
 type memoryBackend struct {
+	Redis    redis.Conn
 	Channels map[string]microsub.Channel
 	Feeds    map[string][]microsub.Feed
 	NextUid  int
@@ -57,8 +60,9 @@ func (b *memoryBackend) save() {
 	jw.Encode(b)
 }
 
-func loadMemoryBackend() microsub.Microsub {
+func loadMemoryBackend(conn redis.Conn) microsub.Microsub {
 	backend := &memoryBackend{}
+	backend.Redis = conn
 	backend.load()
 
 	return backend
@@ -173,6 +177,10 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 
 			// Filter items with "published" date
 			for _, r := range results {
+				if b.wasRead(channel, r) {
+					continue
+				}
+
 				if _, e := r["published"]; e {
 					items = append(items, r)
 				}
@@ -192,13 +200,34 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 	}
 }
 
+func (b *memoryBackend) checkRead(channel string, uid string) bool {
+	args := redis.Args{}.Add(fmt.Sprintf("timeline:%s:read", channel)).Add(uid)
+	member, err := redis.Bool(b.Redis.Do("SISMEMBER", args...))
+	if err != nil {
+		log.Printf("Checking read for channel %s item %s has failed\n", channel, uid)
+	}
+	return member
+}
+
+func (b *memoryBackend) wasRead(channel string, item map[string]interface{}) bool {
+	if uid, e := item["uid"]; e {
+		return b.checkRead(channel, uid.(string))
+	}
+
+	if uid, e := item["url"]; e {
+		return b.checkRead(channel, uid.(string))
+	}
+
+	return false
+}
+
 func (b *memoryBackend) FollowGetList(uid string) []microsub.Feed {
 	return b.Feeds[uid]
 }
 
 func (b *memoryBackend) FollowURL(uid string, url string) microsub.Feed {
 	defer b.save()
-	feed := microsub.Feed{"feed", url}
+	feed := microsub.Feed{Type: "feed", URL: url}
 	b.Feeds[uid] = append(b.Feeds[uid], feed)
 	return feed
 }
@@ -218,20 +247,27 @@ func (b *memoryBackend) UnfollowURL(uid string, url string) {
 	}
 }
 
-// TODO: improve search for feeds
+// TODO: improve search for feeds, perhaps even with mf2 parser
 func (b *memoryBackend) Search(query string) []microsub.Feed {
 	return []microsub.Feed{
-		microsub.Feed{"feed", query},
+		microsub.Feed{Type: "feed", URL: query},
 	}
 }
 
-func (b *memoryBackend) PreviewURL(previewUrl string) microsub.Timeline {
-	md, err := Fetch2(previewUrl)
+func (b *memoryBackend) PreviewURL(previewURL string) microsub.Timeline {
+	md, err := Fetch2(previewURL)
 	if err != nil {
 		return microsub.Timeline{}
 	}
 	results := simplifyMicroformatData(md)
 	return microsub.Timeline{
 		Items: results,
+	}
+}
+
+func (b *memoryBackend) MarkRead(channel string, itemUids []string) {
+	args := redis.Args{}.Add(fmt.Sprintf("timeline:%s:read", channel)).AddFlat(itemUids)
+	if _, err := b.Redis.Do("SADD", args...); err != nil {
+		log.Printf("Marking read for channel %s has failed\n", channel)
 	}
 }

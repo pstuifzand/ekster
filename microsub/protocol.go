@@ -93,6 +93,8 @@ type Microsub interface {
 
 	TimelineGet(before, after, channel string) Timeline
 
+	MarkRead(channel string, entry []string)
+
 	FollowGetList(uid string) []Feed
 	FollowURL(uid string, url string) Feed
 

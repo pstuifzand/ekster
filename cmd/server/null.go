@@ -84,3 +84,6 @@ func (b *NullBackend) PreviewURL(url string) microsub.Timeline {
 		Items:  []map[string]interface{}{},
 	}
 }
+
+func (b *NullBackend) MarkRead(channel string, uids []string) {
+}

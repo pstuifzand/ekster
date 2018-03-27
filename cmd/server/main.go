@@ -24,16 +24,17 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
-	//	"github.com/garyburd/redigo/redis"
+	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
 	"willnorris.com/go/microformats"
 )
 
 var (
-	// pool        redis.Pool
-	port int
-	// redisServer = flag.String("redis", "redis:6379", "")
+	pool        *redis.Pool
+	port        int
+	redisServer = flag.String("redis", "redis:6379", "")
 )
 
 func init() {
@@ -63,9 +64,6 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 				if text, e := content["value"]; e {
 					delete(content, "value")
 					content["text"] = text
-					// if _, e := content["html"]; !e {
-					// 	content["text"] = text
-					// }
 				}
 				feedItem[k] = content
 			}
@@ -197,9 +195,6 @@ func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bo
 }
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	//conn := pool.Get()
-	//defer conn.Close()
-
 	authorization := r.Header.Get("Authorization")
 
 	var token TokenResponse
@@ -310,13 +305,13 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-// func newPool(addr string) *redis.Pool {
-// 	return &redis.Pool{
-// 		MaxIdle:     3,
-// 		IdleTimeout: 240 * time.Second,
-// 		Dial:        func() (redis.Conn, error) { return redis.Dial("tcp", addr) },
-// 	}
-// }
+func newPool(addr string) *redis.Pool {
+	return &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial:        func() (redis.Conn, error) { return redis.Dial("tcp", addr) },
+	}
+}
 
 func main() {
 	flag.Parse()
@@ -330,15 +325,18 @@ func main() {
 		}
 	}
 
+	pool = newPool(*redisServer)
+
+	conn := pool.Get()
+	defer conn.Close()
+
 	var backend microsub.Microsub
 
 	if createBackend {
 		backend = createMemoryBackend()
 	} else {
-		backend = loadMemoryBackend()
+		backend = loadMemoryBackend(conn)
 	}
-
-	//pool = newPool(*redisServer)
 
 	http.Handle("/microsub", &microsubHandler{backend})
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
