@@ -299,7 +299,21 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			jw.Encode(map[string][]microsub.Feed{
 				"results": feeds,
 			})
+		} else if action == "timeline" {
+			method := values.Get("method")
+
+			if method == "mark_read" {
+				channel := values.Get("channel")
+				if uids, e := values["entry"]; e {
+					h.Backend.MarkRead(channel, uids)
+				} else if uids, e := values["entry[]"]; e {
+					h.Backend.MarkRead(channel, uids)
+				}
+			}
+			w.Header().Add("Content-Type", "application/json")
+			fmt.Fprintln(w, "[]")
 		}
+
 		return
 	}
 	return
