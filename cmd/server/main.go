@@ -191,19 +191,19 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//conn := pool.Get()
 	//defer conn.Close()
 
-	//authorization := r.Header.Get("Authorization")
+	authorization := r.Header.Get("Authorization")
 
-	// var token TokenResponse
+	var token TokenResponse
 
-	// if !h.checkAuthToken(authorization, &token) {
-	// 	http.Error(w, "Can't validate token", 403)
-	// 	return
-	// }
+	if !h.checkAuthToken(authorization, &token) {
+		http.Error(w, "Can't validate token", 403)
+		return
+	}
 
-	// if token.Me != "https://publog.stuifzandapp.com/" {
-	// 	http.Error(w, "Wrong me", 403)
-	// 	return
-	// }
+	if token.Me != "https://publog.stuifzandapp.com/" {
+		http.Error(w, "Wrong me", 403)
+		return
+	}
 
 	if r.Method == http.MethodGet {
 		values := r.URL.Query()
