@@ -67,13 +67,7 @@ func simplify(item map[string][]interface{}) map[string]interface{} {
 				feedItem[k] = content
 			}
 		} else if k == "photo" {
-			if len(v) == 1 {
-				if value, ok := v[0].(string); ok {
-					feedItem[k] = value
-				}
-			} else {
-				feedItem[k] = v
-			}
+			feedItem[k] = v
 		} else if k == "video" {
 			feedItem[k] = v
 		} else if k == "featured" {
