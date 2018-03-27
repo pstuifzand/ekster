@@ -195,8 +195,10 @@ func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bo
 }
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
 	log.Printf("%s %s\n", r.Method, r.URL)
 	log.Println(r.URL.Query())
+	log.Println(r.PostForm)
 	authorization := r.Header.Get("Authorization")
 
 	var token TokenResponse
@@ -305,6 +307,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			method := values.Get("method")
 
 			if method == "mark_read" {
+				values = r.PostForm
 				channel := values.Get("channel")
 				if uids, e := values["entry"]; e {
 					h.Backend.MarkRead(channel, uids)
