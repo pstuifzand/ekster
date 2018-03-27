@@ -18,6 +18,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -179,10 +180,10 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 			for _, r := range results {
 				r["_is_read"] = b.wasRead(channel, r)
 				if uid, e := r["uid"]; e {
-					r["_id"] = uid
+					r["_id"] = hex.EncodeToString([]byte(uid.(string)))
 				}
 				if uid, e := r["url"]; e {
-					r["_id"] = uid
+					r["_id"] = hex.EncodeToString([]byte(uid.(string)))
 				}
 
 				if _, e := r["published"]; e {
@@ -215,10 +216,12 @@ func (b *memoryBackend) checkRead(channel string, uid string) bool {
 
 func (b *memoryBackend) wasRead(channel string, item map[string]interface{}) bool {
 	if uid, e := item["uid"]; e {
+		uid = hex.EncodeToString([]byte(uid.(string)))
 		return b.checkRead(channel, uid.(string))
 	}
 
 	if uid, e := item["url"]; e {
+		uid = hex.EncodeToString([]byte(uid.(string)))
 		return b.checkRead(channel, uid.(string))
 	}
 
