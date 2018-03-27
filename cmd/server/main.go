@@ -43,14 +43,16 @@ type microsubHandler struct {
 	Backend microsub.Microsub
 }
 
-func simplify(item map[string][]interface{}) map[string]interface{} {
+func simplify(itemType string, item map[string][]interface{}) map[string]interface{} {
 	feedItem := make(map[string]interface{})
 
 	for k, v := range item {
 		if k == "bookmark-of" || k == "like-of" || k == "repost-of" || k == "in-reply-to" {
 			if value, ok := v[0].(*microformats.Microformat); ok {
-				m := simplify(value.Properties)
-				m["type"] = value.Type[0][2:]
+
+				mType := value.Type[0][2:]
+				m := simplify(mType, value.Properties)
+				m["type"] = mType
 				feedItem[k] = []interface{}{m}
 			} else {
 				feedItem[k] = v
@@ -67,14 +69,23 @@ func simplify(item map[string][]interface{}) map[string]interface{} {
 				feedItem[k] = content
 			}
 		} else if k == "photo" {
-			feedItem[k] = v
+			if itemType == "card" {
+				if len(v) >= 1 {
+					if value, ok := v[0].(string); ok {
+						feedItem[k] = value
+					}
+				}
+			} else {
+				feedItem[k] = v
+			}
 		} else if k == "video" {
 			feedItem[k] = v
 		} else if k == "featured" {
 			feedItem[k] = v
 		} else if value, ok := v[0].(*microformats.Microformat); ok {
-			m := simplify(value.Properties)
-			m["type"] = value.Type[0][2:]
+			mType := value.Type[0][2:]
+			m := simplify(mType, value.Properties)
+			m["type"] = mType
 			feedItem[k] = m
 		} else if value, ok := v[0].(string); ok {
 			feedItem[k] = value
@@ -102,8 +113,9 @@ func simplify(item map[string][]interface{}) map[string]interface{} {
 }
 
 func simplifyMicroformat(item *microformats.Microformat) map[string]interface{} {
-	newItem := simplify(item.Properties)
-	newItem["type"] = item.Type[0][2:]
+	itemType := item.Type[0][2:]
+	newItem := simplify(itemType, item.Properties)
+	newItem["type"] = itemType
 
 	children := []map[string]interface{}{}
 
