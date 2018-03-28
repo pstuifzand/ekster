@@ -168,12 +168,12 @@ var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")
 func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) bool {
 	log.Println("Cached checking Auth Token")
 
-	token := authHeaderRegex.FindString(header)
-	if token == "" {
+	tokens := authHeaderRegex.FindStringSubmatch(header)
+	if len(tokens) != 2 {
 		log.Println("No token found in the header")
 		return false
 	}
-	key := fmt.Sprintf("token:%s", token)
+	key := fmt.Sprintf("token:%s", tokens[1])
 
 	var err error
 
