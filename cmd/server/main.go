@@ -188,6 +188,7 @@ func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) 
 	authorized := h.checkAuthToken(header, r)
 
 	if authorized {
+		fmt.Printf("Token response: %#v\n", r)
 		_, err = h.Redis.Do("HMSET", redis.Args{}.Add(key).AddFlat(r))
 		if err != nil {
 			log.Printf("Error while setting token: %v\n", err)
