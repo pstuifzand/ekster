@@ -257,11 +257,13 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var token TokenResponse
 
 	if !h.cachedCheckAuthToken(authorization, &token) {
+		log.Printf("Token could not be validated")
 		http.Error(w, "Can't validate token", 403)
 		return
 	}
 
 	if token.Me != "https://publog.stuifzandapp.com/" {
+		log.Printf("Missing \"me\" in token response: %#v\n", token)
 		http.Error(w, "Wrong me", 403)
 		return
 	}
