@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -43,6 +44,7 @@ func init() {
 
 type microsubHandler struct {
 	Backend microsub.Microsub
+	Redis   redis.Conn
 }
 
 func simplify(itemType string, item map[string][]interface{}) map[string]interface{} {
@@ -160,6 +162,50 @@ type TokenResponse struct {
 	Nonce    int64  `json:"nonce"`
 }
 
+var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")
+
+func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) bool {
+	token := authHeaderRegex.FindString(header)
+	if token == "" {
+		log.Println("Not token found in the header")
+		return false
+	}
+	key := fmt.Sprintf("token:%s", token)
+
+	var err error
+
+	values, err := redis.Values(h.Redis.Do("HGETALL", key))
+	if err == nil {
+		if err = redis.ScanStruct(values, r); err == nil {
+			return true
+		}
+	} else {
+		log.Printf("Error while HGETTALL %v\n", err)
+	}
+
+	authorized := h.checkAuthToken(header, r)
+
+	if authorized {
+		_, err = h.Redis.Do("HMSET", redis.Args{}.Add(key).AddFlat(r))
+		if err != nil {
+			log.Printf("Error while setting token: %v\n", err)
+			return authorized
+		}
+		_, err = h.Redis.Do("EXPIRE", key, uint64(10*time.Minute))
+		if err != nil {
+			log.Printf("Error while setting expire on token: %v\n", err)
+			log.Println("Deleting token")
+			_, err = h.Redis.Do("DEL", key)
+			if err != nil {
+				log.Printf("Deleting token failed: %v", err)
+			}
+			return authorized
+		}
+	}
+
+	return authorized
+}
+
 func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bool {
 	req, err := http.NewRequest("GET", "https://publog.stuifzandapp.com/authtoken", nil)
 	if err != nil {
@@ -195,6 +241,9 @@ func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bo
 }
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.Redis = pool.Get()
+	defer h.Redis.Close()
+
 	r.ParseForm()
 	log.Printf("%s %s\n", r.Method, r.URL)
 	log.Println(r.URL.Query())
@@ -203,7 +252,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var token TokenResponse
 
-	if !h.checkAuthToken(authorization, &token) {
+	if !h.cachedCheckAuthToken(authorization, &token) {
 		http.Error(w, "Can't validate token", 403)
 		return
 	}
@@ -367,6 +416,6 @@ func main() {
 		backend = loadMemoryBackend(conn)
 	}
 
-	http.Handle("/microsub", &microsubHandler{backend})
+	http.Handle("/microsub", &microsubHandler{backend, nil})
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }
