@@ -179,6 +179,9 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 			// Filter items with "published" date
 			for _, r := range results {
 				r["_is_read"] = b.wasRead(channel, r)
+				if r["_is_read"].(bool) {
+					continue
+				}
 				if uid, e := r["uid"]; e {
 					r["_id"] = hex.EncodeToString([]byte(uid.(string)))
 				}
