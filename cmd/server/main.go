@@ -37,6 +37,7 @@ var (
 	pool        *redis.Pool
 	port        int
 	redisServer = flag.String("redis", "redis:6379", "")
+	entryRegex  = regexp.MustCompile("^entry\\[\\d+\\]$")
 )
 
 func init() {
@@ -373,10 +374,14 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					h.Backend.MarkRead(channel, uids)
 				} else if uids, e := values["entry[]"]; e {
 					h.Backend.MarkRead(channel, uids)
-				} else if uids, e := values["entry[0]"]; e {
-					h.Backend.MarkRead(channel, uids)
 				} else {
-					log.Println("timeline mark_read value not found")
+					uids := []string{}
+					for k, v := range values {
+						if entryRegex.MatchString(k) {
+							uids = append(uids, v...)
+						}
+					}
+					h.Backend.MarkRead(channel, uids)
 				}
 			} else {
 				log.Printf("unknown method in timeline %s\n", method)
