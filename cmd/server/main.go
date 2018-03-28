@@ -253,6 +253,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			jw.Encode(map[string][]microsub.Feed{
 				"items": following,
 			})
+		} else {
+			log.Printf("unknown action %s\n", action)
 		}
 		return
 	} else if r.Method == http.MethodPost {
@@ -319,10 +321,12 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					log.Println("timeline mark_read value not found")
 				}
 			} else {
-				log.Println("unknown method in timeline %s")
+				log.Printf("unknown method in timeline %s\n", method)
 			}
 			w.Header().Add("Content-Type", "application/json")
 			fmt.Fprintln(w, "[]")
+		} else {
+			log.Printf("unknown action %s\n", action)
 		}
 
 		return
