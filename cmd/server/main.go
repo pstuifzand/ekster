@@ -165,9 +165,11 @@ type TokenResponse struct {
 var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")
 
 func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) bool {
+	log.Println("Cached checking Auth Token")
+
 	token := authHeaderRegex.FindString(header)
 	if token == "" {
-		log.Println("Not token found in the header")
+		log.Println("No token found in the header")
 		return false
 	}
 	key := fmt.Sprintf("token:%s", token)
@@ -207,6 +209,7 @@ func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) 
 }
 
 func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bool {
+	log.Println("Checking auth token")
 	req, err := http.NewRequest("GET", "https://publog.stuifzandapp.com/authtoken", nil)
 	if err != nil {
 		log.Println(err)
@@ -237,6 +240,7 @@ func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bo
 		return false
 	}
 
+	log.Println("Auth Token: Success")
 	return true
 }
 
