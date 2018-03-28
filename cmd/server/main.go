@@ -313,6 +313,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					h.Backend.MarkRead(channel, uids)
 				} else if uids, e := values["entry[]"]; e {
 					h.Backend.MarkRead(channel, uids)
+				} else if uids, e := values["entry[0]"]; e {
+					h.Backend.MarkRead(channel, uids)
 				}
 			}
 			w.Header().Add("Content-Type", "application/json")
