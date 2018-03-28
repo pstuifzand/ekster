@@ -177,12 +177,12 @@ func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) 
 	var err error
 
 	values, err := redis.Values(h.Redis.Do("HGETALL", key))
-	if err == nil {
+	if err == nil && len(values) > 0 {
 		if err = redis.ScanStruct(values, r); err == nil {
 			return true
 		}
 	} else {
-		log.Printf("Error while HGETTALL %v\n", err)
+		log.Printf("Error while HGETALL %v\n", err)
 	}
 
 	authorized := h.checkAuthToken(header, r)
