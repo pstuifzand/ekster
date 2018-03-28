@@ -196,7 +196,7 @@ func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) 
 			log.Printf("Error while setting token: %v\n", err)
 			return authorized
 		}
-		_, err = h.Redis.Do("EXPIRE", key, uint64(10*time.Minute))
+		_, err = h.Redis.Do("EXPIRE", key, uint64(10*time.Minute/time.Second))
 		if err != nil {
 			log.Printf("Error while setting expire on token: %v\n", err)
 			log.Println("Deleting token")
