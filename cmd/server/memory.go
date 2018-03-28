@@ -273,8 +273,10 @@ func (b *memoryBackend) PreviewURL(previewURL string) microsub.Timeline {
 }
 
 func (b *memoryBackend) MarkRead(channel string, itemUids []string) {
+	log.Printf("Marking read for %s %v\n", channel, itemUids)
 	args := redis.Args{}.Add(fmt.Sprintf("timeline:%s:read", channel)).AddFlat(itemUids)
 	if _, err := b.Redis.Do("SADD", args...); err != nil {
 		log.Printf("Marking read for channel %s has failed\n", channel)
 	}
+	log.Printf("Marking read success for %s %v\n", channel, itemUids)
 }

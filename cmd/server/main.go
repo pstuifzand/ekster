@@ -303,10 +303,10 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			jw.Encode(map[string][]microsub.Feed{
 				"results": feeds,
 			})
-		} else if action == "timeline" {
+		} else if action == "timeline" || r.PostForm.Get("action") == "timeline" {
 			method := values.Get("method")
 
-			if method == "mark_read" {
+			if method == "mark_read" || r.PostForm.Get("method") == "mark_read" {
 				values = r.PostForm
 				channel := values.Get("channel")
 				if uids, e := values["entry"]; e {
@@ -315,7 +315,11 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					h.Backend.MarkRead(channel, uids)
 				} else if uids, e := values["entry[0]"]; e {
 					h.Backend.MarkRead(channel, uids)
+				} else {
+					log.Println("timeline mark_read value not found")
 				}
+			} else {
+				log.Println("unknown method in timeline %s")
 			}
 			w.Header().Add("Content-Type", "application/json")
 			fmt.Fprintln(w, "[]")
