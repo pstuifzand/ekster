@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -246,7 +247,8 @@ func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bo
 }
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.Redis = pool.Get()
+	var logger = log.New(os.Stdout, "logger: ", log.Lshortfile)
+	h.Redis = redis.NewLoggingConn(pool.Get(), logger, "microsub")
 	defer h.Redis.Close()
 
 	r.ParseForm()
@@ -401,6 +403,8 @@ func newPool(addr string) *redis.Pool {
 func main() {
 	flag.Parse()
 
+	var logger = log.New(os.Stdout, "logger: ", log.Lshortfile)
+
 	createBackend := false
 	args := flag.Args()
 
@@ -412,7 +416,7 @@ func main() {
 
 	pool = newPool(*redisServer)
 
-	conn := pool.Get()
+	conn := redis.NewLoggingConn(pool.Get(), logger, "microsub")
 	defer conn.Close()
 
 	var backend microsub.Microsub
