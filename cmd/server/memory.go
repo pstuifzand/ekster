@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -202,11 +203,20 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 		return strings.Compare(timeA, timeB) > 0
 	})
 
-	items := sort.Reverse(items)
+	reverseSlice(items)
 
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
 		Items:  items,
+	}
+}
+
+//panic if s is not a slice
+func reverseSlice(s interface{}) {
+	size := reflect.ValueOf(s).Len()
+	swap := reflect.Swapper(s)
+	for i, j := 0, size-1; i < j; i, j = i+1, j-1 {
+		swap(i, j)
 	}
 }
 
