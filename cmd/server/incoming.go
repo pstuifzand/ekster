@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -27,6 +28,12 @@ var (
 
 func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
+	r.ParseForm()
+	log.Printf("%s %s\n", r.Method, r.URL)
+	log.Println(r.URL.Query())
+	log.Println(r.PostForm)
+
 	if r.Method == http.MethodGet {
 		values := r.URL.Query()
 
