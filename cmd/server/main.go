@@ -22,7 +22,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -45,8 +47,68 @@ func init() {
 }
 
 type microsubHandler struct {
-	Backend microsub.Microsub
-	Redis   redis.Conn
+	Backend            microsub.Microsub
+	HubIncomingBackend HubBackend
+	Redis              redis.Conn
+}
+
+type hubIncomingBackend struct {
+	conn redis.Conn
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func randStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
+
+func (h *hubIncomingBackend) GetSecret(id int64) string {
+	secret, err := redis.String(h.conn.Do("HGET", fmt.Sprintf("feed:%d", id), "secret"))
+	if err != nil {
+		return ""
+	}
+	return secret
+}
+
+var hubUrl = "https://hub.stuifzandapp.com/"
+
+func (h *hubIncomingBackend) CreateFeed(topic string) int64 {
+	id, err := redis.Int64(h.conn.Do("INCR", "feed:next_id"))
+	if err != nil {
+		log.Println(err)
+	}
+
+	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "url", topic)
+	secret := randStringBytes(16)
+	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "secret", secret)
+
+	hub, err := url.Parse(hubUrl)
+	q := hub.Query()
+	q.Add("hub.mode", "subscribe")
+	q.Add("hub.callback", fmt.Sprintf("https://microsub.stuifzandapp.com/incoming/%d", id))
+	q.Add("hub.topic", topic)
+	q.Add("hub.secret", secret)
+	hub.RawQuery = q.Encode()
+
+	req, err := http.NewRequest("GET", hub.String(), nil)
+	if err != nil {
+		log.Printf("new request: %s\n", err)
+		return -1
+	}
+
+	client := &http.Client{}
+
+	_, err = client.Do(req)
+	if err != nil {
+		log.Printf("subscription request: %s\n", err)
+		return -1
+	}
+
+	return id
 }
 
 func simplify(itemType string, item map[string][]interface{}) map[string]interface{} {
@@ -345,7 +407,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "follow" {
 			uid := values.Get("channel")
 			url := values.Get("url")
-
+			h.HubIncomingBackend.CreateFeed(url)
 			feed := h.Backend.FollowURL(uid, url)
 			w.Header().Add("Content-Type", "application/json")
 			jw := json.NewEncoder(w)
@@ -432,6 +494,15 @@ func main() {
 		backend = loadMemoryBackend(conn)
 	}
 
-	http.Handle("/microsub", &microsubHandler{backend, nil})
+	hubBackend := hubIncomingBackend{conn}
+
+	http.Handle("/microsub", &microsubHandler{
+		Backend:            backend,
+		HubIncomingBackend: &hubBackend,
+		Redis:              nil,
+	})
+	http.Handle("/incoming/", &incomingHandler{
+		Backend: &hubBackend,
+	})
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }
