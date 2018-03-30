@@ -94,6 +94,7 @@ func (h *hubIncomingBackend) CreateFeed(topic string) int64 {
 	q.Add("hub.secret", secret)
 	hub.RawQuery = q.Encode()
 
+	log.Printf("POST %s\n", hub)
 	req, err := http.NewRequest("POST", hub.String(), nil)
 	if err != nil {
 		log.Printf("new request: %s\n", err)
@@ -102,11 +103,14 @@ func (h *hubIncomingBackend) CreateFeed(topic string) int64 {
 
 	client := &http.Client{}
 
-	_, err = client.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
 		log.Printf("subscription request: %s\n", err)
 		return -1
 	}
+	defer res.Body.Close()
+
+	fmt.Println(res)
 
 	return id
 }
