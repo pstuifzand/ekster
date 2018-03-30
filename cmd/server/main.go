@@ -94,7 +94,7 @@ func (h *hubIncomingBackend) CreateFeed(topic string) int64 {
 	q.Add("hub.secret", secret)
 	hub.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", hub.String(), nil)
+	req, err := http.NewRequest("POST", hub.String(), nil)
 	if err != nil {
 		log.Printf("new request: %s\n", err)
 		return -1
