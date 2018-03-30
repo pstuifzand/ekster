@@ -92,19 +92,13 @@ func (h *hubIncomingBackend) CreateFeed(topic string) int64 {
 	q.Add("hub.callback", fmt.Sprintf("https://microsub.stuifzandapp.com/incoming/%d", id))
 	q.Add("hub.topic", topic)
 	q.Add("hub.secret", secret)
+	hub.RawQuery = ""
 
 	log.Printf("POST %s\n", hub)
-	req, err := http.NewRequest("POST", hub.String(), q)
+	client := &http.Client{}
+	res, err := client.PostForm(hub.String(), q)
 	if err != nil {
 		log.Printf("new request: %s\n", err)
-		return -1
-	}
-
-	client := &http.Client{}
-
-	res, err := client.Do(req)
-	if err != nil {
-		log.Printf("subscription request: %s\n", err)
 		return -1
 	}
 	defer res.Body.Close()
