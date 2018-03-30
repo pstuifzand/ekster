@@ -92,10 +92,9 @@ func (h *hubIncomingBackend) CreateFeed(topic string) int64 {
 	q.Add("hub.callback", fmt.Sprintf("https://microsub.stuifzandapp.com/incoming/%d", id))
 	q.Add("hub.topic", topic)
 	q.Add("hub.secret", secret)
-	hub.RawQuery = q.Encode()
 
 	log.Printf("POST %s\n", hub)
-	req, err := http.NewRequest("POST", hub.String(), nil)
+	req, err := http.NewRequest("POST", hub.String(), q)
 	if err != nil {
 		log.Printf("new request: %s\n", err)
 		return -1
