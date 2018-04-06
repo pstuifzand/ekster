@@ -133,8 +133,18 @@ func (b *memoryBackend) ChannelsDelete(uid string) {
 func mapToItem(result map[string]interface{}) microsub.Item {
 	item := microsub.Item{}
 
+	item.Type = "entry"
+
 	if name, e := result["name"]; e {
 		item.Name = name.(string)
+	}
+
+	if url, e := result["url"]; e {
+		item.URL = url.(string)
+	}
+
+	if uid, e := result["uid"]; e {
+		item.UID = uid.(string)
 	}
 
 	if content, e := result["content"]; e {
@@ -305,12 +315,15 @@ func (b *memoryBackend) Search(query string) []microsub.Feed {
 func (b *memoryBackend) PreviewURL(previewURL string) microsub.Timeline {
 	md, err := Fetch2(previewURL)
 	if err != nil {
+		log.Println(err)
 		return microsub.Timeline{}
 	}
 	results := simplifyMicroformatData(md)
+	log.Println(results)
 	items := []microsub.Item{}
 	for _, r := range results {
 		item := mapToItem(r)
+		log.Println(item)
 		items = append(items, item)
 	}
 	return microsub.Timeline{

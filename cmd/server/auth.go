@@ -23,7 +23,6 @@ type TokenResponse struct {
 var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")
 
 func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) bool {
-	r.Me = "https://publog.stuifzandapp.com/"
 	log.Println("Cached checking Auth Token")
 
 	tokens := authHeaderRegex.FindStringSubmatch(header)

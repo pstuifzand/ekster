@@ -226,22 +226,11 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			jw.SetIndent("", "    ")
 			jw.Encode(timeline)
 		} else if action == "preview" {
-			md, err := Fetch2(values.Get("url"))
-			if err != nil {
-				log.Println(err)
-				http.Error(w, "Failed parsing url", 500)
-				return
-			}
-
-			results := simplifyMicroformatData(md)
-
+			timeline := h.Backend.PreviewURL(values.Get("url"))
 			jw := json.NewEncoder(w)
 			jw.SetIndent("", "    ")
 			w.Header().Add("Content-Type", "application/json")
-			jw.Encode(map[string]interface{}{
-				"items":  results,
-				"paging": microsub.Pagination{},
-			})
+			jw.Encode(timeline)
 		} else if action == "follow" {
 			channel := values.Get("channel")
 			following := h.Backend.FollowGetList(channel)
