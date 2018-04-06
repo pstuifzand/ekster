@@ -181,6 +181,10 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 		item.Published = published.(string)
 	}
 
+	if updated, e := result["updated"]; e {
+		item.Updated = updated.(string)
+	}
+
 	return item
 }
 

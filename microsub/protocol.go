@@ -54,6 +54,7 @@ type Item struct {
 	Type       string   `json:"type"`
 	Name       string   `json:"name,omitempty"`
 	Published  string   `json:"published"`
+	Updated    string   `json:"updated"`
 	URL        string   `json:"url"`
 	UID        string   `json:"uid"`
 	Author     Author   `json:"author"`
