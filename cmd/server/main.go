@@ -27,12 +27,12 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"strings"
 	"time"
+
+	"rss"
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
-	"willnorris.com/go/microformats"
 )
 
 var (
@@ -74,19 +74,21 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 	return secret
 }
 
-var hubUrl = "https://hub.stuifzandapp.com/"
+var hubURL = "https://hub.stuifzandapp.com/"
 
-func (h *hubIncomingBackend) CreateFeed(topic string) int64 {
+func (h *hubIncomingBackend) CreateFeed(topic string, contentType string) (int64, error) {
 	id, err := redis.Int64(h.conn.Do("INCR", "feed:next_id"))
+
 	if err != nil {
-		log.Println(err)
+		return 0, err
 	}
 
 	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "url", topic)
+	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "type", contentType)
 	secret := randStringBytes(16)
 	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "secret", secret)
 
-	hub, err := url.Parse(hubUrl)
+	hub, err := url.Parse(hubURL)
 	q := hub.Query()
 	q.Add("hub.mode", "subscribe")
 	q.Add("hub.callback", fmt.Sprintf("https://microsub.stuifzandapp.com/incoming/%d", id))
@@ -99,211 +101,87 @@ func (h *hubIncomingBackend) CreateFeed(topic string) int64 {
 	res, err := client.PostForm(hub.String(), q)
 	if err != nil {
 		log.Printf("new request: %s\n", err)
-		return -1
+		return 0, err
 	}
 	defer res.Body.Close()
 
-	fmt.Println(res)
+	filename := fmt.Sprintf("backend/feeds/%d.json", id)
 
-	return id
-}
-
-func simplify(itemType string, item map[string][]interface{}) map[string]interface{} {
-	feedItem := make(map[string]interface{})
-
-	for k, v := range item {
-		if k == "bookmark-of" || k == "like-of" || k == "repost-of" || k == "in-reply-to" {
-			if value, ok := v[0].(*microformats.Microformat); ok {
-
-				mType := value.Type[0][2:]
-				m := simplify(mType, value.Properties)
-				m["type"] = mType
-				feedItem[k] = []interface{}{m}
-			} else {
-				feedItem[k] = v
-			}
-		} else if k == "content" {
-			if content, ok := v[0].(map[string]interface{}); ok {
-				if text, e := content["value"]; e {
-					delete(content, "value")
-					content["text"] = text
-				}
-				feedItem[k] = content
-			}
-		} else if k == "photo" {
-			if itemType == "card" {
-				if len(v) >= 1 {
-					if value, ok := v[0].(string); ok {
-						feedItem[k] = value
-					}
-				}
-			} else {
-				feedItem[k] = v
-			}
-		} else if k == "video" {
-			feedItem[k] = v
-		} else if k == "featured" {
-			feedItem[k] = v
-		} else if value, ok := v[0].(*microformats.Microformat); ok {
-			mType := value.Type[0][2:]
-			m := simplify(mType, value.Properties)
-			m["type"] = mType
-			feedItem[k] = m
-		} else if value, ok := v[0].(string); ok {
-			feedItem[k] = value
-		} else if value, ok := v[0].(map[string]interface{}); ok {
-			feedItem[k] = value
-		} else if value, ok := v[0].([]interface{}); ok {
-			feedItem[k] = value
-		}
-	}
-
-	// Remove "name" when it's equals to "content[text]"
-	if name, e := feedItem["name"]; e {
-		if content, e2 := feedItem["content"]; e2 {
-			if contentMap, ok := content.(map[string]interface{}); ok {
-				if text, e3 := contentMap["text"]; e3 {
-					if strings.TrimSpace(name.(string)) == strings.TrimSpace(text.(string)) {
-						delete(feedItem, "name")
-					}
-				}
-			}
-		}
-	}
-
-	return feedItem
-}
-
-func simplifyMicroformat(item *microformats.Microformat) map[string]interface{} {
-	itemType := item.Type[0][2:]
-	newItem := simplify(itemType, item.Properties)
-	newItem["type"] = itemType
-
-	children := []map[string]interface{}{}
-
-	if len(item.Children) > 0 {
-		for _, c := range item.Children {
-			child := simplifyMicroformat(c)
-			if c, e := child["children"]; e {
-				if ar, ok := c.([]map[string]interface{}); ok {
-					children = append(children, ar...)
-				}
-				delete(child, "children")
-			}
-			children = append(children, child)
-		}
-
-		newItem["children"] = children
-	}
-
-	return newItem
-}
-
-func simplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
-	items := []map[string]interface{}{}
-	for _, item := range md.Items {
-		newItem := simplifyMicroformat(item)
-		items = append(items, newItem)
-		if c, e := newItem["children"]; e {
-			if ar, ok := c.([]map[string]interface{}); ok {
-				items = append(items, ar...)
-			}
-			delete(newItem, "children")
-		}
-	}
-	return items
-}
-
-// TokenResponse is the information that we get back from the token endpoint of the user...
-type TokenResponse struct {
-	Me       string `json:"me"`
-	ClientID string `json:"client_id"`
-	Scope    string `json:"scope"`
-	IssuedAt int64  `json:"issued_at"`
-	Nonce    int64  `json:"nonce"`
-}
-
-var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")
-
-func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) bool {
-	log.Println("Cached checking Auth Token")
-
-	tokens := authHeaderRegex.FindStringSubmatch(header)
-	if len(tokens) != 2 {
-		log.Println("No token found in the header")
-		return false
-	}
-	key := fmt.Sprintf("token:%s", tokens[1])
-
-	var err error
-
-	values, err := redis.Values(h.Redis.Do("HGETALL", key))
-	if err == nil && len(values) > 0 {
-		if err = redis.ScanStruct(values, r); err == nil {
-			return true
-		}
-	} else {
-		log.Printf("Error while HGETALL %v\n", err)
-	}
-
-	authorized := h.checkAuthToken(header, r)
-
-	if authorized {
-		fmt.Printf("Token response: %#v\n", r)
-		_, err = h.Redis.Do("HMSET", redis.Args{}.Add(key).AddFlat(r)...)
-		if err != nil {
-			log.Printf("Error while setting token: %v\n", err)
-			return authorized
-		}
-		_, err = h.Redis.Do("EXPIRE", key, uint64(10*time.Minute/time.Second))
-		if err != nil {
-			log.Printf("Error while setting expire on token: %v\n", err)
-			log.Println("Deleting token")
-			_, err = h.Redis.Do("DEL", key)
-			if err != nil {
-				log.Printf("Deleting token failed: %v", err)
-			}
-			return authorized
-		}
-	}
-
-	return authorized
-}
-
-func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bool {
-	log.Println("Checking auth token")
-	req, err := http.NewRequest("GET", "https://publog.stuifzandapp.com/authtoken", nil)
+	feed, err := rss.Fetch(topic)
 	if err != nil {
-		log.Println(err)
-		return false
+		return 0, err
 	}
+	os.MkdirAll("backend/feeds", 0755)
 
-	req.Header.Add("Authorization", header)
-	req.Header.Add("Accept", "application/json")
-
-	client := http.Client{}
-	res, err := client.Do(req)
+	f, err := os.Create(filename)
 	if err != nil {
-		log.Println(err)
-		return false
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		log.Printf("HTTP StatusCode when verifying token: %d\n", res.StatusCode)
-		return false
+		return 0, err
 	}
 
-	dec := json.NewDecoder(res.Body)
-	err = dec.Decode(&token)
+	defer f.Close()
 
+	out := json.NewEncoder(f)
+	err = out.Encode(feed)
 	if err != nil {
-		log.Printf("Error in json object: %v", err)
-		return false
+		return 0, err
 	}
 
-	log.Println("Auth Token: Success")
-	return true
+	return id, nil
+}
+
+func readFeedFile(filename string) (*rss.Feed, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var feed *rss.Feed
+	out := json.NewDecoder(f)
+	err = out.Decode(feed)
+	if err != nil {
+		return nil, err
+	}
+	return feed, err
+}
+
+func writeFeedFile(filename string, feed *rss.Feed) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+
+	defer f.Close()
+
+	out := json.NewEncoder(f)
+	err = out.Encode(feed)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, content []byte) error {
+	_, err := redis.String(h.conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "url"))
+	if err != nil {
+		return err
+	}
+
+	filename := fmt.Sprintf("backend/feeds/%d.json", feedID)
+
+	feed, err := readFeedFile(filename)
+	if err != nil {
+		return err
+	}
+
+	err = feed.UpdateWithContent(content)
+	if err != nil {
+		return err
+	}
+
+	err = writeFeedFile(filename, feed)
+
+	return err
 }
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -350,6 +228,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "preview" {
 			md, err := Fetch2(values.Get("url"))
 			if err != nil {
+				log.Println(err)
 				http.Error(w, "Failed parsing url", 500)
 				return
 			}
@@ -404,7 +283,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "follow" {
 			uid := values.Get("channel")
 			url := values.Get("url")
-			h.HubIncomingBackend.CreateFeed(url)
+			h.HubIncomingBackend.CreateFeed(url, "application/rss+xml")
 			feed := h.Backend.FollowURL(uid, url)
 			w.Header().Add("Content-Type", "application/json")
 			jw := json.NewEncoder(w)
@@ -487,9 +366,10 @@ func main() {
 
 	if createBackend {
 		backend = createMemoryBackend()
-	} else {
-		backend = loadMemoryBackend(conn)
+		return
 	}
+
+	backend = loadMemoryBackend(conn)
 
 	hubBackend := hubIncomingBackend{conn}
 

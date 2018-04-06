@@ -59,7 +59,7 @@ func (b *NullBackend) ChannelsDelete(uid string) {
 func (b *NullBackend) TimelineGet(after, before, channel string) microsub.Timeline {
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
-		Items:  []map[string]interface{}{},
+		Items:  []microsub.Item{},
 	}
 }
 
@@ -81,7 +81,7 @@ func (b *NullBackend) Search(query string) []microsub.Feed {
 func (b *NullBackend) PreviewURL(url string) microsub.Timeline {
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
-		Items:  []map[string]interface{}{},
+		Items:  []microsub.Item{},
 	}
 }
 

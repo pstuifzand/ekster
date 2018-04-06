@@ -14,8 +14,9 @@ import (
 
 // HubBackend handles information for the incoming handler
 type HubBackend interface {
-	CreateFeed(url string) int64
+	CreateFeed(url string, contentType string) (int64, error)
 	GetSecret(id int64) string
+	UpdateFeed(feedID int64, contentType string, content []byte) error
 }
 
 type incomingHandler struct {
@@ -93,12 +94,17 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ct := r.Header.Get("Content-Type")
 	if strings.HasPrefix(ct, "application/rss+xml") {
 		// RSS parsing
+		h.Backend.UpdateFeed(feed, ct, feedContent)
 	} else if strings.HasPrefix(ct, "application/atom+xml") {
 		// Atom parsing
+		h.Backend.UpdateFeed(feed, ct, feedContent)
 	} else if strings.HasPrefix(ct, "text/html") {
 		// h-entry parsing
+		h.Backend.UpdateFeed(feed, ct, feedContent)
 	} else {
-		http.Error(w, "Unknown format of body", 400)
+		http.Error(w, fmt.Sprintf("Unknown format of body: %s", ct), 400)
 		return
 	}
+
+	return
 }

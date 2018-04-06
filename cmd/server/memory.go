@@ -130,10 +130,35 @@ func (b *memoryBackend) ChannelsDelete(uid string) {
 	}
 }
 
+func mapToItem(result map[string]interface{}) microsub.Item {
+	item := microsub.Item{}
+
+	if name, e := result["name"]; e {
+		item.Name = name.(string)
+	}
+
+	if content, e := result["content"]; e {
+		if c, ok := content.(map[string]interface{}); ok {
+			if html, e2 := c["html"]; e2 {
+				item.Content.HTML = html.(string)
+			}
+			if text, e2 := c["value"]; e2 {
+				item.Content.Text = text.(string)
+			}
+		}
+	}
+
+	if published, e := result["published"]; e {
+		item.Published = published.(string)
+	}
+
+	return item
+}
+
 func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Timeline {
 	feeds := b.FollowGetList(channel)
 
-	items := []map[string]interface{}{}
+	items := []microsub.Item{}
 
 	for _, feed := range feeds {
 		md, err := Fetch2(feed.URL)
@@ -191,15 +216,16 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 				}
 
 				if _, e := r["published"]; e {
-					items = append(items, r)
+					item := mapToItem(r)
+					items = append(items, item)
 				}
 			}
 		}
 	}
 
 	sort.SliceStable(items, func(a, b int) bool {
-		timeA, _ := items[a]["published"].(string)
-		timeB, _ := items[b]["published"].(string)
+		timeA := items[a].Published
+		timeB := items[b].Published
 		return strings.Compare(timeA, timeB) > 0
 	})
 
@@ -282,8 +308,13 @@ func (b *memoryBackend) PreviewURL(previewURL string) microsub.Timeline {
 		return microsub.Timeline{}
 	}
 	results := simplifyMicroformatData(md)
+	items := []microsub.Item{}
+	for _, r := range results {
+		item := mapToItem(r)
+		items = append(items, item)
+	}
 	return microsub.Timeline{
-		Items: results,
+		Items: items,
 	}
 }
 

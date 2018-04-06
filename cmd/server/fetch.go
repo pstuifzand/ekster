@@ -64,7 +64,7 @@ func Fetch2(fetchURL string) (*microformats.Data, error) {
 		log.Printf("MISS %s\n", u.String())
 	}
 
-	resp, err := http.Get(u.String())
+	resp, err := http.Head(u.String())
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching %s: %s", u, err)
 	}

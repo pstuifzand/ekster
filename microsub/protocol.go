@@ -75,8 +75,8 @@ type Pagination struct {
 
 // Timeline is a combination of items and paging information
 type Timeline struct {
-	Items  []map[string]interface{} `json:"items"`
-	Paging Pagination               `json:"paging"`
+	Items  []Item     `json:"items"`
+	Paging Pagination `json:"paging"`
 }
 
 type Feed struct {
