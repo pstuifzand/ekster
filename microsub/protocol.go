@@ -68,7 +68,7 @@ type Item struct {
 	Latitude   string   `json:"latitude,omitempty"`
 	Longitude  string   `json:"longitude,omitempty"`
 	Id         string   `json:"_id"`
-	Read       string   `json:"_is_read"`
+	Read       bool     `json:"_is_read"`
 }
 
 // Pagination contains information about paging
