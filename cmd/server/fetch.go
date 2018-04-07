@@ -1,3 +1,4 @@
+// fetch url in different ways
 /*
    Microsub server
    Copyright (C) 2018  Peter Stuifzand
@@ -18,6 +19,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -27,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
 	"willnorris.com/go/microformats"
 )
@@ -42,6 +45,111 @@ func init() {
 	cache = make(map[string]cacheItem)
 }
 
+// Fetch3 fills stuff
+func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
+	log.Printf("Fetching channel=%s fetchURL=%s\n", channel, fetchURL)
+	channelKey := fmt.Sprintf("channel:%s:posts", channel)
+
+	md, err := Fetch2(fetchURL)
+	if err != nil {
+		return err
+	}
+
+	results := simplifyMicroformatData(md)
+
+	found := -1
+	for {
+		for i, r := range results {
+			if r["type"] == "card" {
+				found = i
+				break
+			}
+		}
+		if found >= 0 {
+			card := results[found]
+			results = append(results[:found], results[found+1:]...)
+			for i := range results {
+				if results[i]["type"] == "entry" && results[i]["author"] == card["url"] {
+					results[i]["author"] = card
+				}
+			}
+			found = -1
+			continue
+		}
+		break
+	}
+
+	for i, r := range results {
+		if as, ok := r["author"].(string); ok {
+			if r["type"] == "entry" && strings.HasPrefix(as, "http") {
+				md, _ := Fetch2(as)
+				author := simplifyMicroformatData(md)
+				for _, a := range author {
+					if a["type"] == "card" {
+						results[i]["author"] = a
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Filter items with "published" date
+	for _, r := range results {
+		r["_is_read"] = b.wasRead(channel, r)
+		if r["_is_read"].(bool) {
+			continue
+		}
+		if uid, e := r["uid"]; e {
+			r["_id"] = hex.EncodeToString([]byte(uid.(string)))
+		} else if uid, e := r["url"]; e {
+			r["_id"] = hex.EncodeToString([]byte(uid.(string)))
+		} else {
+			r["_id"] = "" // generate random value
+		}
+
+		if _, e := r["published"]; e {
+			item := mapToItem(r)
+
+			// send to redis
+
+			data, err := json.Marshal(item)
+			if err != nil {
+				log.Printf("error while creating item for redis: %v\n", err)
+				continue
+			}
+
+			forRedis := redisItem{
+				Id:        item.Id,
+				Published: item.Published,
+				Read:      item.Read,
+				Data:      data,
+			}
+			itemKey := fmt.Sprintf("item:%s", item.Id)
+			_, err = redis.String(b.Redis.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
+			if err != nil {
+				log.Printf("error while writing item for redis: %v\n", err)
+				continue
+			}
+
+			_, err = b.Redis.Do("SADD", channelKey, itemKey)
+			if err != nil {
+				log.Printf("error while adding item %s to channel %s for redis: %v\n", itemKey, channelKey, err)
+				continue
+			}
+		}
+	}
+	return nil
+}
+
+type redisItem struct {
+	Id        string
+	Published string
+	Read      bool
+	Data      []byte
+}
+
+// Fetch2 fetches stuff
 func Fetch2(fetchURL string) (*microformats.Data, error) {
 	if !strings.HasPrefix(fetchURL, "http") {
 		return nil, fmt.Errorf("error parsing %s as url", fetchURL)

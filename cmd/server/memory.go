@@ -26,7 +26,6 @@ import (
 	"net/url"
 	"os"
 	"reflect"
-	"sort"
 	"strings"
 
 	"github.com/garyburd/redigo/redis"
@@ -50,10 +49,16 @@ func (b *memoryBackend) Debug() {
 
 func (b *memoryBackend) load() {
 	filename := "backend.json"
-	f, _ := os.Open(filename)
+	f, err := os.Open(filename)
+	if err != nil {
+		panic("cant open backend.json")
+	}
 	defer f.Close()
 	jw := json.NewDecoder(f)
-	jw.Decode(b)
+	err = jw.Decode(b)
+	if err != nil {
+		panic("cant open backend.json")
+	}
 }
 
 func (b *memoryBackend) save() {
@@ -179,28 +184,41 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 		}
 	}
 
-	if likeOf, e := result["like-of"]; e {
-		item.LikeOf = likeOf.([]string)
+	if value, e := result["like-of"]; e {
+		for _, v := range value.([]interface{}) {
+			item.LikeOf = append(item.LikeOf, v.(string))
+		}
 	}
 
 	if value, e := result["repost-of"]; e {
-		item.RepostOf = value.([]string)
+		for _, v := range value.([]interface{}) {
+			item.RepostOf = append(item.RepostOf, v.(string))
+		}
 	}
 
 	if value, e := result["bookmark-of"]; e {
-		item.BookmarkOf = value.([]string)
+		for _, v := range value.([]interface{}) {
+			item.BookmarkOf = append(item.BookmarkOf, v.(string))
+		}
 	}
 
 	if value, e := result["in-reply-to"]; e {
-		item.InReplyTo = value.([]string)
+		for _, v := range value.([]interface{}) {
+			item.InReplyTo = append(item.InReplyTo, v.(string))
+		}
 	}
 
 	if value, e := result["photo"]; e {
-		item.Photo = value.([]string)
+		for _, v := range value.([]interface{}) {
+			item.Photo = append(item.Photo, v.(string))
+		}
 	}
 
 	if value, e := result["category"]; e {
 		item.Category = value.([]string)
+		for _, v := range value.([]interface{}) {
+			item.Category = append(item.Category, v.(string))
+		}
 	}
 
 	if published, e := result["published"]; e {
@@ -222,80 +240,39 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 }
 
 func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Timeline {
+	log.Printf("TimelineGet %s\n", channel)
 	feeds := b.FollowGetList(channel)
+	log.Println(feeds)
 
 	items := []microsub.Item{}
 
 	for _, feed := range feeds {
-		md, err := Fetch2(feed.URL)
-		if err == nil {
-			results := simplifyMicroformatData(md)
+		b.Fetch3(channel, feed.URL)
+	}
 
-			found := -1
-			for {
-				for i, r := range results {
-					if r["type"] == "card" {
-						found = i
-						break
-					}
-				}
-				if found >= 0 {
-					card := results[found]
-					results = append(results[:found], results[found+1:]...)
-					for i := range results {
-						if results[i]["type"] == "entry" && results[i]["author"] == card["url"] {
-							results[i]["author"] = card
-						}
-					}
-					found = -1
-					continue
-				}
-				break
-			}
+	channelKey := fmt.Sprintf("channel:%s:posts", channel)
 
-			for i, r := range results {
-				if as, ok := r["author"].(string); ok {
-					if r["type"] == "entry" && strings.HasPrefix(as, "http") {
-						md, _ := Fetch2(as)
-						author := simplifyMicroformatData(md)
-						for _, a := range author {
-							if a["type"] == "card" {
-								results[i]["author"] = a
-								break
-							}
-						}
-					}
-				}
-			}
-
-			// Filter items with "published" date
-			for _, r := range results {
-				r["_is_read"] = b.wasRead(channel, r)
-				if r["_is_read"].(bool) {
-					continue
-				}
-				if uid, e := r["uid"]; e {
-					r["_id"] = hex.EncodeToString([]byte(uid.(string)))
-				}
-				if uid, e := r["url"]; e {
-					r["_id"] = hex.EncodeToString([]byte(uid.(string)))
-				}
-
-				if _, e := r["published"]; e {
-					item := mapToItem(r)
-					items = append(items, item)
-				}
-			}
+	itemJsons, err := redis.ByteSlices(b.Redis.Do("SORT", channelKey, "BY", "*->Published", "GET", "*->Data", "DESC", "ALPHA"))
+	if err != nil {
+		log.Println(err)
+		return microsub.Timeline{
+			Paging: microsub.Pagination{},
+			Items:  items,
 		}
 	}
 
-	sort.SliceStable(items, func(a, b int) bool {
-		timeA := items[a].Published
-		timeB := items[b].Published
-		return strings.Compare(timeA, timeB) > 0
-	})
+	for _, obj := range itemJsons {
+		item := microsub.Item{}
+		json.Unmarshal(obj, &item)
+		items = append(items, item)
+	}
 
-	reverseSlice(items)
+	// sort.SliceStable(items, func(a, b int) bool {
+	// 	timeA := items[a].Published
+	// 	timeB := items[b].Published
+	// 	return strings.Compare(timeA, timeB) > 0
+	// })
+	// reverseSlice(items)
 
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
