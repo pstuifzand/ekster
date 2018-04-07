@@ -141,7 +141,7 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 			item.Content.Text = feedItem.ContentText
 			item.URL = feedItem.URL
 			item.Summary = []string{feedItem.Summary}
-			item.Id = feedItem.ID
+			item.Id = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.DatePublished
 			b.channelAddItem(channel, item)
 		}
@@ -163,7 +163,7 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 			item.Content.HTML = feedItem.Summary
 			item.Content.Text = feedItem.Content
 			item.URL = feedItem.Link
-			item.Id = feedItem.ID
+			item.Id = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.Date.Format(time.RFC822Z)
 			b.channelAddItem(channel, item)
 		}
