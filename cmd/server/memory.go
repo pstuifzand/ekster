@@ -197,50 +197,52 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 		}
 	}
 
-	if value, e := result["like-of"]; e {
-		for _, v := range value.([]interface{}) {
-			item.LikeOf = append(item.LikeOf, v.(string))
-		}
-	}
+	// TODO: Check how to improve this
 
-	if value, e := result["repost-of"]; e {
-		for _, v := range value.([]interface{}) {
-			item.RepostOf = append(item.RepostOf, v.(string))
-		}
-	}
+	// if value, e := result["like-of"]; e {
+	// 	for _, v := range value.([]interface{}) {
+	// 		item.LikeOf = append(item.LikeOf, v.(string))
+	// 	}
+	// }
 
-	if value, e := result["bookmark-of"]; e {
-		for _, v := range value.([]interface{}) {
-			item.BookmarkOf = append(item.BookmarkOf, v.(string))
-		}
-	}
+	// if value, e := result["repost-of"]; e {
+	// 	for _, v := range value.([]interface{}) {
+	// 		item.RepostOf = append(item.RepostOf, v.(string))
+	// 	}
+	// }
 
-	if value, e := result["in-reply-to"]; e {
-		for _, v := range value.([]interface{}) {
-			if replyTo, ok := v.(string); ok {
-				item.InReplyTo = append(item.InReplyTo, replyTo)
-			} else if cite, ok := v.(map[string]interface{}); ok {
-				item.InReplyTo = append(item.InReplyTo, cite["url"].(string))
-			}
-		}
-	}
+	// if value, e := result["bookmark-of"]; e {
+	// 	for _, v := range value.([]interface{}) {
+	// 		item.BookmarkOf = append(item.BookmarkOf, v.(string))
+	// 	}
+	// }
 
-	if value, e := result["photo"]; e {
-		for _, v := range value.([]interface{}) {
-			item.Photo = append(item.Photo, v.(string))
-		}
-	}
+	// if value, e := result["in-reply-to"]; e {
+	// 	for _, v := range value.([]interface{}) {
+	// 		if replyTo, ok := v.(string); ok {
+	// 			item.InReplyTo = append(item.InReplyTo, replyTo)
+	// 		} else if cite, ok := v.(map[string]interface{}); ok {
+	// 			item.InReplyTo = append(item.InReplyTo, cite["url"].(string))
+	// 		}
+	// 	}
+	// }
 
-	if value, e := result["category"]; e {
+	// if value, e := result["photo"]; e {
+	// 	for _, v := range value.([]interface{}) {
+	// 		item.Photo = append(item.Photo, v.(string))
+	// 	}
+	// }
 
-		if cats, ok := value.([]string); ok {
-			for _, v := range cats {
-				item.Category = append(item.Category, v)
-			}
-		} else {
-			item.Category = append(item.Category, value.(string))
-		}
-	}
+	// if value, e := result["category"]; e {
+
+	// 	if cats, ok := value.([]string); ok {
+	// 		for _, v := range cats {
+	// 			item.Category = append(item.Category, v)
+	// 		}
+	// 	} else {
+	// 		item.Category = append(item.Category, value.(string))
+	// 	}
+	// }
 
 	if published, e := result["published"]; e {
 		item.Published = published.(string)
