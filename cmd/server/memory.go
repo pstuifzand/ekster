@@ -177,6 +177,30 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 		}
 	}
 
+	if likeOf, e := result["like-of"]; e {
+		item.LikeOf = likeOf.([]string)
+	}
+
+	if value, e := result["repost-of"]; e {
+		item.RepostOf = value.([]string)
+	}
+
+	if value, e := result["bookmark-of"]; e {
+		item.BookmarkOf = value.([]string)
+	}
+
+	if value, e := result["in-reply-to"]; e {
+		item.InReplyTo = value.([]string)
+	}
+
+	if value, e := result["photo"]; e {
+		item.Photo = value.([]string)
+	}
+
+	if value, e := result["category"]; e {
+		item.Category = value.([]string)
+	}
+
 	if published, e := result["published"]; e {
 		item.Published = published.(string)
 	}

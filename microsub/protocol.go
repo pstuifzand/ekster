@@ -62,6 +62,7 @@ type Item struct {
 	Photo      []string `json:"photo"`
 	LikeOf     []string `json:"like-of"`
 	BookmarkOf []string `json:"bookmark-of"`
+	RepostOf   []string `json:"repost-of"`
 	InReplyTo  []string `json:"in-reply-to"`
 	Summary    []string `json:"summary,omitempty"`
 	Content    Content  `json:"content,omitempty"`
