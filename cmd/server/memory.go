@@ -22,6 +22,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"reflect"
 	"sort"
@@ -359,11 +361,72 @@ func (b *memoryBackend) UnfollowURL(uid string, url string) {
 	}
 }
 
-// TODO: improve search for feeds, perhaps even with mf2 parser
-func (b *memoryBackend) Search(query string) []microsub.Feed {
-	return []microsub.Feed{
-		microsub.Feed{Type: "feed", URL: query},
+func checkURL(u string) bool {
+	testURL, err := url.Parse(u)
+	if err != nil {
+		return false
 	}
+
+	resp, err := http.Head(testURL.String())
+
+	if err != nil {
+		log.Printf("Error while HEAD %s: %v\n", u, err)
+		return false
+	}
+
+	defer resp.Body.Close()
+
+	return resp.StatusCode == 200
+}
+
+func getPossibleURLs(query string) []string {
+	urls := []string{}
+	if !(strings.HasPrefix(query, "https://") || strings.HasPrefix(query, "http://")) {
+		secureURL := "https://" + query
+		if checkURL(secureURL) {
+			urls = append(urls, secureURL)
+		} else {
+			unsecureURL := "http://" + query
+			if checkURL(unsecureURL) {
+				urls = append(urls, unsecureURL)
+			}
+		}
+	} else {
+		urls = append(urls, query)
+	}
+	return urls
+}
+
+func (b *memoryBackend) Search(query string) []microsub.Feed {
+	urls := getPossibleURLs(query)
+
+	feeds := []microsub.Feed{}
+
+	for _, u := range urls {
+		md, err := Fetch2(u)
+		if err != nil {
+			log.Printf("Error while fetching %s: %v\n", u, err)
+			continue
+		}
+
+		feeds = append(feeds, microsub.Feed{Type: "feed", URL: u})
+
+		if alts, e := md.Rels["alternate"]; e {
+			for _, alt := range alts {
+				relURL := md.RelURLs[alt]
+				log.Printf("alternate found with type %s %#v\n", relURL.Type, relURL)
+				if relURL.Type == "application/rss+xml" {
+					feeds = append(feeds, microsub.Feed{Type: "feed", URL: alt})
+				} else if relURL.Type == "application/atom+xml" {
+					feeds = append(feeds, microsub.Feed{Type: "feed", URL: alt})
+				} else if relURL.Type == "application/json" {
+					feeds = append(feeds, microsub.Feed{Type: "feed", URL: alt})
+				}
+			}
+		}
+	}
+
+	return feeds
 }
 
 func (b *memoryBackend) PreviewURL(previewURL string) microsub.Timeline {
