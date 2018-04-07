@@ -304,6 +304,7 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 	for _, obj := range itemJsons {
 		item := microsub.Item{}
 		json.Unmarshal(obj, &item)
+		item.Read = b.checkRead(channel, item.Id)
 		items = append(items, item)
 	}
 
