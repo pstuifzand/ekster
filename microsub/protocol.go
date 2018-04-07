@@ -39,14 +39,14 @@ type Channel struct {
 type Author struct {
 	Filled bool   `json:"-"`
 	Type   string `json:"type"`
-	Name   string `json:"name"`
-	URL    string `json:"url"`
-	Photo  string `json:"photo"`
+	Name   string `json:"name,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Photo  string `json:"photo,omitempty"`
 }
 
 type Content struct {
-	Text string `json:"text"`
-	HTML string `json:"html"`
+	Text string `json:"text,omitempty"`
+	HTML string `json:"html,omitempty"`
 }
 
 // Item is a post object

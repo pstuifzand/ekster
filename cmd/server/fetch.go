@@ -145,7 +145,7 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 			item.Published = feedItem.DatePublished
 			b.channelAddItem(channel, item)
 		}
-	} else if strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") {
+	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			log.Printf("Error while parsing rss/atom feed: %s\n", err)
@@ -161,6 +161,7 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 			var item microsub.Item
 			item.Name = feedItem.Title
 			item.Content.HTML = feedItem.Content
+			item.Content.Text = feedItem.Content
 			item.URL = feedItem.Link
 			item.Summary = []string{feedItem.Summary}
 			item.Id = feedItem.ID
