@@ -49,6 +49,9 @@ func init() {
 }
 
 func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
+	log.Printf("ProcessContent %s\n", fetchURL)
+	log.Println("Found " + contentType)
+
 	items := []microsub.Item{}
 
 	u, _ := url.Parse(fetchURL)
@@ -156,7 +159,6 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			item.Published = feedItem.Date.Format(time.RFC822Z)
 			items = append(items, item)
 		}
-
 	} else {
 		log.Printf("Unknown Content-Type: %s\n", contentType)
 	}
@@ -164,9 +166,6 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 }
 
 func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
-	log.Printf("ProcessContent %s\n", fetchURL)
-	log.Println("Found " + contentType)
-
 	items, err := b.feedItems(fetchURL, contentType, body)
 	if err != nil {
 		return err
