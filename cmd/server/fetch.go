@@ -160,10 +160,9 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 		for _, feedItem := range feed.Items {
 			var item microsub.Item
 			item.Name = feedItem.Title
-			item.Content.HTML = feedItem.Content
+			item.Content.HTML = feedItem.Summary
 			item.Content.Text = feedItem.Content
 			item.URL = feedItem.Link
-			item.Summary = []string{feedItem.Summary}
 			item.Id = feedItem.ID
 			item.Published = feedItem.Date.Format(time.RFC822Z)
 			b.channelAddItem(channel, item)
