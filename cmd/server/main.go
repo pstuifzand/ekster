@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -28,8 +29,6 @@ import (
 	"os"
 	"regexp"
 	"time"
-
-	"rss"
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
@@ -53,7 +52,8 @@ type microsubHandler struct {
 }
 
 type hubIncomingBackend struct {
-	conn redis.Conn
+	backend *memoryBackend
+	conn    redis.Conn
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -76,7 +76,7 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 
 var hubURL = "https://hub.stuifzandapp.com/"
 
-func (h *hubIncomingBackend) CreateFeed(topic string, contentType string) (int64, error) {
+func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, error) {
 	id, err := redis.Int64(h.conn.Do("INCR", "feed:next_id"))
 
 	if err != nil {
@@ -84,7 +84,7 @@ func (h *hubIncomingBackend) CreateFeed(topic string, contentType string) (int64
 	}
 
 	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "url", topic)
-	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "type", contentType)
+	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "channel", channel)
 	secret := randStringBytes(16)
 	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "secret", secret)
 
@@ -105,81 +105,20 @@ func (h *hubIncomingBackend) CreateFeed(topic string, contentType string) (int64
 	}
 	defer res.Body.Close()
 
-	filename := fmt.Sprintf("backend/feeds/%d.json", id)
-
-	feed, err := rss.Fetch(topic)
-	if err != nil {
-		return 0, err
-	}
-	os.MkdirAll("backend/feeds", 0755)
-
-	f, err := os.Create(filename)
-	if err != nil {
-		return 0, err
-	}
-
-	defer f.Close()
-
-	out := json.NewEncoder(f)
-	err = out.Encode(feed)
-	if err != nil {
-		return 0, err
-	}
-
 	return id, nil
 }
 
-func readFeedFile(filename string) (*rss.Feed, error) {
-	f, err := os.Open(filename)
+func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body io.Reader) error {
+	u, err := redis.String(h.conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "url"))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	defer f.Close()
-	var feed *rss.Feed
-	out := json.NewDecoder(f)
-	err = out.Decode(feed)
-	if err != nil {
-		return nil, err
-	}
-	return feed, err
-}
-
-func writeFeedFile(filename string, feed *rss.Feed) error {
-	f, err := os.Create(filename)
+	channel, err := redis.String(h.conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "channel"))
 	if err != nil {
 		return err
 	}
 
-	defer f.Close()
-
-	out := json.NewEncoder(f)
-	err = out.Encode(feed)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, content []byte) error {
-	_, err := redis.String(h.conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "url"))
-	if err != nil {
-		return err
-	}
-
-	filename := fmt.Sprintf("backend/feeds/%d.json", feedID)
-
-	feed, err := readFeedFile(filename)
-	if err != nil {
-		return err
-	}
-
-	err = feed.UpdateWithContent(content)
-	if err != nil {
-		return err
-	}
-
-	err = writeFeedFile(filename, feed)
+	h.backend.ProcessContent(channel, u, contentType, body)
 
 	return err
 }
@@ -272,7 +211,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "follow" {
 			uid := values.Get("channel")
 			url := values.Get("url")
-			h.HubIncomingBackend.CreateFeed(url, "application/rss+xml")
+			h.HubIncomingBackend.CreateFeed(url, uid)
 			feed := h.Backend.FollowURL(uid, url)
 			w.Header().Add("Content-Type", "application/json")
 			jw := json.NewEncoder(w)
@@ -360,7 +299,7 @@ func main() {
 
 	backend = loadMemoryBackend(conn)
 
-	hubBackend := hubIncomingBackend{conn}
+	hubBackend := hubIncomingBackend{backend.(*memoryBackend), conn}
 
 	http.Handle("/microsub", &microsubHandler{
 		Backend:            backend,

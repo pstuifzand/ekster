@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha1"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -14,9 +16,9 @@ import (
 
 // HubBackend handles information for the incoming handler
 type HubBackend interface {
-	CreateFeed(url string, contentType string) (int64, error)
+	CreateFeed(url, channel string) (int64, error)
 	GetSecret(id int64) string
-	UpdateFeed(feedID int64, contentType string, content []byte) error
+	UpdateFeed(feedID int64, contentType string, body io.Reader) error
 }
 
 type incomingHandler struct {
@@ -92,17 +94,9 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ct := r.Header.Get("Content-Type")
-	if strings.HasPrefix(ct, "application/rss+xml") {
-		// RSS parsing
-		h.Backend.UpdateFeed(feed, ct, feedContent)
-	} else if strings.HasPrefix(ct, "application/atom+xml") {
-		// Atom parsing
-		h.Backend.UpdateFeed(feed, ct, feedContent)
-	} else if strings.HasPrefix(ct, "text/html") {
-		// h-entry parsing
-		h.Backend.UpdateFeed(feed, ct, feedContent)
-	} else {
-		http.Error(w, fmt.Sprintf("Unknown format of body: %s", ct), 400)
+	err = h.Backend.UpdateFeed(feed, ct, bytes.NewBuffer(feedContent))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Unknown format of body: %s (%s)", ct, err), 400)
 		return
 	}
 

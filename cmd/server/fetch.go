@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -47,21 +48,12 @@ func init() {
 	cache = make(map[string]cacheItem)
 }
 
-// Fetch3 fills stuff
-func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
-	log.Printf("Fetching channel=%s fetchURL=%s\n", channel, fetchURL)
-
-	resp, err := Fetch2(fetchURL)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
 	u, _ := url.Parse(fetchURL)
 
-	contentType := resp.Header.Get("Content-Type")
 	log.Println("Found " + contentType)
 	if strings.HasPrefix(contentType, "text/html") {
-		data := microformats.Parse(resp.Body, u)
+		data := microformats.Parse(body, u)
 		results := simplifyMicroformatData(data)
 		found := -1
 		for {
@@ -128,8 +120,8 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 		}
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
 		var feed JSONFeed
-		dec := json.NewDecoder(resp.Body)
-		err = dec.Decode(&feed)
+		dec := json.NewDecoder(body)
+		err := dec.Decode(&feed)
 		if err != nil {
 			log.Printf("Error while parsing json feed: %s\n", err)
 			return err
@@ -146,7 +138,7 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 			b.channelAddItem(channel, item)
 		}
 	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := ioutil.ReadAll(body)
 		if err != nil {
 			log.Printf("Error while parsing rss/atom feed: %s\n", err)
 			return err
@@ -171,8 +163,20 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 	} else {
 		log.Printf("Unknown Content-Type: %s\n", contentType)
 	}
-
 	return nil
+}
+
+// Fetch3 fills stuff
+func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
+	log.Printf("Fetching channel=%s fetchURL=%s\n", channel, fetchURL)
+
+	resp, err := Fetch2(fetchURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return b.ProcessContent(channel, fetchURL, resp.Header.Get("Content-Type"), resp.Body)
 }
 
 func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
