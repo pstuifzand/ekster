@@ -135,6 +135,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 			item.Summary = []string{feedItem.Summary}
 			item.Id = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.DatePublished
+			item.Read = b.checkRead(channel, item.Id)
 			b.channelAddItem(channel, item)
 		}
 	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") {
@@ -157,6 +158,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 			item.URL = feedItem.Link
 			item.Id = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.Date.Format(time.RFC822Z)
+			item.Read = b.checkRead(channel, item.Id)
 			b.channelAddItem(channel, item)
 		}
 
