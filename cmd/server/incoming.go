@@ -63,6 +63,7 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// find secret
 	secret := h.Backend.GetSecret(feed)
 	if secret == "" {
+		log.Printf("missing secret for feed %d\n", feed)
 		http.Error(w, "Unknown", 400)
 		return
 	}
@@ -72,11 +73,13 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(sig, "=")
 
 	if len(parts) != 2 {
+		log.Printf("signature format %d %#v\n", feed, parts)
 		http.Error(w, "Signature format", 400)
 		return
 	}
 
-	if sig != "sha1" {
+	if parts[0] != "sha1" {
+		log.Printf("signature format %d %s\n", feed, sig)
 		http.Error(w, "Unknown signature format", 400)
 		return
 	}
@@ -89,6 +92,7 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	signature := mac.Sum(nil)
 
 	if fmt.Sprintf("%x", signature) != parts[1] {
+		log.Printf("signature no match feed=%d %s %s\n", feed, Signature, parts[1])
 		http.Error(w, "Signature doesn't match", 400)
 		return
 	}

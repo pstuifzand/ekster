@@ -109,6 +109,7 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 }
 
 func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body io.Reader) error {
+	log.Printf("updating feed %d", feedID)
 	u, err := redis.String(h.conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "url"))
 	if err != nil {
 		return err
@@ -118,6 +119,7 @@ func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body i
 		return err
 	}
 
+	log.Printf("updating feed %d - %s %s\n", feedID, u, channel)
 	h.backend.ProcessContent(channel, u, contentType, body)
 
 	return err
