@@ -370,5 +370,6 @@ func main() {
 	http.Handle("/incoming/", &incomingHandler{
 		Backend: &hubBackend,
 	})
+	backend.(*memoryBackend).run()
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }
