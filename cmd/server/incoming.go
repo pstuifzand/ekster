@@ -92,7 +92,7 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	signature := mac.Sum(nil)
 
 	if fmt.Sprintf("%x", signature) != parts[1] {
-		log.Printf("signature no match feed=%d %s %s\n", feed, Signature, parts[1])
+		log.Printf("signature no match feed=%d %s %s\n", feed, signature, parts[1])
 		http.Error(w, "Signature doesn't match", 400)
 		return
 	}
