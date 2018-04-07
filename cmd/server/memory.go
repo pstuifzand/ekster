@@ -452,23 +452,12 @@ func (b *memoryBackend) PreviewURL(previewURL string) microsub.Timeline {
 		log.Printf("Error while fetching %s: %v\n", previewURL, err)
 		return microsub.Timeline{}
 	}
-	fetchUrl, err := url.Parse(previewURL)
-	md := microformats.Parse(resp.Body, fetchUrl)
+	items, err := b.feedItems(previewURL, resp.Header.Get("content-type"), resp.Body)
 	if err != nil {
 		log.Printf("Error while fetching %s: %v\n", previewURL, err)
 		return microsub.Timeline{}
 	}
-	if err != nil {
-		log.Println(err)
-		return microsub.Timeline{}
-	}
-	results := simplifyMicroformatData(md)
-	log.Println(results)
-	items := []microsub.Item{}
-	for _, r := range results {
-		item := mapToItem(r)
-		items = append(items, item)
-	}
+
 	return microsub.Timeline{
 		Items: items,
 	}

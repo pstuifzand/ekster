@@ -48,10 +48,11 @@ func init() {
 	cache = make(map[string]cacheItem)
 }
 
-func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
+func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
+	items := []microsub.Item{}
+
 	u, _ := url.Parse(fetchURL)
 
-	log.Println("Found " + contentType)
 	if strings.HasPrefix(contentType, "text/html") {
 		data := microformats.Parse(body, u)
 		results := simplifyMicroformatData(data)
@@ -82,7 +83,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 				if r["type"] == "entry" && strings.HasPrefix(as, "http") {
 					resp, err := Fetch2(fetchURL)
 					if err != nil {
-						return err
+						return items, err
 					}
 					defer resp.Body.Close()
 					u, _ := url.Parse(fetchURL)
@@ -101,10 +102,6 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 
 		// Filter items with "published" date
 		for _, r := range results {
-			r["_is_read"] = b.wasRead(channel, r)
-			if r["_is_read"].(bool) {
-				continue
-			}
 			if uid, e := r["uid"]; e {
 				r["_id"] = hex.EncodeToString([]byte(uid.(string)))
 			} else if uid, e := r["url"]; e {
@@ -115,7 +112,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 
 			if _, e := r["published"]; e {
 				item := mapToItem(r)
-				b.channelAddItem(channel, item)
+				items = append(items, item)
 			}
 		}
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
@@ -124,7 +121,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 		err := dec.Decode(&feed)
 		if err != nil {
 			log.Printf("Error while parsing json feed: %s\n", err)
-			return err
+			return items, err
 		}
 		for _, feedItem := range feed.Items {
 			var item microsub.Item
@@ -135,19 +132,18 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 			item.Summary = []string{feedItem.Summary}
 			item.Id = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.DatePublished
-			item.Read = b.checkRead(channel, item.Id)
-			b.channelAddItem(channel, item)
+			items = append(items, item)
 		}
 	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") {
 		body, err := ioutil.ReadAll(body)
 		if err != nil {
 			log.Printf("Error while parsing rss/atom feed: %s\n", err)
-			return err
+			return items, err
 		}
 		feed, err := rss.Parse(body)
 		if err != nil {
 			log.Printf("Error while parsing rss/atom feed: %s\n", err)
-			return err
+			return items, err
 		}
 
 		for _, feedItem := range feed.Items {
@@ -158,13 +154,32 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 			item.URL = feedItem.Link
 			item.Id = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.Date.Format(time.RFC822Z)
-			item.Read = b.checkRead(channel, item.Id)
-			b.channelAddItem(channel, item)
+			items = append(items, item)
 		}
 
 	} else {
 		log.Printf("Unknown Content-Type: %s\n", contentType)
 	}
+	return items, nil
+}
+
+func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
+	log.Printf("ProcessContent %s\n", fetchURL)
+	log.Println("Found " + contentType)
+
+	items, err := b.feedItems(fetchURL, contentType, body)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range items {
+		item.Read = b.checkRead(channel, item.Id)
+		if item.Read {
+			continue
+		}
+		b.channelAddItem(channel, item)
+	}
+
 	return nil
 }
 
