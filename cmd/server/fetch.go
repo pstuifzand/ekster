@@ -22,10 +22,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"rss"
 	"strings"
 	"time"
 
@@ -49,69 +51,126 @@ func init() {
 func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 	log.Printf("Fetching channel=%s fetchURL=%s\n", channel, fetchURL)
 
-	md, err := Fetch2(fetchURL)
+	resp, err := Fetch2(fetchURL)
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+	u, _ := url.Parse(fetchURL)
 
-	results := simplifyMicroformatData(md)
-
-	found := -1
-	for {
-		for i, r := range results {
-			if r["type"] == "card" {
-				found = i
-				break
-			}
-		}
-		if found >= 0 {
-			card := results[found]
-			results = append(results[:found], results[found+1:]...)
-			for i := range results {
-				if results[i]["type"] == "entry" && results[i]["author"] == card["url"] {
-					results[i]["author"] = card
+	contentType := resp.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "text/html") {
+		data := microformats.Parse(resp.Body, u)
+		results := simplifyMicroformatData(data)
+		found := -1
+		for {
+			for i, r := range results {
+				if r["type"] == "card" {
+					found = i
+					break
 				}
 			}
-			found = -1
-			continue
+			if found >= 0 {
+				card := results[found]
+				results = append(results[:found], results[found+1:]...)
+				for i := range results {
+					if results[i]["type"] == "entry" && results[i]["author"] == card["url"] {
+						results[i]["author"] = card
+					}
+				}
+				found = -1
+				continue
+			}
+			break
 		}
-		break
-	}
 
-	for i, r := range results {
-		if as, ok := r["author"].(string); ok {
-			if r["type"] == "entry" && strings.HasPrefix(as, "http") {
-				md, _ := Fetch2(as)
-				author := simplifyMicroformatData(md)
-				for _, a := range author {
-					if a["type"] == "card" {
-						results[i]["author"] = a
-						break
+		for i, r := range results {
+			if as, ok := r["author"].(string); ok {
+				if r["type"] == "entry" && strings.HasPrefix(as, "http") {
+					resp, err := Fetch2(fetchURL)
+					if err != nil {
+						return err
+					}
+					defer resp.Body.Close()
+					u, _ := url.Parse(fetchURL)
+
+					md := microformats.Parse(resp.Body, u)
+					author := simplifyMicroformatData(md)
+					for _, a := range author {
+						if a["type"] == "card" {
+							results[i]["author"] = a
+							break
+						}
 					}
 				}
 			}
 		}
-	}
 
-	// Filter items with "published" date
-	for _, r := range results {
-		r["_is_read"] = b.wasRead(channel, r)
-		if r["_is_read"].(bool) {
-			continue
-		}
-		if uid, e := r["uid"]; e {
-			r["_id"] = hex.EncodeToString([]byte(uid.(string)))
-		} else if uid, e := r["url"]; e {
-			r["_id"] = hex.EncodeToString([]byte(uid.(string)))
-		} else {
-			r["_id"] = "" // generate random value
-		}
+		// Filter items with "published" date
+		for _, r := range results {
+			r["_is_read"] = b.wasRead(channel, r)
+			if r["_is_read"].(bool) {
+				continue
+			}
+			if uid, e := r["uid"]; e {
+				r["_id"] = hex.EncodeToString([]byte(uid.(string)))
+			} else if uid, e := r["url"]; e {
+				r["_id"] = hex.EncodeToString([]byte(uid.(string)))
+			} else {
+				r["_id"] = "" // generate random value
+			}
 
-		if _, e := r["published"]; e {
-			item := mapToItem(r)
+			if _, e := r["published"]; e {
+				item := mapToItem(r)
+				b.channelAddItem(channel, item)
+			}
+		}
+	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
+		var feed JSONFeed
+		dec := json.NewDecoder(resp.Body)
+		err = dec.Decode(&feed)
+		if err != nil {
+			log.Printf("Error while parsing json feed: %s\n", err)
+			return err
+		}
+		for _, feedItem := range feed.Items {
+			var item microsub.Item
+			item.Name = feedItem.Title
+			item.Content.HTML = feedItem.ContentHTML
+			item.Content.Text = feedItem.ContentText
+			item.URL = feedItem.URL
+			item.Summary = []string{feedItem.Summary}
+			item.Id = feedItem.ID
+			item.Published = feedItem.DatePublished
 			b.channelAddItem(channel, item)
 		}
+	} else if strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Error while parsing rss/atom feed: %s\n", err)
+			return err
+		}
+		feed, err := rss.Parse(body)
+		if err != nil {
+			log.Printf("Error while parsing rss/atom feed: %s\n", err)
+			return err
+		}
+
+		for _, feedItem := range feed.Items {
+			var item microsub.Item
+			item.Name = feedItem.Title
+			item.Content.HTML = feedItem.Content
+			item.URL = feedItem.Link
+			item.Summary = []string{feedItem.Summary}
+			item.Id = feedItem.ID
+			item.Published = feedItem.Date.Format(time.RFC822Z)
+			b.channelAddItem(channel, item)
+		}
+
+	} else {
+		log.Printf("Unknown Content-Type: %s\n", contentType)
 	}
+
 	return nil
 }
 
@@ -154,7 +213,7 @@ type redisItem struct {
 }
 
 // Fetch2 fetches stuff
-func Fetch2(fetchURL string) (*microformats.Data, error) {
+func Fetch2(fetchURL string) (*http.Response, error) {
 	if !strings.HasPrefix(fetchURL, "http") {
 		return nil, fmt.Errorf("error parsing %s as url", fetchURL)
 	}
@@ -164,31 +223,12 @@ func Fetch2(fetchURL string) (*microformats.Data, error) {
 		return nil, fmt.Errorf("error parsing %s as url: %s", fetchURL, err)
 	}
 
-	if data, e := cache[u.String()]; e {
-		if data.created.After(time.Now().Add(time.Minute * -10)) {
-			log.Printf("HIT %s - %s\n", u.String(), time.Now().Sub(data.created).String())
-			return data.item, nil
-		} else {
-			log.Printf("EXPIRE %s\n", u.String())
-			delete(cache, u.String())
-		}
-	} else {
-		log.Printf("MISS %s\n", u.String())
-	}
-
 	resp, err := http.Get(u.String())
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching %s: %s", u, err)
 	}
 
-	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
-		return nil, fmt.Errorf("Content Type of %s = %s", fetchURL, resp.Header.Get("Content-Type"))
-	}
-
-	defer resp.Body.Close()
-	data := microformats.Parse(resp.Body, u)
-	cache[u.String()] = cacheItem{data, time.Now()}
-	return data, nil
+	return resp, err
 }
 
 func Fetch(fetchURL string) []microsub.Item {

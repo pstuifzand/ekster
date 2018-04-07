@@ -31,6 +31,7 @@ import (
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
+	"willnorris.com/go/microformats"
 )
 
 type memoryBackend struct {
@@ -147,8 +148,8 @@ func mapToAuthor(result map[string]interface{}) microsub.Author {
 	if name, e := result["name"]; e {
 		item.Name = name.(string)
 	}
-	if url, e := result["url"]; e {
-		item.URL = url.(string)
+	if u, e := result["url"]; e {
+		item.URL = u.(string)
 	}
 	if photo, e := result["photo"]; e {
 		item.Photo = photo.(string)
@@ -394,7 +395,13 @@ func (b *memoryBackend) Search(query string) []microsub.Feed {
 	feeds := []microsub.Feed{}
 
 	for _, u := range urls {
-		md, err := Fetch2(u)
+		resp, err := Fetch2(u)
+		if err != nil {
+			log.Printf("Error while fetching %s: %v\n", u, err)
+			continue
+		}
+		fetchUrl, err := url.Parse(u)
+		md := microformats.Parse(resp.Body, fetchUrl)
 		if err != nil {
 			log.Printf("Error while fetching %s: %v\n", u, err)
 			continue
@@ -421,7 +428,17 @@ func (b *memoryBackend) Search(query string) []microsub.Feed {
 }
 
 func (b *memoryBackend) PreviewURL(previewURL string) microsub.Timeline {
-	md, err := Fetch2(previewURL)
+	resp, err := Fetch2(previewURL)
+	if err != nil {
+		log.Printf("Error while fetching %s: %v\n", previewURL, err)
+		return microsub.Timeline{}
+	}
+	fetchUrl, err := url.Parse(previewURL)
+	md := microformats.Parse(resp.Body, fetchUrl)
+	if err != nil {
+		log.Printf("Error while fetching %s: %v\n", previewURL, err)
+		return microsub.Timeline{}
+	}
 	if err != nil {
 		log.Println(err)
 		return microsub.Timeline{}
