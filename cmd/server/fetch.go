@@ -48,7 +48,6 @@ func init() {
 // Fetch3 fills stuff
 func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 	log.Printf("Fetching channel=%s fetchURL=%s\n", channel, fetchURL)
-	channelKey := fmt.Sprintf("channel:%s:posts", channel)
 
 	md, err := Fetch2(fetchURL)
 	if err != nil {
@@ -110,36 +109,41 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 
 		if _, e := r["published"]; e {
 			item := mapToItem(r)
-
-			// send to redis
-
-			data, err := json.Marshal(item)
-			if err != nil {
-				log.Printf("error while creating item for redis: %v\n", err)
-				continue
-			}
-
-			forRedis := redisItem{
-				Id:        item.Id,
-				Published: item.Published,
-				Read:      item.Read,
-				Data:      data,
-			}
-			itemKey := fmt.Sprintf("item:%s", item.Id)
-			_, err = redis.String(b.Redis.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
-			if err != nil {
-				log.Printf("error while writing item for redis: %v\n", err)
-				continue
-			}
-
-			_, err = b.Redis.Do("SADD", channelKey, itemKey)
-			if err != nil {
-				log.Printf("error while adding item %s to channel %s for redis: %v\n", itemKey, channelKey, err)
-				continue
-			}
+			b.channelAddItem(channel, item)
 		}
 	}
 	return nil
+}
+
+func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
+	// send to redis
+	channelKey := fmt.Sprintf("channel:%s:posts", channel)
+
+	data, err := json.Marshal(item)
+	if err != nil {
+		log.Printf("error while creating item for redis: %v\n", err)
+		return
+	}
+
+	forRedis := redisItem{
+		Id:        item.Id,
+		Published: item.Published,
+		Read:      item.Read,
+		Data:      data,
+	}
+
+	itemKey := fmt.Sprintf("item:%s", item.Id)
+	_, err = redis.String(b.Redis.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
+	if err != nil {
+		log.Printf("error while writing item for redis: %v\n", err)
+		return
+	}
+
+	_, err = b.Redis.Do("SADD", channelKey, itemKey)
+	if err != nil {
+		log.Printf("error while adding item %s to channel %s for redis: %v\n", itemKey, channelKey, err)
+		return
+	}
 }
 
 type redisItem struct {

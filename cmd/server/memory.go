@@ -271,10 +271,6 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 
 	items := []microsub.Item{}
 
-	// 	for _, feed := range feeds {
-	// 		b.Fetch3(channel, feed.URL)
-	// 	}
-
 	channelKey := fmt.Sprintf("channel:%s:posts", channel)
 
 	itemJsons, err := redis.ByteSlices(b.Redis.Do("SORT", channelKey, "BY", "*->Published", "GET", "*->Data", "ASC", "ALPHA"))
