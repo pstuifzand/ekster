@@ -28,10 +28,10 @@ type NullBackend struct {
 // ChannelsGetList gets no channels
 func (b *NullBackend) ChannelsGetList() []microsub.Channel {
 	return []microsub.Channel{
-		microsub.Channel{"0000", "default"},
-		microsub.Channel{"0001", "notifications"},
-		microsub.Channel{"1000", "Friends"},
-		microsub.Channel{"1001", "Family"},
+		microsub.Channel{"0000", "default", 0},
+		microsub.Channel{"0001", "notifications", 0},
+		microsub.Channel{"1000", "Friends", 0},
+		microsub.Channel{"1001", "Family", 0},
 	}
 }
 
