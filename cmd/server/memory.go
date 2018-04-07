@@ -244,7 +244,7 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 }
 
 func (b *memoryBackend) run() {
-	b.ticker = time.NewTicker(1 * time.Hour)
+	b.ticker = time.NewTicker(10 * time.Minute)
 	b.quit = make(chan struct{})
 
 	go func() {
