@@ -59,6 +59,7 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 	u, _ := url.Parse(fetchURL)
 
 	contentType := resp.Header.Get("Content-Type")
+	log.Println("Found " + contentType)
 	if strings.HasPrefix(contentType, "text/html") {
 		data := microformats.Parse(resp.Body, u)
 		results := simplifyMicroformatData(data)
@@ -175,6 +176,8 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
 }
 
 func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
+	log.Printf("Adding item to channel %s\n", channel)
+	log.Println(item)
 	// send to redis
 	channelKey := fmt.Sprintf("channel:%s:posts", channel)
 

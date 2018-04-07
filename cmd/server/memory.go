@@ -64,6 +64,14 @@ func (b *memoryBackend) load() {
 	if err != nil {
 		panic("cant open backend.json")
 	}
+
+	for uid, channel := range b.Channels {
+		log.Printf("loading channel %s - %s\n", uid, channel.Name)
+		for _, feed := range b.Feeds[uid] {
+			log.Printf("- loading feed %s\n", feed.URL)
+			b.Fetch3(uid, feed.URL)
+		}
+	}
 }
 
 func (b *memoryBackend) save() {
@@ -209,7 +217,11 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 
 	if value, e := result["in-reply-to"]; e {
 		for _, v := range value.([]interface{}) {
-			item.InReplyTo = append(item.InReplyTo, v.(string))
+			if replyTo, ok := v.(string); ok {
+				item.InReplyTo = append(item.InReplyTo, replyTo)
+			} else if cite, ok := v.(map[string]interface{}); ok {
+				item.InReplyTo = append(item.InReplyTo, cite["url"].(string))
+			}
 		}
 	}
 
