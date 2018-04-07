@@ -185,6 +185,13 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 		item.Updated = updated.(string)
 	}
 
+	if id, e := result["_id"]; e {
+		item.Id = id.(string)
+	}
+	if read, e := result["_read"]; e {
+		item.Read = read.(string)
+	}
+
 	return item
 }
 
