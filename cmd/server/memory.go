@@ -252,7 +252,7 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 
 	channelKey := fmt.Sprintf("channel:%s:posts", channel)
 
-	itemJsons, err := redis.ByteSlices(b.Redis.Do("SORT", channelKey, "BY", "*->Published", "GET", "*->Data", "DESC", "ALPHA"))
+	itemJsons, err := redis.ByteSlices(b.Redis.Do("SORT", channelKey, "BY", "*->Published", "GET", "*->Data", "ASC", "ALPHA"))
 	if err != nil {
 		log.Println(err)
 		return microsub.Timeline{
@@ -266,13 +266,6 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 		json.Unmarshal(obj, &item)
 		items = append(items, item)
 	}
-
-	// sort.SliceStable(items, func(a, b int) bool {
-	// 	timeA := items[a].Published
-	// 	timeB := items[b].Published
-	// 	return strings.Compare(timeA, timeB) > 0
-	// })
-	// reverseSlice(items)
 
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
