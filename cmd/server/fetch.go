@@ -368,10 +368,17 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
 		return
 	}
 
-	_, err = b.Redis.Do("SADD", channelKey, itemKey)
+	added, err := redis.Int64(b.Redis.Do("SADD", channelKey, itemKey))
 	if err != nil {
 		log.Printf("error while adding item %s to channel %s for redis: %v\n", itemKey, channelKey, err)
 		return
+	}
+
+	if added > 0 {
+		if c, e := b.Channels[channel]; e {
+			c.Unread = true
+			b.Channels[channel] = c
+		}
 	}
 }
 

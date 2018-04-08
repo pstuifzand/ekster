@@ -34,7 +34,7 @@ type Channel struct {
 	// UID is a unique id for the channel
 	UID    string `json:"uid"`
 	Name   string `json:"name"`
-	Unread int    `json:"unread"`
+	Unread bool   `json:"unread"`
 }
 
 type Author struct {
