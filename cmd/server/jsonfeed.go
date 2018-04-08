@@ -15,6 +15,7 @@ type JSONFeedItem struct {
 	Summary       string               `json:"summary,omitempty"`
 	Title         string               `json:"title,omitempty"`
 	URL           string               `json:"url,omitempty"`
+	Image         string               `json:"image,omitempty"`
 	ExternalURL   string               `json:"external_url,omitempty"`
 	DatePublished string               `json:"date_published,omitempty"`
 	Tags          []string             `json:"tags,omitempty"`
