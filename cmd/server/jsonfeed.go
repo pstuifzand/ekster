@@ -18,6 +18,7 @@ type JSONFeedItem struct {
 	Image         string               `json:"image,omitempty"`
 	ExternalURL   string               `json:"external_url,omitempty"`
 	DatePublished string               `json:"date_published,omitempty"`
+	Author        JSONFeedAuthor       `json:"author,omitempty"`
 	Tags          []string             `json:"tags,omitempty"`
 	Attachments   []JSONFeedAttachment `json:"attachments,omitempty"`
 }

@@ -269,6 +269,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 
 		for _, feedItem := range feed.Items {
 			var item microsub.Item
+			item.Type = "entry"
 			item.Name = feedItem.Title
 			item.Content.HTML = feedItem.ContentHTML
 			item.Content.Text = feedItem.ContentText
@@ -276,7 +277,17 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			item.Summary = []string{feedItem.Summary}
 			item.Id = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.DatePublished
-			item.Author = author
+
+			itemAuthor := microsub.Card{}
+			itemAuthor.Type = "card"
+			itemAuthor.Name = feedItem.Author.Name
+			itemAuthor.URL = feedItem.Author.URL
+			itemAuthor.Photo = feedItem.Author.Avatar
+			if itemAuthor.URL != "" {
+				item.Author = itemAuthor
+			} else {
+				item.Author = author
+			}
 			item.Photo = []string{feedItem.Image}
 			items = append(items, item)
 		}
