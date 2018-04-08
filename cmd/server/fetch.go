@@ -126,6 +126,13 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			log.Printf("Error while parsing json feed: %s\n", err)
 			return items, err
 		}
+
+		author := microsub.Author{}
+		author.Type = "card"
+		author.Name = feed.Author.Name
+		author.URL = feed.Author.URL
+		author.Photo = feed.Author.Avatar
+
 		for _, feedItem := range feed.Items {
 			var item microsub.Item
 			item.Name = feedItem.Title
@@ -135,6 +142,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			item.Summary = []string{feedItem.Summary}
 			item.Id = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.DatePublished
+			item.Author = author
 			items = append(items, item)
 		}
 	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") {
@@ -152,8 +160,8 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 		for _, feedItem := range feed.Items {
 			var item microsub.Item
 			item.Name = feedItem.Title
-			item.Content.HTML = feedItem.Summary
-			item.Content.Text = feedItem.Content
+			item.Content.HTML = feedItem.Content
+			item.Content.Text = feedItem.Summary
 			item.URL = feedItem.Link
 			item.Id = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.Date.Format(time.RFC3339)

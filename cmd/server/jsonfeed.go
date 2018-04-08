@@ -21,10 +21,26 @@ type JSONFeedItem struct {
 	Attachments   []JSONFeedAttachment `json:"attachments,omitempty"`
 }
 
+type JSONFeedAuthor struct {
+	Name   string `json:"name,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Avatar string `json:"avatar,omitempty"`
+}
+
+type JSONFeedHub struct {
+	Type string `json:"type"`
+	URL  string `json:"url"`
+}
+
 type JSONFeed struct {
 	Version     string         `json:"version"`
 	Title       string         `json:"title"`
 	HomePageURL string         `json:"home_page_url"`
 	FeedURL     string         `json:"feed_url"`
+	NextUrl     string         `json:"next_url"`
+	Icon        string         `json:"icon"`
+	Favicon     string         `json:"favicon"`
+	Author      JSONFeedAuthor `json:"author,omitempty"`
 	Items       []JSONFeedItem `json:"items"`
+	Hubs        []JSONFeedHub  `json:"hubs"`
 }
