@@ -303,6 +303,10 @@ func main() {
 
 	hubBackend := hubIncomingBackend{backend.(*memoryBackend), conn}
 
+	http.Handle("/micropub", &micropubHandler{
+		Backend: backend.(*memoryBackend),
+	})
+
 	http.Handle("/microsub", &microsubHandler{
 		Backend:            backend,
 		HubIncomingBackend: &hubBackend,
