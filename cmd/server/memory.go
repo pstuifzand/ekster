@@ -65,12 +65,19 @@ func (b *memoryBackend) load() {
 		panic("cant open backend.json")
 	}
 
+	b.Redis.Do("HSETNX", "channel_sortorder", "notifications", 1)
+
+	b.Redis.Do("DEL", "channels")
+
 	for uid, channel := range b.Channels {
 		log.Printf("loading channel %s - %s\n", uid, channel.Name)
 		for _, feed := range b.Feeds[uid] {
 			log.Printf("- loading feed %s\n", feed.URL)
 			b.Fetch3(uid, feed.URL)
 		}
+
+		b.Redis.Do("SADD", "channels", uid)
+		b.Redis.Do("HSETNX", "channel_sortorder", uid, 99999)
 	}
 }
 
@@ -108,11 +115,19 @@ func createMemoryBackend() microsub.Microsub {
 	return &backend
 }
 
-// ChannelsGetList gets no channels
+// ChannelsGetList gets channels
 func (b *memoryBackend) ChannelsGetList() []microsub.Channel {
 	channels := []microsub.Channel{}
-	for _, v := range b.Channels {
-		channels = append(channels, v)
+	uids, err := redis.Strings(b.Redis.Do("SORT", "channels", "BY", "channel_sortorder->*", "ASC"))
+	if err != nil {
+		log.Printf("Sorting channels failed: %v\n", err)
+		for _, v := range b.Channels {
+			channels = append(channels, v)
+		}
+	} else {
+		for _, uid := range uids {
+			channels = append(channels, b.Channels[uid])
+		}
 	}
 	return channels
 }
@@ -270,7 +285,7 @@ func (b *memoryBackend) run() {
 		for {
 			select {
 			case <-b.ticker.C:
-				for uid, _ := range b.Channels {
+				for uid := range b.Channels {
 					for _, feed := range b.Feeds[uid] {
 						b.Fetch3(uid, feed.URL)
 					}
