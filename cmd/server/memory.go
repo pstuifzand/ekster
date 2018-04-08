@@ -417,6 +417,7 @@ func (b *memoryBackend) Search(query string) []microsub.Feed {
 	feeds := []microsub.Feed{}
 
 	for _, u := range urls {
+		log.Println(u)
 		resp, err := Fetch2(u)
 		if err != nil {
 			log.Printf("Error while fetching %s: %v\n", u, err)

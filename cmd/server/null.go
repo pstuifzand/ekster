@@ -68,7 +68,7 @@ func (b *NullBackend) FollowGetList(uid string) []microsub.Feed {
 }
 
 func (b *NullBackend) FollowURL(uid string, url string) microsub.Feed {
-	return microsub.Feed{"feed", url}
+	return microsub.Feed{Type: "feed", URL: url}
 }
 
 func (b *NullBackend) UnfollowURL(uid string, url string) {

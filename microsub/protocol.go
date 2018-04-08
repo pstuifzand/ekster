@@ -38,8 +38,8 @@ type Channel struct {
 }
 
 type Author struct {
-	Filled bool   `json:"-"`
-	Type   string `json:"type"`
+	Filled bool   `json:"-,omitempty"`
+	Type   string `json:"type,omitempty"`
 	Name   string `json:"name,omitempty"`
 	URL    string `json:"url,omitempty"`
 	Photo  string `json:"photo,omitempty"`
@@ -86,8 +86,12 @@ type Timeline struct {
 }
 
 type Feed struct {
-	Type string `json:"type"`
-	URL  string `json:"url"`
+	Type        string `json:"type"`
+	URL         string `json:"url"`
+	Name        string `json:"name,omitempty"`
+	Photo       string `json:"photo,omitempty"`
+	Description string `json:"description,omitempty"`
+	Author      Author `json:"author,omitempty"`
 }
 
 // Microsub is the main protocol that should be implemented by a backend

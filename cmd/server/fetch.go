@@ -19,6 +19,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -38,7 +40,7 @@ import (
 )
 
 type cacheItem struct {
-	item    *microformats.Data
+	item    []byte
 	created time.Time
 }
 
@@ -260,12 +262,37 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 		return nil, fmt.Errorf("error parsing %s as url: %s", fetchURL, err)
 	}
 
-	resp, err := http.Get(u.String())
+	req, err := http.NewRequest("GET", u.String(), nil)
+
+	if data, e := cache[u.String()]; e {
+		if data.created.After(time.Now().Add(time.Minute * -10)) {
+			log.Printf("HIT %s - %s\n", u.String(), time.Now().Sub(data.created).String())
+			rd := bufio.NewReader(bytes.NewReader(data.item))
+			return http.ReadResponse(rd, req)
+		} else {
+			log.Printf("EXPIRE %s\n", u.String())
+			delete(cache, u.String())
+		}
+	} else {
+		log.Printf("MISS %s\n", u.String())
+	}
+
+	client := http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching %s: %s", u, err)
 	}
 
-	return resp, err
+	var b bytes.Buffer
+	resp.Write(&b)
+
+	cachedCopy := make([]byte, b.Len())
+	cur := b.Bytes()
+	copy(cachedCopy, cur)
+	cache[u.String()] = cacheItem{item: cachedCopy, created: time.Now()}
+
+	cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
+	return cachedResp, err
 }
 
 func Fetch(fetchURL string) []microsub.Item {
