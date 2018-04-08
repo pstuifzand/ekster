@@ -133,6 +133,10 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 		author.URL = feed.Author.URL
 		author.Photo = feed.Author.Avatar
 
+		if author.Photo == "" {
+			author.Photo = feed.Icon
+		}
+
 		for _, feedItem := range feed.Items {
 			var item microsub.Item
 			item.Name = feedItem.Title
