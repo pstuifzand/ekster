@@ -277,7 +277,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			item.Id = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.DatePublished
 			item.Author = author
-			item.Photo = feedItem.Image
+			item.Photo = []string{feedItem.Image}
 			items = append(items, item)
 		}
 	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") {
