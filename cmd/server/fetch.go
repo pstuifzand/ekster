@@ -164,6 +164,9 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 		if feed.URL == "" {
 			feed.URL = fetchURL
 		}
+		if feed.URL == "" {
+			feed.URL = fetchURL
+		}
 		feed.Description = xfeed.Description
 		feed.Photo = xfeed.Image.URL
 
@@ -295,10 +298,12 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			item.Content.HTML = feedItem.Content
 			item.Content.Text = feedItem.Summary
 			item.URL = feedItem.Link
-			item.Id = hex.EncodeToString([]byte(feedItem.ID))
+			if feedItem.ID == "" {
+				item.Id = hex.EncodeToString([]byte(feedItem.Link))
+			} else {
+				item.Id = hex.EncodeToString([]byte(feedItem.ID))
+			}
 			item.Published = feedItem.Date.Format(time.RFC3339)
-			log.Println(item)
-			log.Println(feedItem)
 			items = append(items, item)
 		}
 	} else {
