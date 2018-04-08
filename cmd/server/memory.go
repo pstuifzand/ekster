@@ -65,7 +65,7 @@ func (b *memoryBackend) load() {
 		panic("cant open backend.json")
 	}
 
-	b.Redis.Do("HSETNX", "channel_sortorder", "notifications", 1)
+	b.Redis.Do("SETNX", "channel_sortorder_notifications", 1)
 
 	b.Redis.Do("DEL", "channels")
 
@@ -77,7 +77,7 @@ func (b *memoryBackend) load() {
 		}
 
 		b.Redis.Do("SADD", "channels", uid)
-		b.Redis.Do("HSETNX", "channel_sortorder", uid, 99999)
+		b.Redis.Do("SETNX", "channel_sortorder_"+uid, 99999)
 	}
 }
 
@@ -118,7 +118,7 @@ func createMemoryBackend() microsub.Microsub {
 // ChannelsGetList gets channels
 func (b *memoryBackend) ChannelsGetList() []microsub.Channel {
 	channels := []microsub.Channel{}
-	uids, err := redis.Strings(b.Redis.Do("SORT", "channels", "BY", "channel_sortorder->*", "ASC"))
+	uids, err := redis.Strings(b.Redis.Do("SORT", "channels", "BY", "channel_sortorder_*", "ASC"))
 	if err != nil {
 		log.Printf("Sorting channels failed: %v\n", err)
 		for _, v := range b.Channels {
