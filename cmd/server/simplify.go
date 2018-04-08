@@ -47,7 +47,9 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 				card := make(map[string]string)
 				card["type"] = "card"
 				for ik, vk := range value.Properties {
-					card[ik] = vk[0].(string)
+					if p, ok := vk[0].(string); ok {
+						card[ik] = p
+					}
 				}
 				feedItem[k] = card
 			}
