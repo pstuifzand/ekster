@@ -236,19 +236,25 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 
 	if value, e := result["like-of"]; e {
 		for _, v := range value.([]interface{}) {
-			item.LikeOf = append(item.LikeOf, v.(string))
+			if u, ok := v.(string); ok {
+				item.LikeOf = append(item.LikeOf, u)
+			}
 		}
 	}
 
 	if value, e := result["repost-of"]; e {
 		for _, v := range value.([]interface{}) {
-			item.RepostOf = append(item.RepostOf, v.(string))
+			if u, ok := v.(string); ok {
+				item.RepostOf = append(item.RepostOf, u)
+			}
 		}
 	}
 
 	if value, e := result["bookmark-of"]; e {
 		for _, v := range value.([]interface{}) {
-			item.BookmarkOf = append(item.BookmarkOf, v.(string))
+			if u, ok := v.(string); ok {
+				item.BookmarkOf = append(item.BookmarkOf, u)
+			}
 		}
 	}
 
