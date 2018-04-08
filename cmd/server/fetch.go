@@ -156,7 +156,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			item.Content.Text = feedItem.Content
 			item.URL = feedItem.Link
 			item.Id = hex.EncodeToString([]byte(feedItem.ID))
-			item.Published = feedItem.Date.Format(time.RFC822Z)
+			item.Published = feedItem.Date.Format(time.RFC3339)
 			log.Println(item)
 			log.Println(feedItem)
 			items = append(items, item)
