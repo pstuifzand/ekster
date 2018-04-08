@@ -156,7 +156,6 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 			log.Printf("Error while parsing rss/atom feed: %s\n", err)
 			return feed, err
 		}
-		log.Printf("%#v\n", xfeed)
 
 		feed.Type = "feed"
 		feed.Name = xfeed.Title
@@ -258,7 +257,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			return items, err
 		}
 
-		author := microsub.Author{}
+		author := microsub.Card{}
 		author.Type = "card"
 		author.Name = feed.Author.Name
 		author.URL = feed.Author.URL
@@ -428,8 +427,6 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	cur := b.Bytes()
 	copy(cachedCopy, cur)
 
-	log.Println(string(cachedCopy))
-
 	cache[u.String()] = cacheItem{item: cachedCopy, created: time.Now()}
 
 	cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
@@ -465,7 +462,7 @@ func Fetch(fetchURL string) []microsub.Item {
 	jw.SetIndent("", "    ")
 	jw.Encode(data)
 
-	author := microsub.Author{}
+	author := microsub.Card{}
 
 	for _, item := range data.Items {
 		if item.Type[0] == "h-feed" {

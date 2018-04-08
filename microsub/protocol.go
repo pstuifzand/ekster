@@ -37,12 +37,17 @@ type Channel struct {
 	Unread bool   `json:"unread"`
 }
 
-type Author struct {
-	Filled bool   `json:"-,omitempty"`
-	Type   string `json:"type,omitempty"`
-	Name   string `json:"name,omitempty"`
-	URL    string `json:"url,omitempty"`
-	Photo  string `json:"photo,omitempty"`
+type Card struct {
+	Filled      bool   `json:"-,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Name        string `json:"name,omitempty"`
+	URL         string `json:"url,omitempty"`
+	Photo       string `json:"photo,omitempty"`
+	Locality    string `json:"locality,omitempty"`
+	Region      string `json:"region,omitempty"`
+	CountryName string `json:"country-name,omitempty"`
+	Longitude   string `json:"longitude,omitempty"`
+	Latitude    string `json:"latitude,omitempty"`
 }
 
 type Content struct {
@@ -57,18 +62,19 @@ type Item struct {
 	Published  string   `json:"published"`
 	Updated    string   `json:"updated"`
 	URL        string   `json:"url"`
-	UID        string   `json:"uid"`
-	Author     Author   `json:"author"`
-	Category   []string `json:"category"`
-	Photo      []string `json:"photo"`
-	LikeOf     []string `json:"like-of"`
-	BookmarkOf []string `json:"bookmark-of"`
-	RepostOf   []string `json:"repost-of"`
-	InReplyTo  []string `json:"in-reply-to"`
+	UID        string   `json:"uid,omitempty"`
+	Author     Card     `json:"author,omitempty"`
+	Category   []string `json:"category,omitempty"`
+	Photo      []string `json:"photo,omitempty"`
+	LikeOf     []string `json:"like-of,omitempty"`
+	BookmarkOf []string `json:"bookmark-of,omitempty"`
+	RepostOf   []string `json:"repost-of,omitempty"`
+	InReplyTo  []string `json:"in-reply-to,omitempty"`
 	Summary    []string `json:"summary,omitempty"`
 	Content    Content  `json:"content,omitempty"`
 	Latitude   string   `json:"latitude,omitempty"`
 	Longitude  string   `json:"longitude,omitempty"`
+	Checkin    Card     `json:"checkin,omitempty"`
 	Id         string   `json:"_id"`
 	Read       bool     `json:"_is_read"`
 }
@@ -91,7 +97,7 @@ type Feed struct {
 	Name        string `json:"name,omitempty"`
 	Photo       string `json:"photo,omitempty"`
 	Description string `json:"description,omitempty"`
-	Author      Author `json:"author,omitempty"`
+	Author      Card   `json:"author,omitempty"`
 }
 
 // Microsub is the main protocol that should be implemented by a backend

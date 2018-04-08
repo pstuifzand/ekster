@@ -48,6 +48,10 @@ type Debug interface {
 	Debug()
 }
 
+func init() {
+	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
+}
+
 func (b *memoryBackend) Debug() {
 	fmt.Println(b.Channels)
 }
@@ -165,17 +169,29 @@ func (b *memoryBackend) ChannelsDelete(uid string) {
 	}
 }
 
-func mapToAuthor(result map[string]interface{}) microsub.Author {
-	item := microsub.Author{}
+func mapToAuthor(result map[string]string) microsub.Card {
+	item := microsub.Card{}
 	item.Type = "card"
 	if name, e := result["name"]; e {
-		item.Name = name.(string)
+		item.Name = name
 	}
 	if u, e := result["url"]; e {
-		item.URL = u.(string)
+		item.URL = u
 	}
 	if photo, e := result["photo"]; e {
-		item.Photo = photo.(string)
+		item.Photo = photo
+	}
+	if value, e := result["longitude"]; e {
+		item.Longitude = value
+	}
+	if value, e := result["latitude"]; e {
+		item.Latitude = value
+	}
+	if value, e := result["country-name"]; e {
+		item.CountryName = value
+	}
+	if value, e := result["locality"]; e {
+		item.Locality = value
 	}
 	return item
 }
@@ -198,7 +214,11 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 	}
 
 	if author, e := result["author"]; e {
-		item.Author = mapToAuthor(author.(map[string]interface{}))
+		item.Author = mapToAuthor(author.(map[string]string))
+	}
+
+	if checkin, e := result["checkin"]; e {
+		item.Checkin = mapToAuthor(checkin.(map[string]string))
 	}
 
 	if content, e := result["content"]; e {
@@ -214,50 +234,49 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 
 	// TODO: Check how to improve this
 
-	// if value, e := result["like-of"]; e {
-	// 	for _, v := range value.([]interface{}) {
-	// 		item.LikeOf = append(item.LikeOf, v.(string))
-	// 	}
-	// }
+	if value, e := result["like-of"]; e {
+		for _, v := range value.([]interface{}) {
+			item.LikeOf = append(item.LikeOf, v.(string))
+		}
+	}
 
-	// if value, e := result["repost-of"]; e {
-	// 	for _, v := range value.([]interface{}) {
-	// 		item.RepostOf = append(item.RepostOf, v.(string))
-	// 	}
-	// }
+	if value, e := result["repost-of"]; e {
+		for _, v := range value.([]interface{}) {
+			item.RepostOf = append(item.RepostOf, v.(string))
+		}
+	}
 
-	// if value, e := result["bookmark-of"]; e {
-	// 	for _, v := range value.([]interface{}) {
-	// 		item.BookmarkOf = append(item.BookmarkOf, v.(string))
-	// 	}
-	// }
+	if value, e := result["bookmark-of"]; e {
+		for _, v := range value.([]interface{}) {
+			item.BookmarkOf = append(item.BookmarkOf, v.(string))
+		}
+	}
 
-	// if value, e := result["in-reply-to"]; e {
-	// 	for _, v := range value.([]interface{}) {
-	// 		if replyTo, ok := v.(string); ok {
-	// 			item.InReplyTo = append(item.InReplyTo, replyTo)
-	// 		} else if cite, ok := v.(map[string]interface{}); ok {
-	// 			item.InReplyTo = append(item.InReplyTo, cite["url"].(string))
-	// 		}
-	// 	}
-	// }
+	if value, e := result["in-reply-to"]; e {
+		for _, v := range value.([]interface{}) {
+			if replyTo, ok := v.(string); ok {
+				item.InReplyTo = append(item.InReplyTo, replyTo)
+			} else if cite, ok := v.(map[string]interface{}); ok {
+				item.InReplyTo = append(item.InReplyTo, cite["url"].(string))
+			}
+		}
+	}
 
-	// if value, e := result["photo"]; e {
-	// 	for _, v := range value.([]interface{}) {
-	// 		item.Photo = append(item.Photo, v.(string))
-	// 	}
-	// }
+	if value, e := result["photo"]; e {
+		for _, v := range value.([]interface{}) {
+			item.Photo = append(item.Photo, v.(string))
+		}
+	}
 
-	// if value, e := result["category"]; e {
-
-	// 	if cats, ok := value.([]string); ok {
-	// 		for _, v := range cats {
-	// 			item.Category = append(item.Category, v)
-	// 		}
-	// 	} else {
-	// 		item.Category = append(item.Category, value.(string))
-	// 	}
-	// }
+	if value, e := result["category"]; e {
+		if cats, ok := value.([]string); ok {
+			for _, v := range cats {
+				item.Category = append(item.Category, v)
+			}
+		} else {
+			item.Category = append(item.Category, value.(string))
+		}
+	}
 
 	if published, e := result["published"]; e {
 		item.Published = published.(string)

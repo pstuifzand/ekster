@@ -42,6 +42,15 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 			feedItem[k] = v
 		} else if k == "featured" {
 			feedItem[k] = v
+		} else if k == "checkin" || k == "author" {
+			if value, ok := v[0].(*microformats.Microformat); ok {
+				card := make(map[string]string)
+				card["type"] = "card"
+				for ik, vk := range value.Properties {
+					card[ik] = vk[0].(string)
+				}
+				feedItem[k] = card
+			}
 		} else if value, ok := v[0].(*microformats.Microformat); ok {
 			mType := value.Type[0][2:]
 			m := simplify(mType, value.Properties)
