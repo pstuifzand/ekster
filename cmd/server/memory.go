@@ -430,19 +430,40 @@ func (b *memoryBackend) Search(query string) []microsub.Feed {
 			continue
 		}
 
-		feeds = append(feeds, microsub.Feed{Type: "feed", URL: u})
+		feedResp, err := Fetch2(fetchUrl.String())
+		if err != nil {
+			log.Printf("Error in fetch of %s - %v\n", fetchUrl, err)
+			continue
+		}
+		defer feedResp.Body.Close()
+
+		parsedFeed, err := b.feedHeader(fetchUrl.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
+		if err != nil {
+			log.Printf("Error in parse of %s - %v\n", fetchUrl, err)
+			continue
+		}
+
+		feeds = append(feeds, parsedFeed)
 
 		if alts, e := md.Rels["alternate"]; e {
 			for _, alt := range alts {
 				relURL := md.RelURLs[alt]
 				log.Printf("alternate found with type %s %#v\n", relURL.Type, relURL)
-				if relURL.Type == "application/rss+xml" {
-					feeds = append(feeds, microsub.Feed{Type: "feed", URL: alt})
-				} else if relURL.Type == "application/atom+xml" {
-					feeds = append(feeds, microsub.Feed{Type: "feed", URL: alt})
-				} else if relURL.Type == "application/json" {
-					feeds = append(feeds, microsub.Feed{Type: "feed", URL: alt})
+
+				feedResp, err := Fetch2(alt)
+				if err != nil {
+					log.Printf("Error in fetch of %s - %v\n", alt, err)
+					continue
 				}
+				defer feedResp.Body.Close()
+
+				parsedFeed, err := b.feedHeader(alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
+				if err != nil {
+					log.Printf("Error in parse of %s - %v\n", alt, err)
+					continue
+				}
+
+				feeds = append(feeds, parsedFeed)
 			}
 		}
 	}

@@ -50,6 +50,120 @@ func init() {
 	cache = make(map[string]cacheItem)
 }
 
+func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
+	log.Printf("ProcessContent %s\n", fetchURL)
+	log.Println("Found " + contentType)
+
+	feed := microsub.Feed{}
+
+	u, _ := url.Parse(fetchURL)
+
+	var card interface{}
+
+	if strings.HasPrefix(contentType, "text/html") {
+		data := microformats.Parse(body, u)
+		results := simplifyMicroformatData(data)
+		found := -1
+		for i, r := range results {
+			if r["type"] == "card" {
+				found = i
+				break
+			}
+		}
+
+		if found >= 0 {
+			card = results[found]
+
+			if as, ok := card.(string); ok {
+				if strings.HasPrefix(as, "http") {
+					resp, err := Fetch2(fetchURL)
+					if err != nil {
+						return feed, err
+					}
+					defer resp.Body.Close()
+					u, _ := url.Parse(fetchURL)
+
+					md := microformats.Parse(resp.Body, u)
+					author := simplifyMicroformatData(md)
+					for _, a := range author {
+						if a["type"] == "card" {
+							card = a
+							break
+						}
+					}
+				}
+			}
+
+			// use object
+		}
+
+		feed.Type = "feed"
+		feed.URL = fetchURL
+		if cardMap, ok := card.(map[string]interface{}); ok {
+			if name, ok := cardMap["name"].(string); ok {
+				feed.Name = name
+			}
+			if name, ok := cardMap["photo"].(string); ok {
+				feed.Photo = name
+			} else if name, ok := cardMap["photo"].([]interface{}); ok {
+				feed.Photo = name[0].(string)
+			}
+		}
+
+		return feed, nil
+
+	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
+		var jfeed JSONFeed
+		dec := json.NewDecoder(body)
+		err := dec.Decode(&feed)
+		if err != nil {
+			log.Printf("Error while parsing json feed: %s\n", err)
+			return feed, err
+		}
+
+		feed.Type = "feed"
+		feed.Name = jfeed.Author.Name
+		feed.URL = jfeed.FeedURL
+		if feed.URL == "" {
+			feed.URL = fetchURL
+		}
+		feed.Photo = jfeed.Author.Avatar
+
+		if feed.Photo == "" {
+			feed.Photo = jfeed.Icon
+		}
+		return feed, nil
+
+	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") || strings.HasPrefix(contentType, "application/xml") {
+		body, err := ioutil.ReadAll(body)
+		if err != nil {
+			log.Printf("Error while parsing rss/atom feed: %s\n", err)
+			return feed, err
+		}
+		xfeed, err := rss.Parse(body)
+		if err != nil {
+			log.Printf("Error while parsing rss/atom feed: %s\n", err)
+			return feed, err
+		}
+
+		feed.Type = "feed"
+		feed.Name = xfeed.Title
+		feed.URL = xfeed.Link
+		if feed.URL == "" {
+			feed.URL = fetchURL
+		}
+		feed.Description = xfeed.Description
+		feed.Photo = xfeed.Image.URL
+
+		return feed, nil
+
+	} else {
+		log.Printf("Unknown Content-Type: %s\n", contentType)
+	}
+	return feed, nil
+
+}
+
 func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
