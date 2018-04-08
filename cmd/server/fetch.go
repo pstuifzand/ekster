@@ -396,7 +396,7 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", u.String(), nil)
 
 	if data, e := cache[u.String()]; e {
-		if data.created.After(time.Now().Add(time.Minute * -10)) {
+		if data.created.After(time.Now().Add(time.Hour * -1)) {
 			log.Printf("HIT %s - %s\n", u.String(), time.Now().Sub(data.created).String())
 			rd := bufio.NewReader(bytes.NewReader(data.item))
 			return http.ReadResponse(rd, req)
