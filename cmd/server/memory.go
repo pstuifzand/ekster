@@ -450,20 +450,22 @@ func (b *memoryBackend) Search(query string) []microsub.Feed {
 				relURL := md.RelURLs[alt]
 				log.Printf("alternate found with type %s %#v\n", relURL.Type, relURL)
 
-				feedResp, err := Fetch2(alt)
-				if err != nil {
-					log.Printf("Error in fetch of %s - %v\n", alt, err)
-					continue
-				}
-				defer feedResp.Body.Close()
+				if strings.HasPrefix(relURL.Type, "text/html") || strings.HasPrefix(relURL.Type, "application/json") || strings.HasPrefix(relURL.Type, "application/xml") || strings.HasPrefix(relURL.Type, "text/xml") || strings.HasPrefix(relURL.Type, "application/rss+xml") || strings.HasPrefix(relURL.Type, "application/atom+xml") {
+					feedResp, err := Fetch2(alt)
+					if err != nil {
+						log.Printf("Error in fetch of %s - %v\n", alt, err)
+						continue
+					}
+					defer feedResp.Body.Close()
 
-				parsedFeed, err := b.feedHeader(alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
-				if err != nil {
-					log.Printf("Error in parse of %s - %v\n", alt, err)
-					continue
-				}
+					parsedFeed, err := b.feedHeader(alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
+					if err != nil {
+						log.Printf("Error in parse of %s - %v\n", alt, err)
+						continue
+					}
 
-				feeds = append(feeds, parsedFeed)
+					feeds = append(feeds, parsedFeed)
+				}
 			}
 		}
 	}

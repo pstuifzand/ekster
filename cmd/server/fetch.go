@@ -115,23 +115,34 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
 		var jfeed JSONFeed
 		dec := json.NewDecoder(body)
-		err := dec.Decode(&feed)
+		err := dec.Decode(&jfeed)
 		if err != nil {
 			log.Printf("Error while parsing json feed: %s\n", err)
 			return feed, err
 		}
 
 		feed.Type = "feed"
-		feed.Name = jfeed.Author.Name
+		feed.Name = jfeed.Title
+		if feed.Name == "" {
+			feed.Name = jfeed.Author.Name
+		}
+
 		feed.URL = jfeed.FeedURL
+
 		if feed.URL == "" {
 			feed.URL = fetchURL
 		}
-		feed.Photo = jfeed.Author.Avatar
+		feed.Photo = jfeed.Icon
 
 		if feed.Photo == "" {
-			feed.Photo = jfeed.Icon
+			feed.Photo = jfeed.Author.Avatar
 		}
+
+		feed.Author.Type = "card"
+		feed.Author.Name = jfeed.Author.Name
+		feed.Author.URL = jfeed.Author.URL
+		feed.Author.Photo = jfeed.Author.Avatar
+
 		return feed, nil
 
 	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") || strings.HasPrefix(contentType, "application/xml") {
@@ -145,6 +156,7 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 			log.Printf("Error while parsing rss/atom feed: %s\n", err)
 			return feed, err
 		}
+		log.Printf("%#v\n", xfeed)
 
 		feed.Type = "feed"
 		feed.Name = xfeed.Title
@@ -403,6 +415,9 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	cachedCopy := make([]byte, b.Len())
 	cur := b.Bytes()
 	copy(cachedCopy, cur)
+
+	log.Println(string(cachedCopy))
+
 	cache[u.String()] = cacheItem{item: cachedCopy, created: time.Now()}
 
 	cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
