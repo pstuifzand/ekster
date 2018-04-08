@@ -279,8 +279,16 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 			for _, v := range cats {
 				item.Category = append(item.Category, v)
 			}
-		} else {
-			item.Category = append(item.Category, value.(string))
+		} else if cats, ok := value.([]interface{}); ok {
+			for _, v := range cats {
+				if cat, ok := v.(string); ok {
+					item.Category = append(item.Category, cat)
+				} else if cat, ok := v.(map[string]interface{}); ok {
+					item.Category = append(item.Category, cat["value"].(string))
+				}
+			}
+		} else if cat, ok := value.(string); ok {
+			item.Category = append(item.Category, cat)
 		}
 	}
 
