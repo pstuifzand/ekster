@@ -17,10 +17,13 @@ type micropubHandler struct {
 func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	conn := pool.Get()
+	defer conn.Close()
+
 	if r.Method == http.MethodPost {
 		sourceID := r.URL.Query().Get("source_id")
 
-		channel, err := redis.String(h.Backend.Redis.Do("HGET", "sources", sourceID))
+		channel, err := redis.String(conn.Do("HGET", "sources", sourceID))
 		if err != nil {
 			http.Error(w, "Unknown source", 400)
 			return
@@ -38,7 +41,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			item.Read = false
-			item.Id = hex.EncodeToString([]byte(item.URL))
+			item.ID = hex.EncodeToString([]byte(item.URL))
 
 			h.Backend.channelAddItem(channel, item)
 		} else {

@@ -53,7 +53,6 @@ type microsubHandler struct {
 
 type hubIncomingBackend struct {
 	backend *memoryBackend
-	conn    redis.Conn
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -67,7 +66,9 @@ func randStringBytes(n int) string {
 }
 
 func (h *hubIncomingBackend) GetSecret(id int64) string {
-	secret, err := redis.String(h.conn.Do("HGET", fmt.Sprintf("feed:%d", id), "secret"))
+	conn := pool.Get()
+	defer conn.Close()
+	secret, err := redis.String(conn.Do("HGET", fmt.Sprintf("feed:%d", id), "secret"))
 	if err != nil {
 		return ""
 	}
@@ -77,16 +78,18 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 var hubURL = "https://hub.stuifzandapp.com/"
 
 func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, error) {
-	id, err := redis.Int64(h.conn.Do("INCR", "feed:next_id"))
+	conn := pool.Get()
+	defer conn.Close()
+	id, err := redis.Int64(conn.Do("INCR", "feed:next_id"))
 
 	if err != nil {
 		return 0, err
 	}
 
-	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "url", topic)
-	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "channel", channel)
+	conn.Do("HSET", fmt.Sprintf("feed:%d", id), "url", topic)
+	conn.Do("HSET", fmt.Sprintf("feed:%d", id), "channel", channel)
 	secret := randStringBytes(16)
-	h.conn.Do("HSET", fmt.Sprintf("feed:%d", id), "secret", secret)
+	conn.Do("HSET", fmt.Sprintf("feed:%d", id), "secret", secret)
 
 	hub, err := url.Parse(hubURL)
 	q := hub.Query()
@@ -109,12 +112,14 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 }
 
 func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body io.Reader) error {
+	conn := pool.Get()
+	defer conn.Close()
 	log.Printf("updating feed %d", feedID)
-	u, err := redis.String(h.conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "url"))
+	u, err := redis.String(conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "url"))
 	if err != nil {
 		return err
 	}
-	channel, err := redis.String(h.conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "channel"))
+	channel, err := redis.String(conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "channel"))
 	if err != nil {
 		return err
 	}
@@ -276,8 +281,6 @@ func newPool(addr string) *redis.Pool {
 func main() {
 	flag.Parse()
 
-	var logger = log.New(os.Stdout, "logger: ", log.Lshortfile)
-
 	createBackend := false
 	args := flag.Args()
 
@@ -289,9 +292,6 @@ func main() {
 
 	pool = newPool(*redisServer)
 
-	conn := redis.NewLoggingConn(pool.Get(), logger, "microsub")
-	defer conn.Close()
-
 	var backend microsub.Microsub
 
 	if createBackend {
@@ -299,9 +299,9 @@ func main() {
 		return
 	}
 
-	backend = loadMemoryBackend(conn)
+	backend = loadMemoryBackend()
 
-	hubBackend := hubIncomingBackend{backend.(*memoryBackend), conn}
+	hubBackend := hubIncomingBackend{backend.(*memoryBackend)}
 
 	http.Handle("/micropub", &micropubHandler{
 		Backend: backend.(*memoryBackend),

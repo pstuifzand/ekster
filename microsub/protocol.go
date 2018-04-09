@@ -75,7 +75,7 @@ type Item struct {
 	Latitude   string   `json:"latitude,omitempty"`
 	Longitude  string   `json:"longitude,omitempty"`
 	Checkin    Card     `json:"checkin,omitempty"`
-	Id         string   `json:"_id"`
+	ID         string   `json:"_id"`
 	Read       bool     `json:"_is_read"`
 }
 

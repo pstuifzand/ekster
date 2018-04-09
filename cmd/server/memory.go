@@ -35,7 +35,6 @@ import (
 )
 
 type memoryBackend struct {
-	Redis    redis.Conn
 	Channels map[string]microsub.Channel
 	Feeds    map[string][]microsub.Feed
 	NextUid  int
@@ -56,7 +55,7 @@ func (b *memoryBackend) Debug() {
 	fmt.Println(b.Channels)
 }
 
-func (b *memoryBackend) load() {
+func (b *memoryBackend) load() error {
 	filename := "backend.json"
 	f, err := os.Open(filename)
 	if err != nil {
@@ -66,23 +65,33 @@ func (b *memoryBackend) load() {
 	jw := json.NewDecoder(f)
 	err = jw.Decode(b)
 	if err != nil {
-		panic("cant open backend.json")
+		return err
 	}
 
-	b.Redis.Do("SETNX", "channel_sortorder_notifications", 1)
+	conn := pool.Get()
+	defer conn.Close()
 
-	b.Redis.Do("DEL", "channels")
+	conn.Do("SETNX", "channel_sortorder_notifications", 1)
+
+	conn.Do("DEL", "channels")
 
 	for uid, channel := range b.Channels {
 		log.Printf("loading channel %s - %s\n", uid, channel.Name)
 		for _, feed := range b.Feeds[uid] {
 			log.Printf("- loading feed %s\n", feed.URL)
-			b.Fetch3(uid, feed.URL)
+			resp, err := b.Fetch3(uid, feed.URL)
+			if err != nil {
+				log.Printf("Error while Fetch3 of %s: %v\n", feed.URL, err)
+				continue
+			}
+			defer resp.Body.Close()
+			b.ProcessContent(uid, feed.URL, resp.Header.Get("Content-Type"), resp.Body)
 		}
 
-		b.Redis.Do("SADD", "channels", uid)
-		b.Redis.Do("SETNX", "channel_sortorder_"+uid, 99999)
+		conn.Do("SADD", "channels", uid)
+		conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
 	}
+	return nil
 }
 
 func (b *memoryBackend) save() {
@@ -93,10 +102,13 @@ func (b *memoryBackend) save() {
 	jw.Encode(b)
 }
 
-func loadMemoryBackend(conn redis.Conn) microsub.Microsub {
+func loadMemoryBackend() microsub.Microsub {
 	backend := &memoryBackend{}
-	backend.Redis = conn
-	backend.load()
+	err := backend.load()
+	if err != nil {
+		log.Printf("Error while loadingbackend: %v\n", err)
+		return nil
+	}
 
 	return backend
 }
@@ -121,8 +133,11 @@ func createMemoryBackend() microsub.Microsub {
 
 // ChannelsGetList gets channels
 func (b *memoryBackend) ChannelsGetList() []microsub.Channel {
+	conn := pool.Get()
+	defer conn.Close()
+
 	channels := []microsub.Channel{}
-	uids, err := redis.Strings(b.Redis.Do("SORT", "channels", "BY", "channel_sortorder_*", "ASC"))
+	uids, err := redis.Strings(conn.Do("SORT", "channels", "BY", "channel_sortorder_*", "ASC"))
 	if err != nil {
 		log.Printf("Sorting channels failed: %v\n", err)
 		for _, v := range b.Channels {
@@ -301,7 +316,7 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 	}
 
 	if id, e := result["_id"]; e {
-		item.Id = id.(string)
+		item.ID = id.(string)
 	}
 	if read, e := result["_is_read"]; e {
 		item.Read = read.(bool)
@@ -320,7 +335,13 @@ func (b *memoryBackend) run() {
 			case <-b.ticker.C:
 				for uid := range b.Channels {
 					for _, feed := range b.Feeds[uid] {
-						b.Fetch3(uid, feed.URL)
+						resp, err := b.Fetch3(uid, feed.URL)
+						if err != nil {
+							log.Printf("Error while Fetch3 of %s: %v\n", feed.URL, err)
+							continue
+						}
+						defer resp.Body.Close()
+						b.ProcessContent(uid, feed.URL, resp.Header.Get("Content-Type"), resp.Body)
 					}
 				}
 			case <-b.quit:
@@ -332,6 +353,9 @@ func (b *memoryBackend) run() {
 }
 
 func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Timeline {
+	conn := pool.Get()
+	defer conn.Close()
+
 	log.Printf("TimelineGet %s\n", channel)
 	feeds := b.FollowGetList(channel)
 	log.Println(feeds)
@@ -340,7 +364,7 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 
 	channelKey := fmt.Sprintf("channel:%s:posts", channel)
 
-	itemJsons, err := redis.ByteSlices(b.Redis.Do("SORT", channelKey, "BY", "*->Published", "GET", "*->Data", "ASC", "ALPHA"))
+	itemJsons, err := redis.ByteSlices(conn.Do("SORT", channelKey, "BY", "*->Published", "GET", "*->Data", "ASC", "ALPHA"))
 	if err != nil {
 		log.Println(err)
 		return microsub.Timeline{
@@ -352,7 +376,7 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 	for _, obj := range itemJsons {
 		item := microsub.Item{}
 		json.Unmarshal(obj, &item)
-		item.Read = b.checkRead(channel, item.Id)
+		item.Read = b.checkRead(channel, item.ID)
 		if item.Read {
 			continue
 		}
@@ -375,8 +399,10 @@ func reverseSlice(s interface{}) {
 }
 
 func (b *memoryBackend) checkRead(channel string, uid string) bool {
+	conn := pool.Get()
+	defer conn.Close()
 	args := redis.Args{}.Add(fmt.Sprintf("timeline:%s:read", channel)).Add("item:" + uid)
-	member, err := redis.Bool(b.Redis.Do("SISMEMBER", args...))
+	member, err := redis.Bool(conn.Do("SISMEMBER", args...))
 	if err != nil {
 		log.Printf("Checking read for channel %s item %s has failed\n", channel, uid)
 	}
@@ -539,6 +565,9 @@ func (b *memoryBackend) PreviewURL(previewURL string) microsub.Timeline {
 }
 
 func (b *memoryBackend) MarkRead(channel string, uids []string) {
+	conn := pool.Get()
+	defer conn.Close()
+
 	log.Printf("Marking read for %s %v\n", channel, uids)
 
 	itemUIDs := []string{}
@@ -547,7 +576,7 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) {
 	}
 
 	args := redis.Args{}.Add(fmt.Sprintf("timeline:%s:read", channel)).AddFlat(itemUIDs)
-	if _, err := b.Redis.Do("SADD", args...); err != nil {
+	if _, err := conn.Do("SADD", args...); err != nil {
 		log.Printf("Marking read for channel %s has failed\n", channel)
 	}
 	log.Printf("Marking read success for %s %v\n", channel, itemUIDs)

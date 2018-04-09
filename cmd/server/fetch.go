@@ -257,6 +257,8 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			return items, err
 		}
 
+		log.Printf("%#v\n", feed)
+
 		author := microsub.Card{}
 		author.Type = "card"
 		author.Name = feed.Author.Name
@@ -275,7 +277,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			item.Content.Text = feedItem.ContentText
 			item.URL = feedItem.URL
 			item.Summary = []string{feedItem.Summary}
-			item.Id = hex.EncodeToString([]byte(feedItem.ID))
+			item.ID = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.DatePublished
 
 			itemAuthor := microsub.Card{}
@@ -310,9 +312,9 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			item.Content.Text = feedItem.Summary
 			item.URL = feedItem.Link
 			if feedItem.ID == "" {
-				item.Id = hex.EncodeToString([]byte(feedItem.Link))
+				item.ID = hex.EncodeToString([]byte(feedItem.Link))
 			} else {
-				item.Id = hex.EncodeToString([]byte(feedItem.ID))
+				item.ID = hex.EncodeToString([]byte(feedItem.ID))
 			}
 			item.Published = feedItem.Date.Format(time.RFC3339)
 			items = append(items, item)
@@ -330,7 +332,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 	}
 
 	for _, item := range items {
-		item.Read = b.checkRead(channel, item.Id)
+		item.Read = b.checkRead(channel, item.ID)
 		if item.Read {
 			continue
 		}
@@ -341,21 +343,20 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 }
 
 // Fetch3 fills stuff
-func (b *memoryBackend) Fetch3(channel, fetchURL string) error {
+func (b *memoryBackend) Fetch3(channel, fetchURL string) (*http.Response, error) {
 	log.Printf("Fetching channel=%s fetchURL=%s\n", channel, fetchURL)
 
 	resp, err := Fetch2(fetchURL)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	return b.ProcessContent(channel, fetchURL, resp.Header.Get("Content-Type"), resp.Body)
+	return resp, nil
 }
 
 func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
-	log.Printf("Adding item to channel %s\n", channel)
-	log.Println(item)
+	conn := pool.Get()
+	defer conn.Close()
+
 	// send to redis
 	channelKey := fmt.Sprintf("channel:%s:posts", channel)
 
@@ -366,26 +367,28 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
 	}
 
 	forRedis := redisItem{
-		Id:        item.Id,
+		ID:        item.ID,
 		Published: item.Published,
 		Read:      item.Read,
 		Data:      data,
 	}
 
-	itemKey := fmt.Sprintf("item:%s", item.Id)
-	_, err = redis.String(b.Redis.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
+	itemKey := fmt.Sprintf("item:%s", item.ID)
+	_, err = redis.String(conn.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
 	if err != nil {
 		log.Printf("error while writing item for redis: %v\n", err)
 		return
 	}
 
-	added, err := redis.Int64(b.Redis.Do("SADD", channelKey, itemKey))
+	added, err := redis.Int64(conn.Do("SADD", channelKey, itemKey))
 	if err != nil {
 		log.Printf("error while adding item %s to channel %s for redis: %v\n", itemKey, channelKey, err)
 		return
 	}
-
 	if added > 0 {
+		log.Printf("Adding item to channel %s\n", channel)
+		log.Println(item)
+
 		if c, e := b.Channels[channel]; e {
 			c.Unread = true
 			b.Channels[channel] = c
@@ -394,7 +397,7 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
 }
 
 type redisItem struct {
-	Id        string
+	ID        string
 	Published string
 	Read      bool
 	Data      []byte
