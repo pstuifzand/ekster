@@ -376,9 +376,13 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 
 	if len(after) == 0 {
 		after = "-inf"
+	} else {
+		after = "(" + after
 	}
 	if len(before) == 0 {
 		before = "+inf"
+	} else {
+		before = "(" + before
 	}
 
 	itemJSONs := [][]byte{}
