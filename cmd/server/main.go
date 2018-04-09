@@ -241,7 +241,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			method := values.Get("method")
 
 			if method == "mark_read" || r.PostForm.Get("method") == "mark_read" {
-				values = r.PostForm
+				values = r.Form
 				channel := values.Get("channel")
 				if uids, e := values["entry"]; e {
 					h.Backend.MarkRead(channel, uids)
