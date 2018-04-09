@@ -333,9 +333,6 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 
 	for _, item := range items {
 		item.Read = b.checkRead(channel, item.ID)
-		if item.Read {
-			continue
-		}
 		b.channelAddItem(channel, item)
 	}
 
