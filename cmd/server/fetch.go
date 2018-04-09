@@ -359,6 +359,7 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
 
 	// send to redis
 	channelKey := fmt.Sprintf("channel:%s:posts", channel)
+	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
 
 	data, err := json.Marshal(item)
 	if err != nil {
@@ -385,6 +386,18 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
 		log.Printf("error while adding item %s to channel %s for redis: %v\n", itemKey, channelKey, err)
 		return
 	}
+
+	score, err := time.Parse(time.RFC3339, item.Published)
+	if err != nil {
+		log.Printf("error can't parse %s as time\n", item.Published)
+	}
+
+	added, err = redis.Int64(conn.Do("ZADD", zchannelKey, score.Unix()*1.0, itemKey))
+	if err != nil {
+		log.Printf("error while zadding item %s to channel %s for redis: %v\n", itemKey, channelKey, err)
+		return
+	}
+
 	if added > 0 {
 		log.Printf("Adding item to channel %s\n", channel)
 		log.Println(item)
