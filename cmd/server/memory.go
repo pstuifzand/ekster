@@ -374,15 +374,13 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 	// 	}
 	// }
 
-	if len(after) == 0 {
-		after = "-inf"
-	} else {
-		after = "(" + after
+	afterScore := "-inf"
+	if len(after) != 0 {
+		afterScore = "(" + after
 	}
-	if len(before) == 0 {
-		before = "+inf"
-	} else {
-		before = "(" + before
+	beforeScore = "+inf"
+	if len(before) != 0 {
+		beforeScore = "(" + before
 	}
 
 	itemJSONs := [][]byte{}
@@ -391,8 +389,8 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 		conn.Do(
 			"ZRANGEBYSCORE",
 			zchannelKey,
-			after,
-			before,
+			afterScore,
+			beforeScore,
 			"LIMIT",
 			0,
 			20,
@@ -411,9 +409,6 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 	if len(itemScores) >= 2 {
 		before = itemScores[1]
 		after = itemScores[len(itemScores)-1]
-	} else {
-		before = ""
-		after = ""
 	}
 
 	for i := 0; i < len(itemScores); i += 2 {
