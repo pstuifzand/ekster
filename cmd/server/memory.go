@@ -378,7 +378,7 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 	if len(after) != 0 {
 		afterScore = "(" + after
 	}
-	beforeScore = "+inf"
+	beforeScore := "+inf"
 	if len(before) != 0 {
 		beforeScore = "(" + before
 	}
