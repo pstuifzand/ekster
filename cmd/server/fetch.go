@@ -381,6 +381,13 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
 		return
 	}
 
+	readChannelKey := fmt.Sprintf("channel:%s:read", channel)
+	isRead, err := redis.Bool(conn.Do("SISMEMBER", readChannelKey, itemKey))
+
+	if isRead {
+		return
+	}
+
 	added, err := redis.Int64(conn.Do("SADD", channelKey, itemKey))
 	if err != nil {
 		log.Printf("error while adding item %s to channel %s for redis: %v\n", itemKey, channelKey, err)
