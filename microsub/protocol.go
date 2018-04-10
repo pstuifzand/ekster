@@ -34,7 +34,7 @@ type Channel struct {
 	// UID is a unique id for the channel
 	UID    string `json:"uid"`
 	Name   string `json:"name"`
-	Unread bool   `json:"unread"`
+	Unread int    `json:"unread"`
 }
 
 type Card struct {

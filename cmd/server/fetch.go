@@ -400,7 +400,11 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
 		log.Println(item)
 
 		if c, e := b.Channels[channel]; e {
-			c.Unread = true
+			unread, err := redis.Int(conn.Do("ZCARD", zchannelKey))
+			if err != nil {
+				log.Printf("error while getting length of channel %s: %v\n", channelKey, err)
+			}
+			c.Unread = unread
 			b.Channels[channel] = c
 		}
 	}
