@@ -308,8 +308,11 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 		for _, feedItem := range feed.Items {
 			var item microsub.Item
 			item.Name = feedItem.Title
-			item.Content.HTML = feedItem.Content
-			item.Content.Text = feedItem.Summary
+			if len(feedItem.Content) > 0 {
+				item.Content.HTML = feedItem.Content
+			} else if len(feedItem.Summary) > 0 {
+				item.Content.HTML = feedItem.Summary
+			}
 			item.URL = feedItem.Link
 			if feedItem.ID == "" {
 				item.ID = hex.EncodeToString([]byte(feedItem.Link))
