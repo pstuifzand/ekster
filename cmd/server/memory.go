@@ -634,5 +634,13 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) {
 		log.Printf("Marking read for channel %s has failed\n", channel)
 	}
 
+	unread, _ := redis.Int(conn.Do("ZCARD", channelKey))
+	unread -= len(uids)
+
+	if ch, e := b.Channels[channel]; e {
+		ch.Unread = unread
+		b.Channels[channel] = ch
+	}
+
 	log.Printf("Marking read success for %s %v\n", channel, itemUIDs)
 }
