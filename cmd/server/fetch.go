@@ -332,7 +332,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 	}
 
 	for _, item := range items {
-		item.Read = b.checkRead(channel, item.ID)
+		item.Read = false
 		b.channelAddItem(channel, item)
 	}
 

@@ -18,7 +18,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -428,7 +427,7 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 			log.Println(err)
 			continue
 		}
-		item.Read = b.checkRead(channel, item.ID)
+		item.Read = false
 		items = append(items, item)
 	}
 	paging := microsub.Pagination{
@@ -451,30 +450,30 @@ func reverseSlice(s interface{}) {
 	}
 }
 
-func (b *memoryBackend) checkRead(channel string, uid string) bool {
-	conn := pool.Get()
-	defer conn.Close()
-	args := redis.Args{}.Add(fmt.Sprintf("timeline:%s:read", channel)).Add("item:" + uid)
-	member, err := redis.Bool(conn.Do("SISMEMBER", args...))
-	if err != nil {
-		log.Printf("Checking read for channel %s item %s has failed\n", channel, uid)
-	}
-	return member
-}
+// func (b *memoryBackend) checkRead(channel string, uid string) bool {
+// 	conn := pool.Get()
+// 	defer conn.Close()
+// 	args := redis.Args{}.Add(fmt.Sprintf("timeline:%s:read", channel)).Add("item:" + uid)
+// 	member, err := redis.Bool(conn.Do("SISMEMBER", args...))
+// 	if err != nil {
+// 		log.Printf("Checking read for channel %s item %s has failed\n", channel, uid)
+// 	}
+// 	return member
+// }
 
-func (b *memoryBackend) wasRead(channel string, item map[string]interface{}) bool {
-	if uid, e := item["uid"]; e {
-		uid = hex.EncodeToString([]byte(uid.(string)))
-		return b.checkRead(channel, uid.(string))
-	}
+// func (b *memoryBackend) wasRead(channel string, item map[string]interface{}) bool {
+// 	if uid, e := item["uid"]; e {
+// 		uid = hex.EncodeToString([]byte(uid.(string)))
+// 		return b.checkRead(channel, uid.(string))
+// 	}
 
-	if uid, e := item["url"]; e {
-		uid = hex.EncodeToString([]byte(uid.(string)))
-		return b.checkRead(channel, uid.(string))
-	}
+// 	if uid, e := item["url"]; e {
+// 		uid = hex.EncodeToString([]byte(uid.(string)))
+// 		return b.checkRead(channel, uid.(string))
+// 	}
 
-	return false
-}
+// 	return false
+// }
 
 func (b *memoryBackend) FollowGetList(uid string) []microsub.Feed {
 	return b.Feeds[uid]
@@ -628,9 +627,12 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) {
 		itemUIDs = append(itemUIDs, "item:"+uid)
 	}
 
-	args := redis.Args{}.Add(fmt.Sprintf("timeline:%s:read", channel)).AddFlat(itemUIDs)
-	if _, err := conn.Do("SADD", args...); err != nil {
+	channelKey := fmt.Sprintf("zchannel:%s:posts", channel)
+	args := redis.Args{}.Add(channelKey).AddFlat(itemUIDs)
+
+	if _, err := conn.Do("ZREM", args...); err != nil {
 		log.Printf("Marking read for channel %s has failed\n", channel)
 	}
+
 	log.Printf("Marking read success for %s %v\n", channel, itemUIDs)
 }
