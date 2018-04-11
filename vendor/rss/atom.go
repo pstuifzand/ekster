@@ -43,7 +43,7 @@ func parseAtom(data []byte) (*Feed, error) {
 		next := new(Item)
 		next.Title = item.Title
 		next.Summary = item.Summary
-		next.Content = item.Content.RAWContent
+		next.Content = item.Content
 		if item.Date != "" {
 			next.Date, err = parseTime(item.Date)
 			if err == nil {
@@ -112,7 +112,7 @@ type atomItem struct {
 	XMLName   xml.Name   `xml:"entry"`
 	Title     string     `xml:"title"`
 	Summary   string     `xml:"summary"`
-	Content   RAWContent `xml:"content"`
+	Content   string     `xml:"content"`
 	Links     []atomLink `xml:"link"`
 	Date      string     `xml:"updated"`
 	DateValid bool
