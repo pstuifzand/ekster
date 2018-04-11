@@ -307,6 +307,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 
 		for _, feedItem := range feed.Items {
 			var item microsub.Item
+			item.Type = "entry"
 			item.Name = feedItem.Title
 			if len(feedItem.Content) > 0 {
 				item.Content.HTML = feedItem.Content
