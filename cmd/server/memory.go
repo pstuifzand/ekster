@@ -183,8 +183,8 @@ func (b *memoryBackend) ChannelsDelete(uid string) {
 	}
 }
 
-func mapToAuthor(result map[string]string) microsub.Card {
-	item := microsub.Card{}
+func mapToAuthor(result map[string]string) *microsub.Card {
+	item := &microsub.Card{}
 	item.Type = "card"
 	if name, e := result["name"]; e {
 		item.Name = name
@@ -236,13 +236,20 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 	}
 
 	if content, e := result["content"]; e {
+		itemContent := &microsub.Content{}
+		set := false
 		if c, ok := content.(map[string]interface{}); ok {
 			if html, e2 := c["html"]; e2 {
-				item.Content.HTML = html.(string)
+				itemContent.HTML = html.(string)
+				set = true
 			}
 			if text, e2 := c["value"]; e2 {
-				item.Content.Text = text.(string)
+				itemContent.Text = text.(string)
+				set = true
 			}
+		}
+		if set {
+			item.Content = itemContent
 		}
 	}
 
