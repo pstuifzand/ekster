@@ -173,8 +173,8 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 	} else {
 		log.Printf("Unknown Content-Type: %s\n", contentType)
 	}
+	log.Println("Found feed: ", feed)
 	return feed, nil
-
 }
 
 func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
