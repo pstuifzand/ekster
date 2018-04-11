@@ -108,9 +108,6 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 				feed.Photo = name[0].(string)
 			}
 		}
-
-		return feed, nil
-
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
 		var jfeed JSONFeed
 		dec := json.NewDecoder(body)
@@ -141,9 +138,6 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 		feed.Author.Name = jfeed.Author.Name
 		feed.Author.URL = jfeed.Author.URL
 		feed.Author.Photo = jfeed.Author.Avatar
-
-		return feed, nil
-
 	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") || strings.HasPrefix(contentType, "application/xml") {
 		body, err := ioutil.ReadAll(body)
 		if err != nil {
@@ -167,9 +161,6 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 		}
 		feed.Description = xfeed.Description
 		feed.Photo = xfeed.Image.URL
-
-		return feed, nil
-
 	} else {
 		log.Printf("Unknown Content-Type: %s\n", contentType)
 	}
