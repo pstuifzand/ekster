@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/hex"
+	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -41,8 +41,8 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			item.Read = false
-			item.ID = hex.EncodeToString([]byte(item.URL))
-
+			id, err := redis.Int(conn.Do("INCR", "source:"+sourceID+"next_id"))
+			item.ID = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("source:%s:%d", sourceID, id))))
 			h.Backend.channelAddItem(channel, item)
 		} else {
 			http.Error(w, "Unsupported Content-Type", 400)
