@@ -152,13 +152,7 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 
 		feed.Type = "feed"
 		feed.Name = xfeed.Title
-		feed.URL = xfeed.Link
-		if feed.URL == "" {
-			feed.URL = fetchURL
-		}
-		if feed.URL == "" {
-			feed.URL = fetchURL
-		}
+		feed.URL = fetchURL
 		feed.Description = xfeed.Description
 		feed.Photo = xfeed.Image.URL
 	} else {
