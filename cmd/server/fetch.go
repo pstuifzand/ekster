@@ -330,7 +330,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 
 	for i, v := range items {
 		// Clear type of author, when other fields also aren't set
-		if v.Author.Name == "" && v.Author.Photo == "" && v.Author.URL == "" {
+		if v.Author != nil && v.Author.Name == "" && v.Author.Photo == "" && v.Author.URL == "" {
 			v.Type = ""
 			items[i] = v
 		}
