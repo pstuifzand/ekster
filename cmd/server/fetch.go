@@ -434,7 +434,6 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	}
 
 	req, err := http.NewRequest("GET", u.String(), nil)
-	req.Header.Add("Accept", "application/atom+xml; q=1, application/rss+xml; q=1, text/html; q=0.9, application/json; q=0.9, application/xml; q=0.6")
 
 	if data, e := cache[u.String()]; e {
 		if data.created.After(time.Now().Add(time.Hour * -1)) {
