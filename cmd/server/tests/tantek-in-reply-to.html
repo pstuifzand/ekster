@@ -1,0 +1,128 @@
+<!DOCTYPE html><html><head><meta charset="utf-8" />
+<title>👍 - Tantek</title>
+<base href="http://tantek.com/2018/" />
+<link rel="icon" href="/logo.jpg" />
+<meta name="viewport" content="initial-scale=0.7"/>
+<link rel="webmention" href="http://webmention.io/tantek.com/webmention" />
+<style type="text/css">/*<![CDATA[*/ 
+@import "simple.css";
+form.search { width:34%; float:right; white-space:nowrap; font-size:1.3em; text-align:right }
+input,button { font-size:1em }
+button { margin: 0 0.5em 0 0; padding:0 0.5em }
+form.search input[type=search] { width:62% }
+/*]]>*/</style>
+<script type="text/javascript" src="cassis.js"></script>
+<script type="text/javascript" src="../scripts/indieconfig.js"></script> 
+<script type="text/javascript" src="../scripts/webaction.js"></script>
+</head>
+<body class="post hentry h-entry as-note">
+<header><div class="header">
+<h1><a href="../" rel="author home">tantek.com</a></h1>
+
+<form class="search" action="https://duckduckgo.com/html/" method="get">
+<input type="hidden" name="type" value="list" />
+<input type="search" value="site:tantek.com " name="q" />
+<button type="submit">Search</button>
+</form>
+
+</div></header>
+
+<div class="sidestuff">
+<ul class="snav">
+<li><a href="109/b1/start-with-how-make-specs" id="previtem" title="View the previous (older) item in the stream." rel="prev"><abbr>&#x2190;</abbr></a></li><li><abbr title="You are at the newest item">&#x2022;</abbr></li>
+</ul>
+</div>
+<div class="reply-context" style="background:#f5f5f5;font-size:1.5em;text-indent:1em">
+In reply to:<p style="text-indent:3em; margin-bottom:0"><a class="u-in-reply-to h-cite" rel="in-reply-to" href="https://github.com/w3c/csswg-drafts/issues/2589">https://github.com/w3c/csswg-drafts/issues/2589</a></p>
+<a href="https://www.brid.gy/publish/github"></a> <hr />
+</div>
+<a href="../" class="p-author h-card author-icon" rel="author" title="Tantek Çelik"><img src="../logo.jpg" alt="Tantek Çelik" /></a>
+
+<p class="p-name entry-title e-content entry-content article">👍</p><span class="info footer">
+  <span class="dt-published published dt-updated updated">
+  <time class="value" datetime="11:14-0700">11:14</time> on <time class="value">2018-04-25</time>  </span>
+ <span class="lt">
+ (ttk.me t4u61) </span>
+  using <span class="using">BBEdit</span> </span> 
+<div class="info footer">
+<form action="http://tantek.com/2018/115/t1/"><div>
+<label><span class="lt">URL:</span>
+<input class="u-url url u-uid uid bookmark" type="url" size="70" style="max-width:100%" value="http://tantek.com/2018/115/t1/" />
+</label>
+</div></form>
+</div>
+<div class="info footer">
+<a class="u-syndication" rel="syndication" style="float:right; clear:right; margin-left:1em; height:2em"
+   href="https://github.com/w3c/csswg-drafts/issues/2589#thumbs_up-by-tantek">
+   View on Github</a>
+
+</div>
+ </li>
+<script type="text/javascript">/*<![CDATA[*/
+function select_all(e) {
+ e = e ? e : window.event;
+ var el = targetelement(e);
+ el.focus();
+ /* el.select(); // fails in Mobile Safari */
+ el.selectionStart=0;
+ el.selectionEnd=el.value.length;
+}
+
+var fs = document.forms, i = 0, j = 0, es;
+for (i = 0; i<fs.length; i++) {
+  es = document.forms[i].elements;
+  if (es) {
+    for (j=0;j<es.length;j++) {
+      switch (es[j].type) {
+      case "text":
+      case "url":
+        es[j].onclick = select_all;
+      }
+    }
+  }
+}
+
+
+document.onkeyup = keyup;
+
+function clearactive() {
+  var e = document.getElementById("previtem");
+  if (e) { e.className = ""; }
+  e = document.getElementById("nextitem");
+  if (e) { e.className = ""; }
+}
+
+function keyup(e)
+{
+   var kid = (window.event) ? event.keyCode : e.keyCode;
+   var nid = "";
+   if (document.activeElement !== document.body) {
+     return;
+   }
+   switch(kid) {
+    case 33:
+    case 37:
+    case 74:
+      nid = "previtem";
+      break;
+    case 34:
+    case 39:
+    case 75:
+      nid = "nextitem";
+      break;
+   }
+   if (nid!="") {
+      ne = document.getElementById(nid);
+      if (ne) {
+        ne.className = "active";
+        doevent(ne,"click");
+        window.onunload = clearactive;
+        return false;
+      }
+   }
+}
+
+/*]]>*/</script>
+<script src="/fragmention.min.js"></script>
+</body>
+</html>

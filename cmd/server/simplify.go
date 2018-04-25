@@ -12,11 +12,7 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 	for k, v := range item {
 		if k == "bookmark-of" || k == "like-of" || k == "repost-of" || k == "in-reply-to" {
 			if value, ok := v[0].(*microformats.Microformat); ok {
-
-				mType := value.Type[0][2:]
-				m := simplify(mType, value.Properties)
-				m["type"] = mType
-				feedItem[k] = []interface{}{m}
+				feedItem[k] = value.Value
 			} else {
 				feedItem[k] = v
 			}
