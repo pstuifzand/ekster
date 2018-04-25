@@ -225,7 +225,8 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			} else if uid, e := r["url"]; e {
 				r["_id"] = hex.EncodeToString([]byte(uid.(string)))
 			} else {
-				r["_id"] = "" // generate random value
+				continue
+				//r["_id"] = "" // generate random value
 			}
 
 			if _, e := r["published"]; e {
