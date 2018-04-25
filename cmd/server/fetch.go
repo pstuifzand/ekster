@@ -338,7 +338,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 		b.channelAddItem(channel, item)
 
 		// Add items to notifications that match my name and websites
-		if len(item.Content.Text) > 0 && nameRegex.MatchString(item.Content.Text) {
+		if item.Content != nil && len(item.Content.Text) > 0 && nameRegex.MatchString(item.Content.Text) {
 			b.channelAddItem("notifications", item)
 		}
 	}
