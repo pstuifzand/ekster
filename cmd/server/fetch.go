@@ -29,6 +29,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"rss"
 	"strings"
 	"time"
@@ -323,6 +324,8 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 	return items, nil
 }
 
+var nameRegex *regexp.Regexp = regexp.MustCompile(`(?i:pstuifzand|peter|stuifzand|peter\s*stuifzand|p83\.nl|publog\.stuifzandapp\.com)`)
+
 func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
 	items, err := b.feedItems(fetchURL, contentType, body)
 	if err != nil {
@@ -332,6 +335,11 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 	for _, item := range items {
 		item.Read = false
 		b.channelAddItem(channel, item)
+
+		// Add items to notifications that match my name and websites
+		if len(item.Content.Text) > 0 && nameRegex.MatchString(item.Content.Text) {
+			b.channelAddItem("notifications", item)
+		}
 	}
 
 	return nil
