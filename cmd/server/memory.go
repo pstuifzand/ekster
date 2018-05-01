@@ -30,6 +30,7 @@ import (
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
+	"github.com/pstuifzand/microsub-server/pkg/feedbin"
 	"willnorris.com/go/microformats"
 )
 
@@ -361,6 +362,35 @@ func (b *memoryBackend) run() {
 func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Timeline {
 	conn := pool.Get()
 	defer conn.Close()
+
+	if channel == "feedbin" {
+		fb := feedbin.New(os.Getenv("FEEDBIN_USER"), os.Getenv("FEEDBIN_PASS"))
+
+		entries, err := fb.Entries()
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		var items []microsub.Item
+
+		for _, e := range entries {
+			var item microsub.Item
+
+			item.Type = "entry"
+			item.Name = e.Title
+			item.Content = &microsub.Content{HTML: e.Content}
+			item.URL = e.URL
+			item.Published = e.Published.Format(time.RFC3339)
+			item.Author = &microsub.Card{Type: "card", Name: e.Author}
+
+			items = append(items, item)
+		}
+		return microsub.Timeline{
+			Paging: microsub.Pagination{},
+			Items:  items,
+		}
+	}
 
 	log.Printf("TimelineGet %s\n", channel)
 	feeds := b.FollowGetList(channel)
