@@ -49,7 +49,7 @@ func (fb *Feedbin) Feed(id int64) (Feed, error) {
 }
 
 func (fb *Feedbin) Entries() ([]Entry, error) {
-	resp, err := fb.get("/v2/entries.json?mode=extended")
+	resp, err := fb.get("/v2/entries.json")
 	if err != nil {
 		return []Entry{}, err
 	}
