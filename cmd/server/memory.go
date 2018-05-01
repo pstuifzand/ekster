@@ -372,17 +372,26 @@ func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Time
 			log.Fatal(err)
 		}
 
+		feeds := make(map[int64]feedbin.Feed)
+
 		var items []microsub.Item
 
-		for _, e := range entries {
+		for _, entry := range entries {
 			var item microsub.Item
 
+			var feed feedbin.Feed
+			e := false
+			if feed, e = feeds[entry.FeedID]; !e {
+				feeds[entry.FeedID], _ = fb.Feed(entry.FeedID)
+				feed = feeds[entry.FeedID]
+			}
+
 			item.Type = "entry"
-			item.Name = e.Title
-			item.Content = &microsub.Content{HTML: e.Content}
-			item.URL = e.URL
-			item.Published = e.Published.Format(time.RFC3339)
-			item.Author = &microsub.Card{Type: "card", Name: e.Author}
+			item.Name = entry.Title
+			item.Content = &microsub.Content{HTML: entry.Content}
+			item.URL = entry.URL
+			item.Published = entry.Published.Format(time.RFC3339)
+			item.Author = &microsub.Card{Type: "card", Name: feed.Title, URL: feed.SiteURL}
 
 			items = append(items, item)
 		}
