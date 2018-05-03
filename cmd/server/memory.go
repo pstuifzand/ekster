@@ -77,16 +77,16 @@ func (b *memoryBackend) load() error {
 
 	for uid, channel := range b.Channels {
 		log.Printf("loading channel %s - %s\n", uid, channel.Name)
-		for _, feed := range b.Feeds[uid] {
-			log.Printf("- loading feed %s\n", feed.URL)
-			resp, err := b.Fetch3(uid, feed.URL)
-			if err != nil {
-				log.Printf("Error while Fetch3 of %s: %v\n", feed.URL, err)
-				continue
-			}
-			defer resp.Body.Close()
-			b.ProcessContent(uid, feed.URL, resp.Header.Get("Content-Type"), resp.Body)
-		}
+		// for _, feed := range b.Feeds[uid] {
+		//log.Printf("- loading feed %s\n", feed.URL)
+		// resp, err := b.Fetch3(uid, feed.URL)
+		// if err != nil {
+		// 	log.Printf("Error while Fetch3 of %s: %v\n", feed.URL, err)
+		// 	continue
+		// }
+		// defer resp.Body.Close()
+		// b.ProcessContent(uid, feed.URL, resp.Header.Get("Content-Type"), resp.Body)
+		// }
 
 		conn.Do("SADD", "channels", uid)
 		conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
