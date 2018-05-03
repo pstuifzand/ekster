@@ -433,6 +433,9 @@ type redisItem struct {
 
 // Fetch2 fetches stuff
 func Fetch2(fetchURL string) (*http.Response, error) {
+	conn := pool.Get()
+	defer conn.Close()
+
 	if !strings.HasPrefix(fetchURL, "http") {
 		return nil, fmt.Errorf("error parsing %s as url", fetchURL)
 	}
@@ -444,18 +447,15 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 
-	if data, e := cache[u.String()]; e {
-		if data.created.After(time.Now().Add(time.Hour * -1)) {
-			log.Printf("HIT %s - %s\n", u.String(), time.Now().Sub(data.created).String())
-			rd := bufio.NewReader(bytes.NewReader(data.item))
-			return http.ReadResponse(rd, req)
-		} else {
-			log.Printf("EXPIRE %s\n", u.String())
-			delete(cache, u.String())
-		}
-	} else {
-		log.Printf("MISS %s\n", u.String())
+	cacheKey := fmt.Sprintf("http_cache:%s", u.String())
+	data, err := redis.Bytes(conn.Do("GET", cacheKey))
+	if err == nil {
+		log.Printf("HIT %s\n", u.String())
+		rd := bufio.NewReader(bytes.NewReader(data))
+		return http.ReadResponse(rd, req)
 	}
+
+	log.Printf("MISS %s\n", u.String())
 
 	client := http.Client{}
 	resp, err := client.Do(req)
@@ -470,162 +470,8 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	cur := b.Bytes()
 	copy(cachedCopy, cur)
 
-	cache[u.String()] = cacheItem{item: cachedCopy, created: time.Now()}
+	conn.Do("SET", cacheKey, cachedCopy, "EX", 60*60)
 
 	cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
 	return cachedResp, err
 }
-
-// func Fetch(fetchURL string) []microsub.Item {
-// 	result := []microsub.Item{}
-
-// 	if !strings.HasPrefix(fetchURL, "http") {
-// 		return result
-// 	}
-
-// 	u, err := url.Parse(fetchURL)
-// 	if err != nil {
-// 		log.Printf("error parsing %s as url: %s", fetchURL, err)
-// 		return result
-// 	}
-// 	resp, err := http.Get(u.String())
-// 	if err != nil {
-// 		log.Printf("error while fetching %s: %s", u, err)
-// 		return result
-// 	}
-
-// 	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
-// 		log.Printf("Content Type of %s = %s", fetchURL, resp.Header.Get("Content-Type"))
-// 		return result
-// 	}
-
-// 	defer resp.Body.Close()
-// 	data := microformats.Parse(resp.Body, u)
-// 	jw := json.NewEncoder(os.Stdout)
-// 	jw.SetIndent("", "    ")
-// 	jw.Encode(data)
-
-// 	author := &microsub.Card{}
-
-// 	for _, item := range data.Items {
-// 		if item.Type[0] == "h-feed" {
-// 			for _, child := range item.Children {
-// 				previewItem := convertMfToItem(child)
-// 				result = append(result, previewItem)
-// 			}
-// 		} else if item.Type[0] == "h-card" {
-// 			mf := item
-// 			author.Filled = true
-// 			author.Type = "card"
-// 			for prop, value := range mf.Properties {
-// 				switch prop {
-// 				case "url":
-// 					author.URL = value[0].(string)
-// 					break
-// 				case "name":
-// 					author.Name = value[0].(string)
-// 					break
-// 				case "photo":
-// 					author.Photo = value[0].(string)
-// 					break
-// 				default:
-// 					fmt.Printf("prop name not implemented for author: %s with value %#v\n", prop, value)
-// 					break
-// 				}
-// 			}
-// 		} else if item.Type[0] == "h-entry" {
-// 			previewItem := convertMfToItem(item)
-// 			result = append(result, previewItem)
-// 		}
-// 	}
-
-// 	for i, item := range result {
-// 		if !item.Author.Filled {
-// 			result[i].Author = author
-// 		}
-// 	}
-
-// 	return result
-// }
-
-// func convertMfToItem(mf *microformats.Microformat) microsub.Item {
-// 	item := microsub.Item{}
-
-// 	item.Type = mf.Type[0]
-
-// 	for prop, value := range mf.Properties {
-// 		switch prop {
-// 		case "published":
-// 			item.Published = value[0].(string)
-// 			break
-// 		case "url":
-// 			item.URL = value[0].(string)
-// 			break
-// 		case "name":
-// 			item.Name = value[0].(string)
-// 			break
-// 		case "latitude":
-// 			item.Latitude = value[0].(string)
-// 			break
-// 		case "longitude":
-// 			item.Longitude = value[0].(string)
-// 			break
-// 		case "like-of":
-// 			for _, v := range value {
-// 				item.LikeOf = append(item.LikeOf, v.(string))
-// 			}
-// 			break
-// 		case "bookmark-of":
-// 			for _, v := range value {
-// 				item.BookmarkOf = append(item.BookmarkOf, v.(string))
-// 			}
-// 			break
-// 		case "in-reply-to":
-// 			for _, v := range value {
-// 				item.InReplyTo = append(item.InReplyTo, v.(string))
-// 			}
-// 			break
-// 		case "summary":
-// 			if content, ok := value[0].(map[string]interface{}); ok {
-// 				item.Content.HTML = content["html"].(string)
-// 				item.Content.Text = content["value"].(string)
-// 			} else if content, ok := value[0].(string); ok {
-// 				item.Content.Text = content
-// 			}
-// 			break
-// 		case "photo":
-// 			for _, v := range value {
-// 				item.Photo = append(item.Photo, v.(string))
-// 			}
-// 			break
-// 		case "category":
-// 			for _, v := range value {
-// 				item.Category = append(item.Category, v.(string))
-// 			}
-// 			break
-// 		case "content":
-// 			if content, ok := value[0].(map[string]interface{}); ok {
-// 				item.Content.HTML = content["html"].(string)
-// 				item.Content.Text = content["value"].(string)
-// 			} else if content, ok := value[0].(string); ok {
-// 				item.Content.Text = content
-// 			}
-// 			break
-// 		default:
-// 			fmt.Printf("prop name not implemented: %s with value %#v\n", prop, value)
-// 			break
-// 		}
-// 	}
-
-// 	if item.Name == strings.TrimSpace(item.Content.Text) {
-// 		item.Name = ""
-// 	}
-
-// 	// TODO: for like name is the field that is set
-// 	if item.Content.HTML == "" && len(item.LikeOf) > 0 {
-// 		item.Name = ""
-// 	}
-
-// 	fmt.Printf("%#v\n", item)
-// 	return item
-// }

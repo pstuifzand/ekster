@@ -23,15 +23,17 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"time"
 
+	"linkheader"
+
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
+	"github.com/pstuifzand/microsub-server/pkg/util"
 )
 
 var (
@@ -55,16 +57,6 @@ type hubIncomingBackend struct {
 	backend *memoryBackend
 }
 
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-func randStringBytes(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Intn(len(letterBytes))]
-	}
-	return string(b)
-}
-
 func (h *hubIncomingBackend) GetSecret(id int64) string {
 	conn := pool.Get()
 	defer conn.Close()
@@ -75,7 +67,28 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 	return secret
 }
 
-var hubURL = "https://hub.stuifzandapp.com/"
+func (h *hubIncomingBackend) getHubURL(topic string) (string, error) {
+	client := &http.Client{}
+
+	resp, err := client.Head(topic)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if headers, e := resp.Header["Link"]; e {
+		links := linkheader.ParseMultiple(headers)
+		for _, link := range links {
+			if link.Rel == "hub" {
+				log.Printf("WebSub Hub URL found for topic=%s hub=%s\n", topic, link.URL)
+				return link.URL, nil
+			}
+		}
+	}
+
+	log.Printf("WebSub Hub URL not found for topic=%s\n", topic)
+	return "", nil
+}
 
 func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, error) {
 	conn := pool.Get()
@@ -88,8 +101,15 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 
 	conn.Do("HSET", fmt.Sprintf("feed:%d", id), "url", topic)
 	conn.Do("HSET", fmt.Sprintf("feed:%d", id), "channel", channel)
-	secret := randStringBytes(16)
+	secret := util.RandStringBytes(16)
 	conn.Do("HSET", fmt.Sprintf("feed:%d", id), "secret", secret)
+
+	hubURL, err := h.getHubURL(topic)
+	if err == nil && hubURL != "" {
+		conn.Do("HSET", fmt.Sprintf("feed:%d", id), "hub", hubURL)
+	} else {
+		return id, nil
+	}
 
 	hub, err := url.Parse(hubURL)
 	q := hub.Query()

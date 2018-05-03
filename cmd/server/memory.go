@@ -151,7 +151,7 @@ func (b *memoryBackend) ChannelsGetList() []microsub.Channel {
 	return channels
 }
 
-// ChannelsCreate creates no channels
+// ChannelsCreate creates a channels
 func (b *memoryBackend) ChannelsCreate(name string) microsub.Channel {
 	defer b.save()
 	uid := fmt.Sprintf("%04d", b.NextUid)
@@ -166,7 +166,7 @@ func (b *memoryBackend) ChannelsCreate(name string) microsub.Channel {
 	return channel
 }
 
-// ChannelsUpdate updates no channels
+// ChannelsUpdate updates a channels
 func (b *memoryBackend) ChannelsUpdate(uid, name string) microsub.Channel {
 	defer b.save()
 	if c, e := b.Channels[uid]; e {
@@ -177,6 +177,7 @@ func (b *memoryBackend) ChannelsUpdate(uid, name string) microsub.Channel {
 	return microsub.Channel{}
 }
 
+// ChannelsDelete deletes a channel
 func (b *memoryBackend) ChannelsDelete(uid string) {
 	defer b.save()
 	if _, e := b.Channels[uid]; e {
