@@ -284,7 +284,7 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 		if replyTo, ok := value.(string); ok {
 			item.InReplyTo = append(item.InReplyTo, replyTo)
 		} else if valueArray, ok := value.([]interface{}); ok {
-			for _, v := range valueArray.([]interface{}) {
+			for _, v := range valueArray {
 				if replyTo, ok := v.(string); ok {
 					item.InReplyTo = append(item.InReplyTo, replyTo)
 				} else if cite, ok := v.(map[string]interface{}); ok {
