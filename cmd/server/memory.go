@@ -282,6 +282,7 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 
 	if value, e := result["in-reply-to"]; e {
 		if replyTo, ok := value.(string); ok {
+			item.InReplyTo = append(item.InReplyTo, replyTo)
 		} else if replyTo, ok := value.([]interface{}); ok {
 			for _, v := range value.([]interface{}) {
 				if replyTo, ok := v.(string); ok {
