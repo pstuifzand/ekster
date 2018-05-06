@@ -31,6 +31,7 @@ import (
 
 	"linkheader"
 
+	"cloud.google.com/go/profiler"
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/microsub-server/microsub"
 	"github.com/pstuifzand/microsub-server/pkg/util"
@@ -299,6 +300,14 @@ func newPool(addr string) *redis.Pool {
 }
 
 func main() {
+	if err := profiler.Start(profiler.Config{
+		Service:        "microsub-server",
+		ServiceVersion: "1.0",
+		ProjectID:      "microsub-server", // optional on GCP
+	}); err != nil {
+		log.Fatalf("Cannot start the profiler: %v", err)
+	}
+
 	flag.Parse()
 
 	createBackend := false
