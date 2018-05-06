@@ -266,9 +266,13 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 	}
 
 	if value, e := result["repost-of"]; e {
-		for _, v := range value.([]interface{}) {
-			if u, ok := v.(string); ok {
-				item.RepostOf = append(item.RepostOf, u)
+		if repost, ok := value.(string); ok {
+			item.RepostOf = append(item.RepostOf, repost)
+		} else if repost, ok := value.([]interface{}); ok {
+			for _, v := range repost {
+				if u, ok := v.(string); ok {
+					item.RepostOf = append(item.RepostOf, u)
+				}
 			}
 		}
 	}
