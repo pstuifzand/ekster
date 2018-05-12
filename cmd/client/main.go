@@ -142,13 +142,24 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		}
 	}
 
-	if len(commands) == 3 && commands[1] == "timeline" {
+	if len(commands) >= 3 && commands[1] == "timeline" {
 		channel := commands[2]
-		timeline := sub.TimelineGet("", "", channel)
+
+		var timeline microsub.Timeline
+
+		if len(commands) == 5 && commands[3] == "-after" {
+			timeline = sub.TimelineGet("", commands[4], channel)
+		} else if len(commands) == 5 && commands[3] == "-before" {
+			timeline = sub.TimelineGet(commands[4], "", channel)
+		} else {
+			timeline = sub.TimelineGet("", "", channel)
+		}
 
 		for _, item := range timeline.Items {
 			showItem(&item)
 		}
+
+		fmt.Printf("Before: %s, After: %s\n", timeline.Paging.Before, timeline.Paging.After)
 	}
 
 	if len(commands) == 3 && commands[1] == "search" {

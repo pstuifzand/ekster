@@ -187,7 +187,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"channels": channels,
 			})
 		} else if action == "timeline" {
-			timeline := h.Backend.TimelineGet(values.Get("after"), values.Get("before"), values.Get("channel"))
+			timeline := h.Backend.TimelineGet(values.Get("before"), values.Get("after"), values.Get("channel"))
 			jw := json.NewEncoder(w)
 			w.Header().Add("Content-Type", "application/json")
 			jw.SetIndent("", "    ")

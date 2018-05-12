@@ -368,7 +368,7 @@ func (b *memoryBackend) run() {
 	}()
 }
 
-func (b *memoryBackend) TimelineGet(after, before, channel string) microsub.Timeline {
+func (b *memoryBackend) TimelineGet(before, after, channel string) microsub.Timeline {
 	conn := pool.Get()
 	defer conn.Close()
 

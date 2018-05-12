@@ -56,7 +56,7 @@ func (b *NullBackend) ChannelsDelete(uid string) {
 }
 
 // TimelineGet gets no timeline
-func (b *NullBackend) TimelineGet(after, before, channel string) microsub.Timeline {
+func (b *NullBackend) TimelineGet(before, after, channel string) microsub.Timeline {
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
 		Items:  []microsub.Item{},
