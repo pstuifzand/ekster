@@ -11,6 +11,23 @@ import (
 	"github.com/pstuifzand/microsub-server/pkg/indieauth"
 )
 
+func loadAuth(c *client.Client, filename string) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var token indieauth.TokenResponse
+	dec := json.NewDecoder(f)
+	err = dec.Decode(&token)
+	if err != nil {
+		return err
+	}
+	c.Token = token.AccessToken
+	return nil
+}
+
 func main() {
 	if len(os.Args) == 3 && os.Args[1] == "connect" {
 		err := os.MkdirAll("/home/peter/.config/microsub/", os.FileMode(0770))
@@ -42,23 +59,15 @@ func main() {
 		me := os.Args[2]
 		endpoints, err := indieauth.GetEndpoints(me)
 
-		f, err := os.Open("/home/peter/.config/microsub/client.json")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer f.Close()
-
-		var token indieauth.TokenResponse
-		dec := json.NewDecoder(f)
-		err = dec.Decode(&token)
-		if err != nil {
-			log.Fatal(err)
-		}
-
 		var c client.Client
+		filename := "/home/peter/.config/microsub/client.json"
+		err = loadAuth(&c, filename)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		u, _ := url.Parse(endpoints.MicrosubEndpoint)
 		c.MicrosubEndpoint = u
-		c.Token = token.AccessToken
 
 		channels := c.ChannelsGetList()
 
