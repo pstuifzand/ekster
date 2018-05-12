@@ -222,8 +222,12 @@ func performCommands(sub microsub.Microsub, commands []string) {
 
 func showItem(item *microsub.Item) {
 	fmt.Printf("%s - %s - %s\n", item.Name, item.Published, item.ID)
-	if item.Content != nil && item.Content.Text != "" {
-		fmt.Println(item.Content.Text)
+	if item.Content != nil {
+		if item.Content.Text != "" {
+			fmt.Println(item.Content.Text)
+		} else {
+			fmt.Println(item.Content.HTML)
+		}
 	}
 	fmt.Println(item.URL)
 	fmt.Println()
