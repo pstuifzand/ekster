@@ -134,6 +134,32 @@ func main() {
 }
 
 func performCommands(sub microsub.Microsub, commands []string) {
+	if len(commands) == 0 {
+		fmt.Printf(`%s <command> options...
+
+Commands:
+
+  channels                     list channels
+  channels NAME                create channel with NAME
+  channels UID NAME            update channel UID with NAME
+  channels -delete UID         delete channel with UID
+
+  timeline UID                 show posts for channel UID
+  timeline UID -after AFTER    show posts for channel UID starting from AFTER
+  timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
+
+  search QUERY                 search for feeds from QUERY
+
+  preview URL                  show items from the feed at URL
+
+  follow UID                   show follow list for channel UID
+  follow UID URL               follow URL on channel UID
+
+  unfollow UID URL             unfollow URL on channel UID
+
+`, os.Args[0])
+		return
+	}
 
 	if len(commands) == 1 && commands[0] == "channels" {
 		channels := sub.ChannelsGetList()
