@@ -130,46 +130,46 @@ func main() {
 		log.Fatal(err)
 	}
 
-	performCommands(&c, os.Args)
+	performCommands(&c, os.Args[1:])
 }
 
 func performCommands(sub microsub.Microsub, commands []string) {
 
-	if len(commands) == 2 && commands[1] == "channels" {
+	if len(commands) == 1 && commands[0] == "channels" {
 		channels := sub.ChannelsGetList()
 		for _, ch := range channels {
 			fmt.Println(ch.UID, " ", ch.Name)
 		}
 	}
 
-	if len(commands) == 3 && commands[1] == "channels" {
-		name := commands[2]
+	if len(commands) == 2 && commands[0] == "channels" {
+		name := commands[1]
 		channel := sub.ChannelsCreate(name)
 		fmt.Printf("Channel created %s %s\n", channel.Name, channel.UID)
 	}
 
-	if len(commands) == 4 && commands[1] == "channels" {
-		uid := commands[2]
+	if len(commands) == 3 && commands[0] == "channels" {
+		uid := commands[1]
 		if uid == "-delete" {
-			uid = commands[3]
+			uid = commands[2]
 			sub.ChannelsDelete(uid)
 			fmt.Println("Channel deleted")
 		} else {
-			name := commands[3]
+			name := commands[2]
 			channel := sub.ChannelsUpdate(uid, name)
 			fmt.Printf("Channel updated %s %s\n", channel.Name, channel.UID)
 		}
 	}
 
-	if len(commands) >= 3 && commands[1] == "timeline" {
-		channel := commands[2]
+	if len(commands) >= 2 && commands[0] == "timeline" {
+		channel := commands[1]
 
 		var timeline microsub.Timeline
 
-		if len(commands) == 5 && commands[3] == "-after" {
-			timeline = sub.TimelineGet("", commands[4], channel)
-		} else if len(commands) == 5 && commands[3] == "-before" {
-			timeline = sub.TimelineGet(commands[4], "", channel)
+		if len(commands) == 4 && commands[2] == "-after" {
+			timeline = sub.TimelineGet("", commands[3], channel)
+		} else if len(commands) == 4 && commands[2] == "-before" {
+			timeline = sub.TimelineGet(commands[3], "", channel)
 		} else {
 			timeline = sub.TimelineGet("", "", channel)
 		}
@@ -181,8 +181,8 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		fmt.Printf("Before: %s, After: %s\n", timeline.Paging.Before, timeline.Paging.After)
 	}
 
-	if len(commands) == 3 && commands[1] == "search" {
-		query := commands[2]
+	if len(commands) == 2 && commands[0] == "search" {
+		query := commands[1]
 		feeds := sub.Search(query)
 
 		for _, feed := range feeds {
@@ -190,8 +190,8 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		}
 	}
 
-	if len(commands) == 3 && commands[1] == "preview" {
-		url := commands[2]
+	if len(commands) == 2 && commands[0] == "preview" {
+		url := commands[1]
 		timeline := sub.PreviewURL(url)
 
 		for _, item := range timeline.Items {
@@ -199,23 +199,23 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		}
 	}
 
-	if len(commands) == 3 && commands[1] == "follow" {
-		uid := commands[2]
+	if len(commands) == 2 && commands[0] == "follow" {
+		uid := commands[1]
 		feeds := sub.FollowGetList(uid)
 		for _, feed := range feeds {
 			fmt.Println(feed.Name, " ", feed.URL)
 		}
 	}
 
-	if len(commands) == 4 && commands[1] == "follow" {
-		uid := commands[2]
-		url := commands[3]
+	if len(commands) == 3 && commands[0] == "follow" {
+		uid := commands[1]
+		url := commands[2]
 		sub.FollowURL(uid, url)
 	}
 
-	if len(commands) == 4 && commands[1] == "unfollow" {
-		uid := commands[2]
-		url := commands[3]
+	if len(commands) == 3 && commands[0] == "unfollow" {
+		uid := commands[1]
+		url := commands[2]
 		sub.UnfollowURL(uid, url)
 	}
 }
