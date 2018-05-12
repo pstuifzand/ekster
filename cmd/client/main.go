@@ -142,6 +142,25 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		}
 	}
 
+	if len(commands) == 3 && commands[1] == "channels" {
+		name := commands[2]
+		channel := sub.ChannelsCreate(name)
+		fmt.Printf("Channel created %s %s\n", channel.Name, channel.UID)
+	}
+
+	if len(commands) == 4 && commands[1] == "channels" {
+		uid := commands[2]
+		if uid == "-delete" {
+			uid = commands[3]
+			sub.ChannelsDelete(uid)
+			fmt.Println("Channel deleted")
+		} else {
+			name := commands[3]
+			channel := sub.ChannelsUpdate(uid, name)
+			fmt.Printf("Channel updated %s %s\n", channel.Name, channel.UID)
+		}
+	}
+
 	if len(commands) >= 3 && commands[1] == "timeline" {
 		channel := commands[2]
 
