@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/pstuifzand/microsub-server/microsub"
 	"github.com/pstuifzand/microsub-server/pkg/client"
 	"github.com/pstuifzand/microsub-server/pkg/indieauth"
 )
@@ -129,11 +130,72 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if len(os.Args) == 2 && os.Args[1] == "channels" {
-		channels := c.ChannelsGetList()
+	performCommands(&c, os.Args)
+}
 
+func performCommands(sub microsub.Microsub, commands []string) {
+
+	if len(commands) == 2 && commands[1] == "channels" {
+		channels := sub.ChannelsGetList()
 		for _, ch := range channels {
 			fmt.Println(ch.UID, " ", ch.Name)
 		}
+	}
+
+	if len(commands) == 3 && commands[1] == "timeline" {
+		channel := commands[2]
+		timeline := sub.TimelineGet("", "", channel)
+
+		for _, item := range timeline.Items {
+			fmt.Println("--------------------------")
+			if item.Name == "" && item.Content != nil {
+				fmt.Println(item.Content.HTML)
+			} else {
+				fmt.Println(item.Name)
+			}
+		}
+	}
+
+	if len(commands) == 3 && commands[1] == "search" {
+		query := commands[2]
+		feeds := sub.Search(query)
+
+		for _, feed := range feeds {
+			fmt.Println(feed.Name, " ", feed.URL)
+		}
+	}
+
+	if len(commands) == 3 && commands[1] == "preview" {
+		url := commands[2]
+		timeline := sub.PreviewURL(url)
+
+		for _, item := range timeline.Items {
+			fmt.Println("--------------------------")
+			if item.Name == "" && item.Content != nil {
+				fmt.Println(item.Content.HTML)
+			} else {
+				fmt.Println(item.Name)
+			}
+		}
+	}
+
+	if len(commands) == 3 && commands[1] == "follow" {
+		uid := commands[2]
+		feeds := sub.FollowGetList(uid)
+		for _, feed := range feeds {
+			fmt.Println(feed.Name, " ", feed.URL)
+		}
+	}
+
+	if len(commands) == 4 && commands[1] == "follow" {
+		uid := commands[2]
+		url := commands[3]
+		sub.FollowURL(uid, url)
+	}
+
+	if len(commands) == 4 && commands[1] == "unfollow" {
+		uid := commands[2]
+		url := commands[3]
+		sub.UnfollowURL(uid, url)
 	}
 }

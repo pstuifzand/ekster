@@ -95,16 +95,16 @@ func (c *Client) TimelineGet(after, before, channel string) microsub.Timeline {
 	return timeline
 }
 
-func (c *Client) PreviewURL(url string) []microsub.Timeline {
+func (c *Client) PreviewURL(url string) microsub.Timeline {
 	args := make(map[string]string)
 	args["url"] = url
 	res, err := c.microsubGetRequest("preview", args)
 	if err != nil {
-		return []microsub.Timeline{}
+		return microsub.Timeline{}
 	}
 	defer res.Body.Close()
 	dec := json.NewDecoder(res.Body)
-	var timeline []microsub.Timeline
+	var timeline microsub.Timeline
 	dec.Decode(&timeline)
 	return timeline
 }
