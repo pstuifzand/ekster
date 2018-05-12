@@ -13,10 +13,10 @@ import (
 )
 
 type Endpoints struct {
-	AuthorizationEndpoint string
-	TokenEndpoint         string
-	MicropubEndpoint      string
-	MicrosubEndpoint      string
+	AuthorizationEndpoint string `json:"authorization_endpoint"`
+	TokenEndpoint         string `json:"token_endpoint"`
+	MicropubEndpoint      string `json:"micropub_endpoint"`
+	MicrosubEndpoint      string `json:"microsub_endpoint"`
 }
 
 type TokenResponse struct {
@@ -26,15 +26,12 @@ type TokenResponse struct {
 	Scope       string `json:"scope"`
 }
 
-func GetEndpoints(me string) (Endpoints, error) {
+func GetEndpoints(me *url.URL) (Endpoints, error) {
 	var endpoints Endpoints
 
-	baseURL, err := url.Parse(me)
-	if err != nil {
-		return endpoints, err
-	}
+	baseURL := me
 
-	res, err := http.Get(me)
+	res, err := http.Get(me.String())
 	if err != nil {
 		return endpoints, err
 	}
@@ -58,7 +55,7 @@ func GetEndpoints(me string) (Endpoints, error) {
 	return endpoints, nil
 }
 
-func Authorize(me string, endpoints Endpoints) (TokenResponse, error) {
+func Authorize(me *url.URL, endpoints Endpoints) (TokenResponse, error) {
 	var tokenResponse TokenResponse
 
 	authURL, err := url.Parse(endpoints.AuthorizationEndpoint)
@@ -78,7 +75,7 @@ func Authorize(me string, endpoints Endpoints) (TokenResponse, error) {
 
 	q := authURL.Query()
 	q.Add("response_type", "code")
-	q.Add("me", me)
+	q.Add("me", me.String())
 	q.Add("client_id", clientID)
 	q.Add("redirect_uri", redirectURI)
 	q.Add("state", state)
@@ -128,7 +125,7 @@ func Authorize(me string, endpoints Endpoints) (TokenResponse, error) {
 	reqValues.Add("code", code)
 	reqValues.Add("redirect_uri", redirectURI)
 	reqValues.Add("client_id", clientID)
-	reqValues.Add("me", me)
+	reqValues.Add("me", me.String())
 
 	res, err := http.PostForm(endpoints.TokenEndpoint, reqValues)
 	if err != nil {

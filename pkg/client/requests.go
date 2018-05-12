@@ -11,6 +11,7 @@ import (
 )
 
 type Client struct {
+	Me               *url.URL
 	MicrosubEndpoint *url.URL
 	Token            string
 }
