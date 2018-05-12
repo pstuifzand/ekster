@@ -147,12 +147,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		timeline := sub.TimelineGet("", "", channel)
 
 		for _, item := range timeline.Items {
-			fmt.Println("--------------------------")
-			if item.Name == "" && item.Content != nil {
-				fmt.Println(item.Content.HTML)
-			} else {
-				fmt.Println(item.Name)
-			}
+			showItem(&item)
 		}
 	}
 
@@ -170,12 +165,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		timeline := sub.PreviewURL(url)
 
 		for _, item := range timeline.Items {
-			fmt.Println("--------------------------")
-			if item.Name == "" && item.Content != nil {
-				fmt.Println(item.Content.HTML)
-			} else {
-				fmt.Println(item.Name)
-			}
+			showItem(&item)
 		}
 	}
 
@@ -198,4 +188,14 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		url := commands[3]
 		sub.UnfollowURL(uid, url)
 	}
+}
+
+func showItem(item *microsub.Item) {
+	fmt.Printf("------- %s\n", item.Published)
+	if item.Name == "" && item.Content != nil {
+		fmt.Println(item.Content.HTML)
+	} else {
+		fmt.Println(item.Name)
+	}
+	fmt.Println(item.URL)
 }
