@@ -164,7 +164,7 @@ Commands:
 	if len(commands) == 1 && commands[0] == "channels" {
 		channels := sub.ChannelsGetList()
 		for _, ch := range channels {
-			fmt.Println(ch.UID, " ", ch.Name)
+			fmt.Printf("%-20s %s\n", ch.UID, ch.Name)
 		}
 	}
 
