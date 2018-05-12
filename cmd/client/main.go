@@ -69,21 +69,20 @@ func main() {
 		log.Println("Authorization successful")
 
 		return
-	} else if len(os.Args) == 3 && os.Args[1] == "channels" {
-		me := os.Args[2]
+	}
 
-		var c client.Client
+	me := os.Args[2]
+	var c client.Client
+	err := loadAuth(&c, "/home/peter/.config/microsub/client.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = loadEndpoints(&c, me, "/home/peter/.config/microsub/endpoints.json")
+	if err != nil {
+		log.Fatal(err)
+	}
 
-		err := loadAuth(&c, "/home/peter/.config/microsub/client.json")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		err = loadEndpoints(&c, me, "/home/peter/.config/microsub/endpoints.json")
-		if err != nil {
-			log.Fatal(err)
-		}
-
+	if len(os.Args) == 3 && os.Args[1] == "channels" {
 		channels := c.ChannelsGetList()
 
 		for _, ch := range channels {
