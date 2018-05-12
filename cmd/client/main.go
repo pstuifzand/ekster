@@ -28,6 +28,20 @@ func loadAuth(c *client.Client, filename string) error {
 	return nil
 }
 
+func loadEndpoints(c *client.Client, me, filename string) error {
+	endpoints, err := indieauth.GetEndpoints(me)
+	if err != nil {
+		return err
+	}
+
+	u, err := url.Parse(endpoints.MicrosubEndpoint)
+	if err != nil {
+		return err
+	}
+	c.MicrosubEndpoint = u
+	return nil
+}
+
 func main() {
 	if len(os.Args) == 3 && os.Args[1] == "connect" {
 		err := os.MkdirAll("/home/peter/.config/microsub/", os.FileMode(0770))
@@ -57,17 +71,18 @@ func main() {
 		return
 	} else if len(os.Args) == 3 && os.Args[1] == "channels" {
 		me := os.Args[2]
-		endpoints, err := indieauth.GetEndpoints(me)
 
 		var c client.Client
-		filename := "/home/peter/.config/microsub/client.json"
-		err = loadAuth(&c, filename)
+
+		err := loadAuth(&c, "/home/peter/.config/microsub/client.json")
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		u, _ := url.Parse(endpoints.MicrosubEndpoint)
-		c.MicrosubEndpoint = u
+		err = loadEndpoints(&c, me, "/home/peter/.config/microsub/endpoints.json")
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		channels := c.ChannelsGetList()
 
