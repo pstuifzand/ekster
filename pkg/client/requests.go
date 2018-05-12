@@ -76,7 +76,7 @@ func (c *Client) ChannelsGetList() []microsub.Channel {
 	return channels.Channels
 }
 
-func (c *Client) TimelineGet(after, before, channel string) microsub.Timeline {
+func (c *Client) TimelineGet(before, after, channel string) microsub.Timeline {
 	args := make(map[string]string)
 	args["after"] = after
 	args["before"] = before
