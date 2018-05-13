@@ -163,7 +163,7 @@ func (c *Client) ChannelsUpdate(uid, name string) microsub.Channel {
 
 func (c *Client) ChannelsDelete(uid string) {
 	args := make(map[string]string)
-	args["uid"] = uid
+	args["channel"] = uid
 	args["method"] = "delete"
 	res, err := c.microsubPostRequest("channels", args)
 	if err != nil {
