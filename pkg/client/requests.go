@@ -62,6 +62,7 @@ func (c *Client) ChannelsGetList() []microsub.Channel {
 	args := make(map[string]string)
 	res, err := c.microsubGetRequest("channels", args)
 	if err != nil {
+		log.Println(err)
 		return []microsub.Channel{}
 	}
 	defer res.Body.Close()
@@ -83,6 +84,7 @@ func (c *Client) TimelineGet(before, after, channel string) microsub.Timeline {
 	args["channel"] = channel
 	res, err := c.microsubGetRequest("timeline", args)
 	if err != nil {
+		log.Println(err)
 		return microsub.Timeline{}
 	}
 	defer res.Body.Close()
@@ -100,6 +102,7 @@ func (c *Client) PreviewURL(url string) microsub.Timeline {
 	args["url"] = url
 	res, err := c.microsubGetRequest("preview", args)
 	if err != nil {
+		log.Println(err)
 		return microsub.Timeline{}
 	}
 	defer res.Body.Close()
@@ -114,6 +117,7 @@ func (c *Client) FollowGetList(channel string) []microsub.Feed {
 	args["channel"] = channel
 	res, err := c.microsubGetRequest("follow", args)
 	if err != nil {
+		log.Println(err)
 		return []microsub.Feed{}
 	}
 	defer res.Body.Close()
@@ -131,6 +135,7 @@ func (c *Client) ChannelsCreate(name string) microsub.Channel {
 	args["name"] = name
 	res, err := c.microsubPostRequest("channels", args)
 	if err != nil {
+		log.Println(err)
 		return microsub.Channel{}
 	}
 	defer res.Body.Close()
@@ -146,6 +151,7 @@ func (c *Client) ChannelsUpdate(uid, name string) microsub.Channel {
 	args["uid"] = uid
 	res, err := c.microsubPostRequest("channels", args)
 	if err != nil {
+		log.Println(err)
 		return microsub.Channel{}
 	}
 	defer res.Body.Close()
@@ -161,6 +167,7 @@ func (c *Client) ChannelsDelete(uid string) {
 	args["method"] = "delete"
 	res, err := c.microsubPostRequest("channels", args)
 	if err != nil {
+		log.Println(err)
 		return
 	}
 	res.Body.Close()
@@ -172,6 +179,7 @@ func (c *Client) FollowURL(channel, url string) microsub.Feed {
 	args["url"] = url
 	res, err := c.microsubPostRequest("follow", args)
 	if err != nil {
+		log.Println(err)
 		return microsub.Feed{}
 	}
 	defer res.Body.Close()
@@ -187,6 +195,7 @@ func (c *Client) UnfollowURL(channel, url string) {
 	args["url"] = url
 	res, err := c.microsubPostRequest("unfollow", args)
 	if err != nil {
+		log.Println(err)
 		return
 	}
 	res.Body.Close()
@@ -197,6 +206,7 @@ func (c *Client) Search(query string) []microsub.Feed {
 	args["query"] = query
 	res, err := c.microsubPostRequest("search", args)
 	if err != nil {
+		log.Println(err)
 		return []microsub.Feed{}
 	}
 	type searchResponse struct {
