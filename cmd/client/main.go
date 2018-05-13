@@ -179,7 +179,7 @@ Commands:
 		if uid == "-delete" {
 			uid = commands[2]
 			sub.ChannelsDelete(uid)
-			fmt.Println("Channel deleted")
+			fmt.Printf("Channel %s deleted\n", uid)
 		} else {
 			name := commands[2]
 			channel := sub.ChannelsUpdate(uid, name)
