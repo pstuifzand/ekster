@@ -35,7 +35,7 @@ import (
 	"time"
 
 	"github.com/garyburd/redigo/redis"
-	"github.com/pstuifzand/microsub-server/microsub"
+	"github.com/pstuifzand/ekster/microsub"
 	"willnorris.com/go/microformats"
 )
 

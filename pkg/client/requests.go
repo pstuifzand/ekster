@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/pstuifzand/microsub-server/microsub"
+	"github.com/pstuifzand/ekster/microsub"
 )
 
 type Client struct {

@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/pstuifzand/microsub-server/microsub"
-	"github.com/pstuifzand/microsub-server/pkg/client"
-	"github.com/pstuifzand/microsub-server/pkg/indieauth"
+	"github.com/pstuifzand/ekster/microsub"
+	"github.com/pstuifzand/ekster/pkg/client"
+	"github.com/pstuifzand/ekster/pkg/indieauth"
 )
 
 func loadAuth(c *client.Client, filename string) error {

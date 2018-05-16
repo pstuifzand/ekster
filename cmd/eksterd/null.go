@@ -18,7 +18,7 @@
 package main
 
 import (
-	"github.com/pstuifzand/microsub-server/microsub"
+	"github.com/pstuifzand/ekster/microsub"
 )
 
 // NullBackend is the simplest possible backend

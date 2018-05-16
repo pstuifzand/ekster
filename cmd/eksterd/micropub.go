@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/garyburd/redigo/redis"
-	"github.com/pstuifzand/microsub-server/microsub"
+	"github.com/pstuifzand/ekster/microsub"
 )
 
 type micropubHandler struct {

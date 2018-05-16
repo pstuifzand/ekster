@@ -33,8 +33,8 @@ import (
 
 	"cloud.google.com/go/profiler"
 	"github.com/garyburd/redigo/redis"
-	"github.com/pstuifzand/microsub-server/microsub"
-	"github.com/pstuifzand/microsub-server/pkg/util"
+	"github.com/pstuifzand/ekster/microsub"
+	"github.com/pstuifzand/ekster/pkg/util"
 )
 
 var (
