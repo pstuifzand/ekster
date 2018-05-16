@@ -38,6 +38,7 @@ type memoryBackend struct {
 	Channels map[string]microsub.Channel
 	Feeds    map[string][]microsub.Feed
 	NextUid  int
+	Me       string
 
 	ticker *time.Ticker
 	quit   chan struct{}
@@ -128,6 +129,11 @@ func createMemoryBackend() microsub.Microsub {
 		backend.Channels[c.UID] = c
 	}
 	backend.NextUid = 1002
+
+	backend.Me = "https://example.com/"
+
+	log.Println(`Config file "backend.json" is created in the current directory.`)
+	log.Println(`Update "Me" variable to your website address "https://example.com/"`)
 	return &backend
 }
 

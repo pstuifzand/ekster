@@ -169,7 +169,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if token.Me != "https://publog.stuifzandapp.com/" {
+	if token.Me != h.Backend.(*memoryBackend).Me {
 		log.Printf("Missing \"me\" in token response: %#v\n", token)
 		http.Error(w, "Wrong me", 403)
 		return
