@@ -2,8 +2,8 @@ pipeline:
     build:
         image: golang
         commands:
-            - go get github.com/pstuifzand/microsub-server/cmd/server
-            - go build github.com/pstuifzand/microsub-server/cmd/server
+            - go get github.com/pstuifzand/microsub-server/cmd/eksterd
+            - go build github.com/pstuifzand/microsub-server/cmd/eksterd
 
     publish:
         image: plugins/docker
