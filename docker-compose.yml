@@ -11,7 +11,7 @@ services:
     volumes:
       - ./data:/opt/microsub
     ports:
-      - 8090
+      - 80
     environment:
       - "FEEDBIN_USER="
       - "FEEDBIN_PASS="
