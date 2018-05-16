@@ -81,13 +81,15 @@ func loadEndpoints(c *client.Client, me *url.URL, filename string) error {
 }
 
 func main() {
+	configDir := fmt.Sprintf("%s/.config/microsub", os.Getenv("HOME"))
+
 	if len(os.Args) == 3 && os.Args[1] == "connect" {
-		err := os.MkdirAll("/home/peter/.config/microsub/", os.FileMode(0770))
+		err := os.MkdirAll(configDir, os.FileMode(0770))
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		f, err := os.Create("/home/peter/.config/microsub/client.json")
+		f, err := os.Create(fmt.Sprintf("%s/client.json", configDir))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -120,12 +122,12 @@ func main() {
 	}
 
 	var c client.Client
-	err := loadAuth(&c, "/home/peter/.config/microsub/client.json")
+	err := loadAuth(&c, fmt.Sprintf("%s/client.json", configDir))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = loadEndpoints(&c, c.Me, "/home/peter/.config/microsub/endpoints.json")
+	err = loadEndpoints(&c, c.Me, fmt.Sprintf("%s/endpoints.json", configDir))
 	if err != nil {
 		log.Fatal(err)
 	}
