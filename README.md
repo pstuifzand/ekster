@@ -34,3 +34,11 @@ The command `ek` is the command line client for Microsub server. It is able to
 call the different functions of the Microsub server. It isn't needed to use `eksterd`, but
 it can be useful. It can also be used with other servers that implement Microsub.
 
+## Using Docker / Docker Compose
+
+It's now also possible to use docker-compose to start a ekster server.
+
+    docker-compose pull
+    docker-compose run web new
+    docker-compose up
+
