@@ -26,7 +26,7 @@ The first time you should call the command
 
     eksterd new
 
-This will generate a configuration file where it remembers the feeds.
+This will generate a configuration file `backend.json` where it remembers the feeds.
 
 ### `ek`
 
