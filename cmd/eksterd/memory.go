@@ -101,6 +101,7 @@ func (b *memoryBackend) save() {
 	f, _ := os.Create(filename)
 	defer f.Close()
 	jw := json.NewEncoder(f)
+	jw.SetIndent("", "    ")
 	jw.Encode(b)
 }
 
