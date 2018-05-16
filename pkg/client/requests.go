@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/pstuifzand/ekster/microsub"
 )
@@ -49,6 +50,27 @@ func (c *Client) microsubPostRequest(action string, args map[string]string) (*ht
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+
+	return client.Do(req)
+}
+
+func (c *Client) microsubPostFormRequest(action string, args map[string]string, data url.Values) (*http.Response, error) {
+	client := http.Client{}
+
+	u := *c.MicrosubEndpoint
+	q := u.Query()
+	q.Add("action", action)
+	for k, v := range args {
+		q.Add(k, v)
+	}
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -220,22 +242,15 @@ func (c *Client) Search(query string) []microsub.Feed {
 }
 
 func (c *Client) MarkRead(channel string, uids []string) {
-	// TODO(peter): Add Authorization header
-	client := http.Client{}
-
-	u := *c.MicrosubEndpoint
-	q := u.Query()
-	q.Add("action", "mark_read")
-	q.Add("channel", channel)
+	args := make(map[string]string)
+	args["channel"] = channel
 
 	data := url.Values{}
-
 	for _, uid := range uids {
 		data.Add("entry[]", uid)
 	}
-	u.RawQuery = q.Encode()
 
-	res, err := client.PostForm(u.String(), data)
+	res, err := c.microsubPostFormRequest("mark_read", args, data)
 	if err == nil {
 		defer res.Body.Close()
 	}
