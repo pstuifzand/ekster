@@ -6,7 +6,8 @@ RUN go get github.com/pstuifzand/ekster/cmd/eksterd
 # final stage
 FROM alpine
 RUN apk --no-cache add ca-certificates
-WORKDIR /app
+RUN ["mkdir", "-p", "/opt/micropub"]
+WORKDIR /opt/micropub
 EXPOSE 80
 COPY --from=build-env /go/bin/eksterd /app/
-ENTRYPOINT ./eksterd
+ENTRYPOINT ["/app/eksterd"]

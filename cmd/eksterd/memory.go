@@ -35,10 +35,11 @@ import (
 )
 
 type memoryBackend struct {
-	Channels map[string]microsub.Channel
-	Feeds    map[string][]microsub.Feed
-	NextUid  int
-	Me       string
+	Channels      map[string]microsub.Channel
+	Feeds         map[string][]microsub.Feed
+	NextUid       int
+	Me            string
+	TokenEndpoint string
 
 	ticker *time.Ticker
 	quit   chan struct{}

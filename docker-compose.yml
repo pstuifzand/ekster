@@ -1,0 +1,17 @@
+version: '2'
+services:
+  redis:
+    image: "redis"
+
+  web:
+    image: "pstuifzand/eksterd:alpine"
+    working_dir: /opt/microsub
+    links:
+      - redis:redis
+    volumes:
+      - ./data:/opt/microsub
+    ports:
+      - 8090
+    environment:
+      - "FEEDBIN_USER="
+      - "FEEDBIN_PASS="
