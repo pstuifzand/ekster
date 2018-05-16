@@ -299,6 +299,7 @@ func newPool(addr string) *redis.Pool {
 }
 
 func main() {
+	log.Println("eksterd - microsub server")
 	flag.Parse()
 
 	createBackend := false
@@ -336,5 +337,6 @@ func main() {
 		Backend: &hubBackend,
 	})
 	backend.(*memoryBackend).run()
+	log.Printf("Listening on port %d\n", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }
