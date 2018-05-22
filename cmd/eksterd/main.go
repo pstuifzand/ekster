@@ -45,6 +45,19 @@ func init() {
 	flag.IntVar(&port, "port", 80, "port for serving api")
 }
 
+type mainHandler struct {
+	Backend *memoryBackend
+}
+
+func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		fmt.Fprintln(w, "<h1>Ekster - Microsub server</h1>")
+		fmt.Fprintln(w, `<p><a href="/settings">Settings</a></p>`)
+		return
+	}
+	http.NotFound(w, r)
+}
+
 type hubIncomingBackend struct {
 	backend *memoryBackend
 }
@@ -188,6 +201,11 @@ func main() {
 	http.Handle("/incoming/", &incomingHandler{
 		Backend: &hubBackend,
 	})
+
+	http.Handle("/", &mainHandler{
+		Backend: backend.(*memoryBackend),
+	})
+
 	backend.(*memoryBackend).run()
 	log.Printf("Listening on port %d\n", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
