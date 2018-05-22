@@ -307,6 +307,14 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			} else {
 				item.ID = hex.EncodeToString([]byte(feedItem.ID))
 			}
+
+			itemAuthor := &microsub.Card{}
+			itemAuthor.Type = "card"
+			itemAuthor.Name = feed.Title
+			itemAuthor.URL = feed.Link
+			itemAuthor.Photo = feed.Image.URL
+			item.Author = itemAuthor
+
 			item.Published = feedItem.Date.Format(time.RFC3339)
 			items = append(items, item)
 		}
