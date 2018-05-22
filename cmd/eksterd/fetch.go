@@ -279,7 +279,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			item.Photo = []string{feedItem.Image}
 			items = append(items, item)
 		}
-	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") {
+	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") || strings.HasPrefix(contentType, "application/xml") {
 		body, err := ioutil.ReadAll(body)
 		if err != nil {
 			log.Printf("Error while parsing rss/atom feed: %s\n", err)
