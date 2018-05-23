@@ -36,7 +36,7 @@ Start redis
 
 Start eksterd and pass the redis and port arguments.
 
-    eksterd -redis localhost:6379 -port 8090
+    EKSTER_BASEURL=https://example.com eksterd -redis localhost:6379 -port 8090
 
 You can now access `eksterd` on port `8090`. To really use it, you should proxy
 `eksterd` behind a HTTP reverse proxy on port 80, or 443.
