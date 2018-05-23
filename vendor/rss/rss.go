@@ -91,6 +91,7 @@ type Feed struct {
 	Description string              `json:"description"`
 	Link        string              `json:"link"`      // Link to the creator's website.
 	UpdateURL   string              `json:"updateurl"` // URL of the feed itself.
+	HubURL      string              `json:"huburl"`    // URL of the WebSub hub
 	Image       *Image              `json:"image"`     // Feed icon.
 	Items       []*Item             `json:"items"`
 	ItemMap     map[string]struct{} `json:"itemmap"` // Used in checking whether an item has been seen before.

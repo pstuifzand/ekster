@@ -2,24 +2,81 @@ package websub
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"linkheader"
+	"rss"
 )
-
-// Fetcher return the response for a url
-type Fetcher interface {
-	Fetch(url string) (*http.Response, error)
-}
 
 // GetHubURL finds the HubURL for topic
 func GetHubURL(client *http.Client, topic string) (string, error) {
+	hubURL, err := parseLinkHeaders(client, topic)
+	if err == nil {
+		return hubURL, err
+	}
+
+	hubURL, err = parseBodyLinks(client, topic)
+	if err == nil {
+		return hubURL, err
+	}
+
+	return "", fmt.Errorf("No hub url found for topic %s", topic)
+}
+
+func isFeedContentType(contentType string) bool {
+	if strings.HasPrefix(contentType, "application/rss+xml") {
+		return true
+	}
+	if strings.HasPrefix(contentType, "application/atom+xml") {
+		return true
+	}
+	if strings.HasPrefix(contentType, "application/xml") {
+		return true
+	}
+	if strings.HasPrefix(contentType, "text/xml") {
+		return true
+	}
+
+	return false
+}
+
+func parseBodyLinks(client *http.Client, topic string) (string, error) {
+	resp, err := client.Get(topic)
+
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if isFeedContentType(resp.Header.Get("Content-Type")) {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return "", err
+		}
+		feed, err := rss.Parse(body)
+		if err != nil {
+			return "", err
+		}
+
+		if feed.HubURL != "" {
+			return feed.HubURL, nil
+		}
+		return "", fmt.Errorf("No hub url found in RSS feed")
+	}
+
+	return "", fmt.Errorf("Unknown content type of response: %s", resp.Header.Get("Content-Type"))
+}
+
+func parseLinkHeaders(client *http.Client, topic string) (string, error) {
 	resp, err := client.Head(topic)
 
 	if err != nil {
 		return "", err
 	}
+
 	defer resp.Body.Close()
 
 	if headers, e := resp.Header["Link"]; e {
@@ -31,7 +88,7 @@ func GetHubURL(client *http.Client, topic string) (string, error) {
 		}
 	}
 
-	return "", nil
+	return "", fmt.Errorf("No hub url found in HTTP Link headers")
 }
 
 // Subscribe subscribes topicURL on hubURL

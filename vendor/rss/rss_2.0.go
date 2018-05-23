@@ -30,9 +30,12 @@ func parseRSS2(data []byte) (*Feed, error) {
 	for _, link := range channel.Link {
 		if link.Rel == "" && link.Type == "" && link.Href == "" && link.Chardata != "" {
 			out.Link = link.Chardata
-			break
+		}
+		if link.Rel == "hub" {
+			out.HubURL = link.Href
 		}
 	}
+
 	out.Image = channel.Image.Image()
 	if channel.MinsToLive != 0 {
 		sort.Ints(channel.SkipHours)
