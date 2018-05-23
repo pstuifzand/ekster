@@ -12,6 +12,10 @@ import (
 	"github.com/pstuifzand/ekster/pkg/indieauth"
 )
 
+func init() {
+	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
+}
+
 func loadAuth(c *client.Client, filename string) error {
 	f, err := os.Open(filename)
 	if err != nil {

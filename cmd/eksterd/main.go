@@ -23,27 +23,29 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"time"
 
-	"linkheader"
-
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/ekster/microsub"
 	"github.com/pstuifzand/ekster/pkg/util"
+	"github.com/pstuifzand/ekster/pkg/websub"
 )
 
 var (
 	pool        *redis.Pool
 	port        int
+	auth        bool
 	redisServer = flag.String("redis", "redis:6379", "")
 	entryRegex  = regexp.MustCompile("^entry\\[\\d+\\]$")
 )
 
 func init() {
+	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
+
 	flag.IntVar(&port, "port", 80, "port for serving api")
+	flag.BoolVar(&auth, "auth", true, "use auth")
 }
 
 type mainHandler struct {
@@ -73,29 +75,6 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 	return secret
 }
 
-func (h *hubIncomingBackend) getHubURL(topic string) (string, error) {
-	client := &http.Client{}
-
-	resp, err := client.Head(topic)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if headers, e := resp.Header["Link"]; e {
-		links := linkheader.ParseMultiple(headers)
-		for _, link := range links {
-			if link.Rel == "hub" {
-				log.Printf("WebSub Hub URL found for topic=%s hub=%s\n", topic, link.URL)
-				return link.URL, nil
-			}
-		}
-	}
-
-	log.Printf("WebSub Hub URL not found for topic=%s\n", topic)
-	return "", nil
-}
-
 func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, error) {
 	conn := pool.Get()
 	defer conn.Close()
@@ -110,29 +89,23 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 	secret := util.RandStringBytes(16)
 	conn.Do("HSET", fmt.Sprintf("feed:%d", id), "secret", secret)
 
-	hubURL, err := h.getHubURL(topic)
+	client := &http.Client{}
+
+	hubURL, err := websub.GetHubURL(client, topic)
+	if hubURL == "" {
+		log.Printf("WebSub Hub URL not found for topic=%s\n", topic)
+	} else {
+		log.Printf("WebSub Hub URL found for topic=%s hub=%s\n", topic, hubURL)
+	}
+
 	if err == nil && hubURL != "" {
 		conn.Do("HSET", fmt.Sprintf("feed:%d", id), "hub", hubURL)
 	} else {
 		return id, nil
 	}
 
-	hub, err := url.Parse(hubURL)
-	q := hub.Query()
-	q.Add("hub.mode", "subscribe")
-	q.Add("hub.callback", fmt.Sprintf("%s/incoming/%d", os.Getenv("EKSTER_BASEURL"), id))
-	q.Add("hub.topic", topic)
-	q.Add("hub.secret", secret)
-	hub.RawQuery = ""
-
-	log.Printf("POST %s\n", hub)
-	client := &http.Client{}
-	res, err := client.PostForm(hub.String(), q)
-	if err != nil {
-		log.Printf("new request: %s\n", err)
-		return 0, err
-	}
-	defer res.Body.Close()
+	callbackURL := fmt.Sprintf("%s/incoming/%d", os.Getenv("EKSTER_BASEURL"), id)
+	websub.Subscribe(client, hubURL, topic, callbackURL, secret, 24*3600)
 
 	return id, nil
 }
@@ -167,6 +140,12 @@ func newPool(addr string) *redis.Pool {
 func main() {
 	log.Println("eksterd - microsub server")
 	flag.Parse()
+
+	if auth {
+		log.Println("Using auth")
+	} else {
+		log.Println("Authentication disabled")
+	}
 
 	if _, e := os.LookupEnv("EKSTER_BASEURL"); !e {
 		log.Fatal("EKSTER_BASEURL environment variable not found, please set with external url: https://example.com")

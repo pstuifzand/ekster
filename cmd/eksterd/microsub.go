@@ -26,20 +26,23 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s\n", r.Method, r.URL)
 	log.Println(r.URL.Query())
 	log.Println(r.PostForm)
-	authorization := r.Header.Get("Authorization")
 
-	var token TokenResponse
+	if auth {
+		authorization := r.Header.Get("Authorization")
 
-	if !h.cachedCheckAuthToken(authorization, &token) {
-		log.Printf("Token could not be validated")
-		http.Error(w, "Can't validate token", 403)
-		return
-	}
+		var token TokenResponse
 
-	if token.Me != h.Backend.(*memoryBackend).Me {
-		log.Printf("Missing \"me\" in token response: %#v\n", token)
-		http.Error(w, "Wrong me", 403)
-		return
+		if !h.cachedCheckAuthToken(authorization, &token) {
+			log.Printf("Token could not be validated")
+			http.Error(w, "Can't validate token", 403)
+			return
+		}
+
+		if token.Me != h.Backend.(*memoryBackend).Me {
+			log.Printf("Missing \"me\" in token response: %#v\n", token)
+			http.Error(w, "Wrong me", 403)
+			return
+		}
 	}
 
 	if r.Method == http.MethodGet {

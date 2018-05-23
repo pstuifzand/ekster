@@ -50,7 +50,6 @@ type Debug interface {
 }
 
 func init() {
-	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
 }
 
 func (b *memoryBackend) Debug() {
@@ -550,7 +549,17 @@ func (b *memoryBackend) FollowGetList(uid string) []microsub.Feed {
 func (b *memoryBackend) FollowURL(uid string, url string) microsub.Feed {
 	defer b.save()
 	feed := microsub.Feed{Type: "feed", URL: url}
+
+	resp, err := b.Fetch3(uid, feed.URL)
+	if err != nil {
+		return feed
+	}
+	defer resp.Body.Close()
+
 	b.Feeds[uid] = append(b.Feeds[uid], feed)
+
+	b.ProcessContent(uid, feed.URL, resp.Header.Get("Content-Type"), resp.Body)
+
 	return feed
 }
 
