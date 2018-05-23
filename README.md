@@ -33,6 +33,35 @@ The command `ek` is the command line client for Microsub server. It is able to
 call the different functions of the Microsub server. It isn't needed to use `eksterd`, but
 it can be useful. It can also be used with other servers that implement Microsub.
 
+    ek connect <url>
+
+Connect with `ek` to you microsub server. After that you can call `ek` to
+control your microsub server. It should even work with other servers that
+support microsub.
+
+    ek <command> options...
+
+    Commands:
+
+      channels                     list channels
+      channels NAME                create channel with NAME
+      channels UID NAME            update channel UID with NAME
+      channels -delete UID         delete channel with UID
+
+      timeline UID                 show posts for channel UID
+      timeline UID -after AFTER    show posts for channel UID starting from AFTER
+      timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
+
+      search QUERY                 search for feeds from QUERY
+
+      preview URL                  show items from the feed at URL
+
+      follow UID                   show follow list for channel UID
+      follow UID URL               follow URL on channel UID
+
+      unfollow UID URL             unfollow URL on channel UID
+
+
 ## backend.json
 
 The `backend.json` file contains all information about channels, feeds and authentication.
@@ -61,4 +90,16 @@ It's now also possible to use docker-compose to start a ekster server.
     docker-compose pull
     docker-compose run web new
     docker-compose up
+
+### Add a link on your website in the `<head>` tag
+
+Add a link in the `<head>` tag to let the microsub client know where to find your server.
+
+   <link rel="microsub" href="https://microsub.example.com/microsub">
+
+The domain name `microsub.example.com` needs to be replaced with the vhost that
+you use to proxy the server.
+
+The microsub server responds to the `/microsub` url with the micropub protocol.
+You can use `ek` to talk to the endpoint.
 
