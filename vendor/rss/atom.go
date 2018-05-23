@@ -23,7 +23,9 @@ func parseAtom(data []byte) (*Feed, error) {
 	for _, link := range feed.Link {
 		if link.Rel == "alternate" || link.Rel == "" {
 			out.Link = link.Href
-			break
+		}
+		if link.Rel == "hub" {
+			out.HubURL = link.Href
 		}
 	}
 	out.Image = feed.Image.Image()
