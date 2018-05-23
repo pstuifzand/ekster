@@ -3,18 +3,65 @@
 a microsub server
 
 
-
 ## Warning!
 
 Very alpha: no warranty.
 
-## Install ekster
+## Installing and running ekster
+
+### Method 1: Install ekster (from source)
 
 ekster is build using [go](https://golang.org). To be able to install ekster
 you need a Go environment. Use these commands to install the programs.
 
     go get -u github.com/pstuifzand/ekster/cmd/eksterd
     go get -u github.com/pstuifzand/ekster/cmd/ek
+
+`eksterd` uses [Redis](https://redis.io/) as the database, to temporarily save
+the items and feeds. The more permanent information is saved in `backend.json`.
+
+#### Running eksterd
+
+Run both Redis and `eksterd`.
+
+Generate the configuration file "backend.json". Run this command only once, as
+it will regenerate the configuration, from scratch. See **Configuration** for
+how to set up the json file.
+
+    eksterd new
+
+Start redis
+
+    redis --port 6379
+
+Start eksterd and pass the redis and port arguments.
+
+    eksterd -redis localhost:6379 -port 8090
+
+You can now access `eksterd` on port `8090`. To really use it, you should proxy
+`eksterd` behind a HTTP reverse proxy on port 80, or 443.
+
+### Method 2: Using Docker / Docker Compose
+
+It's now also possible to use docker-compose to start a ekster server.
+
+    docker-compose pull
+    docker-compose run web new
+    docker-compose up
+
+## When ekster is running
+
+Add a link in the `<head>` tag to let the microsub client know where to find your server.
+
+   <link rel="microsub" href="https://microsub.example.com/microsub">
+
+The domain name `microsub.example.com` needs to be replaced with the vhost that
+you use to proxy the server.
+
+The microsub server responds to the `/microsub` url with the micropub protocol.
+You can use `ek` to talk to the endpoint.
+
+## Commands
 
 ### `eksterd`
 
@@ -62,7 +109,7 @@ support microsub.
       unfollow UID URL             unfollow URL on channel UID
 
 
-## backend.json
+## Configuration: backend.json
 
 The `backend.json` file contains all information about channels, feeds and authentication.
 When the server is not running you can make changes to this file to add or remove feeds.
@@ -82,24 +129,4 @@ Micropub client.
 `TokenEndpoint` should be the `token_endpoint` you use for that domain,
 `ekster` will check every 10 minutes, if the token is still valid. This could
 be retrieved automatically, but this doesn't happen at the moment.
-
-## Using Docker / Docker Compose
-
-It's now also possible to use docker-compose to start a ekster server.
-
-    docker-compose pull
-    docker-compose run web new
-    docker-compose up
-
-### Add a link on your website in the `<head>` tag
-
-Add a link in the `<head>` tag to let the microsub client know where to find your server.
-
-   <link rel="microsub" href="https://microsub.example.com/microsub">
-
-The domain name `microsub.example.com` needs to be replaced with the vhost that
-you use to proxy the server.
-
-The microsub server responds to the `/microsub` url with the micropub protocol.
-You can use `ek` to talk to the endpoint.
 
