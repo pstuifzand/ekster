@@ -24,6 +24,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"time"
 
@@ -119,7 +120,7 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 	hub, err := url.Parse(hubURL)
 	q := hub.Query()
 	q.Add("hub.mode", "subscribe")
-	q.Add("hub.callback", fmt.Sprintf("https://microsub.stuifzandapp.com/incoming/%d", id))
+	q.Add("hub.callback", fmt.Sprintf("%s/incoming/%d", os.Getenv("EKSTER_BASEURL"), id))
 	q.Add("hub.topic", topic)
 	q.Add("hub.secret", secret)
 	hub.RawQuery = ""
@@ -166,6 +167,10 @@ func newPool(addr string) *redis.Pool {
 func main() {
 	log.Println("eksterd - microsub server")
 	flag.Parse()
+
+	if _, e := os.LookupEnv("EKSTER_BASEURL"); !e {
+		log.Fatal("EKSTER_BASEURL environment variable not found, please set with external url: https://example.com")
+	}
 
 	createBackend := false
 	args := flag.Args()
