@@ -145,6 +145,8 @@ func performCommands(sub microsub.Microsub, commands []string) {
 
 Commands:
 
+  connect URL                  login to Indieauth url
+
   channels                     list channels
   channels NAME                create channel with NAME
   channels UID NAME            update channel UID with NAME
