@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/pstuifzand/ekster/pkg/util"
 	"willnorris.com/go/microformats"
 )
 
@@ -70,7 +71,7 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 
 	local := ln.Addr().String()
 	redirectURI := fmt.Sprintf("http://%s/", local)
-	state := "12345344"
+	state := util.RandStringBytes(16)
 
 	q := authURL.Query()
 	q.Add("response_type", "code")
