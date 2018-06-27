@@ -55,7 +55,7 @@ func GetEndpoints(me *url.URL) (Endpoints, error) {
 	return endpoints, nil
 }
 
-func Authorize(me *url.URL, endpoints Endpoints) (TokenResponse, error) {
+func Authorize(me *url.URL, endpoints Endpoints, scope string) (TokenResponse, error) {
 	var tokenResponse TokenResponse
 
 	authURL, err := url.Parse(endpoints.AuthorizationEndpoint)
@@ -79,7 +79,7 @@ func Authorize(me *url.URL, endpoints Endpoints) (TokenResponse, error) {
 	q.Add("client_id", clientID)
 	q.Add("redirect_uri", redirectURI)
 	q.Add("state", state)
-	q.Add("scope", "read follow mute block channels")
+	q.Add("scope", scope)
 	authURL.RawQuery = q.Encode()
 
 	log.Printf("Browse to %s\n", authURL.String())

@@ -109,7 +109,9 @@ func main() {
 			log.Fatal(err)
 		}
 
-		token, err := indieauth.Authorize(me, endpoints)
+		scope := "read follow mute block channels"
+
+		token, err := indieauth.Authorize(me, endpoints, scope)
 		if err != nil {
 			log.Fatal(err)
 		}
