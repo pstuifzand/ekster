@@ -258,7 +258,10 @@ Commands:
 }
 
 func showItem(item *microsub.Item) {
-	fmt.Printf("%s - %s - %s\n", item.Name, item.Published, item.ID)
+	if item.Name != "" {
+		fmt.Printf("%s - ", item.Name)
+	}
+	fmt.Printf("%s\n", item.Published)
 	if item.Content != nil {
 		if item.Content.Text != "" {
 			fmt.Println(item.Content.Text)
