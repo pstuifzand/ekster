@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"linkheader"
+
 	"github.com/pstuifzand/ekster/pkg/util"
 	"willnorris.com/go/microformats"
 )
@@ -38,18 +40,37 @@ func GetEndpoints(me *url.URL) (Endpoints, error) {
 	}
 	defer res.Body.Close()
 
+	var links linkheader.Links
+
+	if headers, e := res.Header["Link"]; e {
+		links = linkheader.ParseMultiple(headers)
+		for _, link := range links {
+			if link.Rel == "authorization_endpoint" {
+				endpoints.AuthorizationEndpoint = link.URL
+			} else if link.Rel == "token_endpoint" {
+				endpoints.TokenEndpoint = link.URL
+			} else if link.Rel == "micropub" {
+				endpoints.MicropubEndpoint = link.URL
+			} else if link.Rel == "microsub" {
+				endpoints.MicrosubEndpoint = link.URL
+			} else {
+				log.Printf("Skipping unsupported rels in Link header: %s %s\n", link.Rel, link.URL)
+			}
+		}
+	}
+
 	data := microformats.Parse(res.Body, baseURL)
 
-	if auth, e := data.Rels["authorization_endpoint"]; e {
+	if auth, e := data.Rels["authorization_endpoint"]; e && endpoints.AuthorizationEndpoint == "" {
 		endpoints.AuthorizationEndpoint = auth[0]
 	}
-	if token, e := data.Rels["token_endpoint"]; e {
+	if token, e := data.Rels["token_endpoint"]; e && endpoints.TokenEndpoint == "" {
 		endpoints.TokenEndpoint = token[0]
 	}
-	if micropub, e := data.Rels["micropub"]; e {
+	if micropub, e := data.Rels["micropub"]; e && endpoints.MicropubEndpoint == "" {
 		endpoints.MicropubEndpoint = micropub[0]
 	}
-	if microsub, e := data.Rels["microsub"]; e {
+	if microsub, e := data.Rels["microsub"]; e && endpoints.MicrosubEndpoint == "" {
 		endpoints.MicrosubEndpoint = microsub[0]
 	}
 
