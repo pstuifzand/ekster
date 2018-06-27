@@ -55,7 +55,7 @@ func GetEndpoints(me *url.URL) (Endpoints, error) {
 	return endpoints, nil
 }
 
-func Authorize(me *url.URL, endpoints Endpoints, scope string) (TokenResponse, error) {
+func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenResponse, error) {
 	var tokenResponse TokenResponse
 
 	authURL, err := url.Parse(endpoints.AuthorizationEndpoint)
@@ -68,7 +68,6 @@ func Authorize(me *url.URL, endpoints Endpoints, scope string) (TokenResponse, e
 		return tokenResponse, err
 	}
 
-	clientID := "https://p83.nl/microsub-client"
 	local := ln.Addr().String()
 	redirectURI := fmt.Sprintf("http://%s/", local)
 	state := "12345344"

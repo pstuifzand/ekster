@@ -109,9 +109,10 @@ func main() {
 			log.Fatal(err)
 		}
 
+		clientID := "https://p83.nl/microsub-client"
 		scope := "read follow mute block channels"
 
-		token, err := indieauth.Authorize(me, endpoints, scope)
+		token, err := indieauth.Authorize(me, endpoints, clientID, scope)
 		if err != nil {
 			log.Fatal(err)
 		}
