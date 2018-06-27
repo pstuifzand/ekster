@@ -121,20 +121,19 @@ func createMemoryBackend() microsub.Microsub {
 	backend.Channels = make(map[string]microsub.Channel)
 	backend.Feeds = make(map[string][]microsub.Feed)
 	channels := []microsub.Channel{
-		microsub.Channel{UID: "0000", Name: "default"},
-		microsub.Channel{UID: "0001", Name: "notifications"},
-		microsub.Channel{UID: "1000", Name: "Friends"},
-		microsub.Channel{UID: "1001", Name: "Family"},
+		microsub.Channel{UID: "notifications", Name: "Notifications"},
+		microsub.Channel{UID: "home", Name: "Home"},
 	}
 	for _, c := range channels {
 		backend.Channels[c.UID] = c
 	}
-	backend.NextUid = 1002
+	backend.NextUid = 1000000
 
 	backend.Me = "https://example.com/"
 
 	log.Println(`Config file "backend.json" is created in the current directory.`)
 	log.Println(`Update "Me" variable to your website address "https://example.com/"`)
+	log.Println(`Update "TokenEndpoint" variable to the address of your token endpoint "https://example.com/token"`)
 	return &backend
 }
 
