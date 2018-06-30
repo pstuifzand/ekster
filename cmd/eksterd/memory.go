@@ -716,6 +716,9 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) {
 	unread -= len(uids)
 
 	if ch, e := b.Channels[channel]; e {
+		if unread < 0 {
+			unread = 0
+		}
 		ch.Unread = unread
 		b.Channels[channel] = ch
 	}
