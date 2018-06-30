@@ -189,6 +189,12 @@ func (b *memoryBackend) ChannelsUpdate(uid, name string) microsub.Channel {
 func (b *memoryBackend) ChannelsDelete(uid string) {
 	defer b.save()
 
+	conn := pool.Get()
+	defer conn.Close()
+
+	conn.Do("SREM", "channels", uid)
+	conn.Do("DEL", "channel_sortorder_"+uid)
+
 	delete(b.Channels, uid)
 	delete(b.Feeds, uid)
 }
