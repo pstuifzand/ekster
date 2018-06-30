@@ -187,13 +187,8 @@ func (b *memoryBackend) ChannelsUpdate(uid, name string) microsub.Channel {
 func (b *memoryBackend) ChannelsDelete(uid string) {
 	defer b.save()
 
-	if _, e := b.Channels[uid]; e {
-		delete(b.Channels, uid)
-	}
-
-	if _, e := b.Feeds[uid]; e {
-		delete(b.Feeds, uid)
-	}
+	delete(b.Channels, uid)
+	delete(b.Feeds, uid)
 }
 
 func mapToAuthor(result map[string]string) *microsub.Card {
