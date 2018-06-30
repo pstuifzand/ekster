@@ -151,7 +151,9 @@ func (b *memoryBackend) ChannelsGetList() []microsub.Channel {
 		}
 	} else {
 		for _, uid := range uids {
-			channels = append(channels, b.Channels[uid])
+			if c, e := b.Channels[uid]; e {
+				channels = append(channels, c)
+			}
 		}
 	}
 	return channels
