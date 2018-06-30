@@ -10,4 +10,5 @@ RUN ["mkdir", "-p", "/opt/micropub"]
 WORKDIR /opt/micropub
 EXPOSE 80
 COPY --from=build-env /go/bin/eksterd /app/
+COPY --from=build-env /go/bin/ek /app/
 ENTRYPOINT ["/app/eksterd"]
