@@ -182,7 +182,7 @@ Commands:
 	if len(commands) == 2 && commands[0] == "channels" {
 		name := commands[1]
 		channel := sub.ChannelsCreate(name)
-		fmt.Printf("Channel created %s %s\n", channel.Name, channel.UID)
+		fmt.Printf("%s\n", channel.UID)
 	}
 
 	if len(commands) == 3 && commands[0] == "channels" {
