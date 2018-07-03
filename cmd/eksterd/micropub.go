@@ -31,6 +31,11 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		sourceID := r.URL.Query().Get("source_id")
 
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			sourceID = authHeader[7:]
+		}
+
 		channel, err := redis.String(conn.Do("HGET", "sources", sourceID))
 		if err != nil {
 			http.Error(w, "Unknown source", 400)
