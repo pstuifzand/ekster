@@ -26,6 +26,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s\n", r.Method, r.URL)
 	log.Println(r.URL.Query())
 	log.Println(r.PostForm)
+	log.Println(r.Header)
 
 	if r.Method == http.MethodPost {
 		sourceID := r.URL.Query().Get("source_id")
