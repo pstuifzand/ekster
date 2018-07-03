@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/ekster/microsub"
