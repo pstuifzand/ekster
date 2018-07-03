@@ -8,6 +8,7 @@ import (
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/ekster/microsub"
+	"willnorris.com/go/microformats"
 )
 
 type micropubHandler struct {
@@ -29,24 +30,37 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		var item microsub.Item
+		ok := false
 		if r.Header.Get("Content-Type") == "application/jf2+json" {
-			var item microsub.Item
-
 			dec := json.NewDecoder(r.Body)
-
 			err := dec.Decode(&item)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("Error decoding: %v", err), 400)
 				return
 			}
+			ok = true
+		} else if r.Header.Get("Content-Type") == "application/json" {
+			var mfItem microformats.Microformat
+			dec := json.NewDecoder(r.Body)
+			err := dec.Decode(&mfItem)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Error decoding: %v", err), 400)
+				return
+			}
 
-			item.Read = false
-			id, err := redis.Int(conn.Do("INCR", "source:"+sourceID+"next_id"))
-			item.ID = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("source:%s:%d", sourceID, id))))
-			h.Backend.channelAddItem(channel, item)
+			item = mapToItem(simplifyMicroformat(&mfItem))
+			ok = true
 		} else {
 			http.Error(w, "Unsupported Content-Type", 400)
 			return
+		}
+
+		if ok {
+			item.Read = false
+			id, _ := redis.Int(conn.Do("INCR", "source:"+sourceID+"next_id"))
+			item.ID = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("source:%s:%d", sourceID, id))))
+			h.Backend.channelAddItem(channel, item)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
