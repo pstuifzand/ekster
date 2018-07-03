@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/garyburd/redigo/redis"
@@ -20,6 +21,11 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	conn := pool.Get()
 	defer conn.Close()
+
+	r.ParseForm()
+	log.Printf("%s %s\n", r.Method, r.URL)
+	log.Println(r.URL.Query())
+	log.Println(r.PostForm)
 
 	if r.Method == http.MethodPost {
 		sourceID := r.URL.Query().Get("source_id")
