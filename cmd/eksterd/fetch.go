@@ -329,8 +329,8 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 		}
 	}
 
-	for _, v := range items {
-		log.Printf("Id=%s Name=%s\n", item.Id, item.Name)
+	for _, item := range items {
+		log.Printf("ID=%s Name=%s\n", item.ID, item.Name)
 		log.Printf("Author=%#v\n", item.Author)
 		log.Printf("Text=%s\n", item.Content.Text)
 		log.Printf("HTML=%s\n", item.Content.HTML)
