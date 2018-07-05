@@ -346,6 +346,8 @@ func mapToItem(result map[string]interface{}) microsub.Item {
 
 	if published, e := result["published"]; e {
 		item.Published = published.(string)
+	} else {
+		item.Published = time.Now().Format(time.RFC3339)
 	}
 
 	if updated, e := result["updated"]; e {

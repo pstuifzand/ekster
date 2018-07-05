@@ -228,10 +228,9 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 				//r["_id"] = "" // generate random value
 			}
 
-			if _, e := r["published"]; e {
-				item := mapToItem(r)
-				items = append(items, item)
-			}
+			// mapToItem adds published
+			item := mapToItem(r)
+			items = append(items, item)
 		}
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
 		var feed JSONFeed
@@ -329,6 +328,14 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			items[i] = v
 		}
 	}
+
+	for _, v := range items {
+		log.Printf("Id=%s Name=%s\n", item.Id, item.Name)
+		log.Printf("Author=%#v\n", item.Author)
+		log.Printf("Text=%s\n", item.Content.Text)
+		log.Printf("HTML=%s\n", item.Content.HTML)
+	}
+
 	return items, nil
 }
 
@@ -381,6 +388,9 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
 		Read:      item.Read,
 		Data:      data,
 	}
+
+	log.Printf("Adding item to channel %s\n", channel)
+	log.Printf("%#v\n", forRedis)
 
 	itemKey := fmt.Sprintf("item:%s", item.ID)
 	_, err = redis.String(conn.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
