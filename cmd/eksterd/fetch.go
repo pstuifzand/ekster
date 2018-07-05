@@ -365,6 +365,10 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
 	channelKey := fmt.Sprintf("channel:%s:posts", channel)
 	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
 
+	if item.Published == "" {
+		item.Published = time.Now().Format(time.RFC3339)
+	}
+
 	data, err := json.Marshal(item)
 	if err != nil {
 		log.Printf("error while creating item for redis: %v\n", err)
