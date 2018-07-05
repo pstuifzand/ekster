@@ -107,6 +107,14 @@ func simplifyMicroformat(item *microformats.Microformat) map[string]interface{} 
 func simplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
 	items := []map[string]interface{}{}
 	for _, item := range md.Items {
+		if len(item.Type) >= 1 && item.Type[0] == "h-feed" {
+			for _, childItem := range item.Children {
+				newItem := simplifyMicroformat(childItem)
+				items = append(items, newItem)
+			}
+			return items
+		}
+
 		newItem := simplifyMicroformat(item)
 		items = append(items, newItem)
 		if c, e := newItem["children"]; e {
