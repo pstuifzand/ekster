@@ -5,7 +5,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,14 +12,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-// HubBackend handles information for the incoming handler
-type HubBackend interface {
-	CreateFeed(url, channel string) (int64, error)
-	GetSecret(feedID int64) string
-	UpdateFeed(feedID int64, contentType string, body io.Reader) error
-	FeedSetLeaseSeconds(feedID int64, leaseSeconds int64) error
-}
 
 type incomingHandler struct {
 	Backend HubBackend
