@@ -22,12 +22,15 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
+	"github.com/pstuifzand/ekster/pkg/indieauth"
 	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/util"
 )
 
 var (
@@ -51,10 +54,58 @@ type mainHandler struct {
 
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		fmt.Fprintln(w, "<h1>Ekster - Microsub server</h1>")
-		fmt.Fprintln(w, `<p><a href="/settings">Settings</a></p>`)
+		if r.URL.Path == "/" {
+			fmt.Fprintln(w, "<h1>Ekster - Microsub server</h1>")
+			fmt.Fprintln(w, `<p><a href="/settings">Settings</a></p>`)
+			fmt.Fprintln(w, `
+<h2>Sign in to Ekster</h2>
+<form action="/auth" method="post">
+	<input type="text" name="url" placeholder="https://example.com/">
+	<button type="submit">Login</button>
+</form>
+`)
+		} else if r.URL.Path == "/auth/callback" {
+		}
+	} else if r.Method == http.MethodPost {
+		if r.URL.Path == "/auth" {
+			// redirect to endpoint
+			me := r.Form.Get("url")
+			meURL, err := url.Parse(me)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
+				return
+			}
+			endpoints, err := indieauth.GetEndpoints(meURL)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
+				return
+			}
+
+			authURL, err := url.Parse(endpoints.AuthorizationEndpoint)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
+				return
+			}
+
+			state := util.RandStringBytes(16)
+			clientID := "https://p83.nl/microsub-client"
+
+			redirectURI := fmt.Sprintf("%s/auth/callback", os.Getenv("EKSTER_BASEURL"))
+
+			q := authURL.Query()
+			q.Add("response_type", "id")
+			q.Add("me", meURL.String())
+			q.Add("client_id", clientID)
+			q.Add("redirect_uri", redirectURI)
+			q.Add("state", state)
+			authURL.RawQuery = q.Encode()
+
+			http.Redirect(w, r, authURL.String(), 302)
+			return
+		}
 		return
 	}
+
 	http.NotFound(w, r)
 }
 
