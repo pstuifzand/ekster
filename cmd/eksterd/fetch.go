@@ -391,8 +391,7 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) {
 		Data:      data,
 	}
 
-	log.Printf("Adding item to channel %s\n", channel)
-	log.Printf("%#v\n", forRedis)
+	log.Printf("Adding item to channel %s => %s\n", channel, string(forRedis.Data))
 
 	itemKey := fmt.Sprintf("item:%s", item.ID)
 	_, err = redis.String(conn.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
