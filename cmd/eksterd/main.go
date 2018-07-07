@@ -70,22 +70,25 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/auth" {
 			// redirect to endpoint
 			me := r.Form.Get("url")
+			log.Println(me)
 			meURL, err := url.Parse(me)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
+				http.Error(w, fmt.Sprintf("Bad Request: %s, %s", err.Error(), me), 400)
 				return
 			}
 			endpoints, err := indieauth.GetEndpoints(meURL)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
+				http.Error(w, fmt.Sprintf("Bad Request: %s %s", err.Error(), me), 400)
 				return
 			}
+			log.Println(endpoints)
 
 			authURL, err := url.Parse(endpoints.AuthorizationEndpoint)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
+				http.Error(w, fmt.Sprintf("Bad Request: %s %s", err.Error(), me), 400)
 				return
 			}
+			log.Println(authURL)
 
 			state := util.RandStringBytes(16)
 			clientID := "https://p83.nl/microsub-client"
