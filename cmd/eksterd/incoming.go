@@ -68,33 +68,15 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// match signature
-	sig := r.Header.Get("X-Hub-Signature")
-	parts := strings.Split(sig, "=")
-
-	if len(parts) != 2 {
-		log.Printf("signature format %d %#v\n", feed, parts)
-		http.Error(w, "Signature format", 400)
-		return
-	}
-
-	if parts[0] != "sha1" {
-		log.Printf("signature format %d %s\n", feed, sig)
-		http.Error(w, "Unknown signature format", 400)
-		return
-	}
-
 	feedContent, err := ioutil.ReadAll(r.Body)
 
-	// verification
-	mac := hmac.New(sha1.New, []byte(secret))
-	mac.Write(feedContent)
-	signature := mac.Sum(nil)
-
-	if fmt.Sprintf("%x", signature) != parts[1] {
-		log.Printf("signature no match feed=%d %s %s\n", feed, signature, parts[1])
-		http.Error(w, "Signature doesn't match", 400)
-		return
+	// match signature
+	sig := r.Header.Get("X-Hub-Signature")
+	if sig != "" {
+		if err := isHubSignatureValid(sig, feedContent, secret); err != nil {
+			http.Error(w, fmt.Sprintf("Error in signature: %s", err), 400)
+			return
+		}
 	}
 
 	ct := r.Header.Get("Content-Type")
@@ -105,4 +87,27 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	return
+}
+
+func isHubSignatureValid(sig string, feedContent []byte, secret string) error {
+	parts := strings.Split(sig, "=")
+
+	if len(parts) != 2 {
+		return fmt.Errorf("signature format is not like sha1=signature")
+	}
+
+	if parts[0] != "sha1" {
+		return fmt.Errorf("signature format is not like sha1=signature")
+	}
+
+	// verification
+	mac := hmac.New(sha1.New, []byte(secret))
+	mac.Write(feedContent)
+	signature := mac.Sum(nil)
+
+	if fmt.Sprintf("%x", signature) != parts[1] {
+		return fmt.Errorf("signature does not match feed %s %s", signature, parts[1])
+	}
+
+	return nil
 }
