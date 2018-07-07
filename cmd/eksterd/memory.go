@@ -404,7 +404,7 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Tim
 		entries, err := fb.Entries()
 
 		if err != nil {
-			log.Fatal(err)
+			return microsub.Timeline{}, err
 		}
 
 		feeds := make(map[int64]feedbin.Feed)
