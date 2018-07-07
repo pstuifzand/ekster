@@ -115,7 +115,7 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 		if state != responseState {
 			log.Println("Wrong state response")
 		}
-		fmt.Fprintf(w, `<div style="width:100%%;height:100%%;display: flex; align-items: center; justify-content: center;">You can close this window, proceed on the command line</div>`)
+		fmt.Fprintln(w, `<div style="width:100%;height:100%;display: flex; align-items: center; justify-content: center;">You can close this window, proceed on the command line</div>`)
 		close(shutdown)
 	}
 
