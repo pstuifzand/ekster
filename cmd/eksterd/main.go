@@ -98,13 +98,15 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 		log.Printf("WebSub Hub URL found for topic=%s hub=%s\n", topic, hubURL)
 	}
 
+	callbackURL := fmt.Sprintf("%s/incoming/%d", os.Getenv("EKSTER_BASEURL"), id)
+
 	if err == nil && hubURL != "" {
-		conn.Do("HSET", fmt.Sprintf("feed:%d", id), "hub", hubURL)
+		args := redis.Args{}.Add(fmt.Sprintf("feed:%d", id), "hub", hubURL, "callback", callbackURL)
+		conn.Do("HMSET", args...)
 	} else {
 		return id, nil
 	}
 
-	callbackURL := fmt.Sprintf("%s/incoming/%d", os.Getenv("EKSTER_BASEURL"), id)
 	websub.Subscribe(client, hubURL, topic, callbackURL, secret, 24*3600)
 
 	return id, nil
