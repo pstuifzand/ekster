@@ -174,6 +174,8 @@ func main() {
 	})
 
 	backend.(*memoryBackend).run()
+	hubBackend.run()
+
 	log.Printf("Listening on port %d\n", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 }
