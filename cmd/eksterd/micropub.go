@@ -73,7 +73,8 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			item.Read = false
 			id, _ := redis.Int(conn.Do("INCR", "source:"+sourceID+"next_id"))
 			item.ID = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("source:%s:%d", sourceID, id))))
-			h.Backend.channelAddItem(channel, item)
+			h.Backend.channelAddItem(conn, channel, item)
+			h.Backend.updateChannelUnreadCount(conn, channel)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
