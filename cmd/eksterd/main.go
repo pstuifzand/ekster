@@ -131,6 +131,35 @@ func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body i
 	return err
 }
 
+func (h *hubIncomingBackend) FeedSetLeaseSeconds(feedID int64, leaseSeconds int64) error {
+	conn := pool.Get()
+	defer conn.Close()
+	log.Printf("updating feed %d lease_seconds", feedID)
+
+	args := redis.Args{}.Add(fmt.Sprintf("feed:%d", feedID), "lease_seconds", leaseSeconds)
+	conn.Do("HSET", args...)
+
+	return nil
+}
+
+func (h *hubIncomingBackend) run() error {
+	ticker := time.NewTicker(10 * time.Minute)
+	quit := make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
 func newPool(addr string) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:     3,

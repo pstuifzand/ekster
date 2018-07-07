@@ -19,6 +19,7 @@ type HubBackend interface {
 	CreateFeed(url, channel string) (int64, error)
 	GetSecret(id int64) string
 	UpdateFeed(feedID int64, contentType string, body io.Reader) error
+	FeedSetLeaseSeconds(feedID int64, leaseSeconds int64) error
 }
 
 type incomingHandler struct {
@@ -37,10 +38,31 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.URL.Query())
 	log.Println(r.PostForm)
 
+	// find feed
+	matches := urlRegex.FindStringSubmatch(r.URL.Path)
+	feed, err := strconv.ParseInt(matches[1], 10, 64)
+	if err != nil {
+		fmt.Fprint(w, err)
+	}
+
 	if r.Method == http.MethodGet {
 		values := r.URL.Query()
 
 		// check
+		if leaseStr := values.Get("hub.lease_seconds"); leaseStr != "" {
+			// update lease_seconds
+
+			leaseSeconds, err := strconv.ParseInt(leaseStr, 10, 64)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("error in hub.lease_seconds format %q: %s", leaseSeconds, err), 400)
+				return
+			}
+			err = h.Backend.FeedSetLeaseSeconds(feed, leaseSeconds)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("error in while setting hub.lease_seconds: %s", err), 400)
+				return
+			}
+		}
 
 		verify := values.Get("hub.challenge")
 		fmt.Fprint(w, verify)
@@ -51,13 +73,6 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", 405)
 		return
-	}
-
-	// find feed
-	matches := urlRegex.FindStringSubmatch(r.URL.Path)
-	feed, err := strconv.ParseInt(matches[1], 10, 64)
-	if err != nil {
-		fmt.Fprint(w, err)
 	}
 
 	// find secret
