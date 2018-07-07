@@ -53,6 +53,12 @@ type mainHandler struct {
 }
 
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		log.Println(err)
+		http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
+		return
+	}
 	if r.Method == http.MethodGet {
 		if r.URL.Path == "/" {
 			fmt.Fprintln(w, "<h1>Ekster - Microsub server</h1>")
