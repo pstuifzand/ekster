@@ -267,7 +267,7 @@ Commands:
 			log.Fatalf("An error occurred: %s\n", err)
 		}
 		for _, feed := range feeds {
-			fmt.Println(feed.Name, " ", feed.URL)
+			fmt.Println(feed.URL)
 		}
 	}
 
