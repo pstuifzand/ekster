@@ -102,20 +102,20 @@ type Feed struct {
 
 // Microsub is the main protocol that should be implemented by a backend
 type Microsub interface {
-	ChannelsGetList() []Channel
-	ChannelsCreate(name string) Channel
-	ChannelsUpdate(uid, name string) Channel
-	ChannelsDelete(uid string)
+	ChannelsGetList() ([]Channel, error)
+	ChannelsCreate(name string) (Channel, error)
+	ChannelsUpdate(uid, name string) (Channel, error)
+	ChannelsDelete(uid string) error
 
-	TimelineGet(before, after, channel string) Timeline
+	TimelineGet(before, after, channel string) (Timeline, error)
 
-	MarkRead(channel string, entry []string)
+	MarkRead(channel string, entry []string) error
 
-	FollowGetList(uid string) []Feed
-	FollowURL(uid string, url string) Feed
+	FollowGetList(uid string) ([]Feed, error)
+	FollowURL(uid string, url string) (Feed, error)
 
-	UnfollowURL(uid string, url string)
+	UnfollowURL(uid string, url string) error
 
-	Search(query string) []Feed
-	PreviewURL(url string) Timeline
+	Search(query string) ([]Feed, error)
+	PreviewURL(url string) (Timeline, error)
 }

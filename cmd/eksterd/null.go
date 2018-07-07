@@ -26,64 +26,67 @@ type NullBackend struct {
 }
 
 // ChannelsGetList gets no channels
-func (b *NullBackend) ChannelsGetList() []microsub.Channel {
+func (b *NullBackend) ChannelsGetList() ([]microsub.Channel, error) {
 	return []microsub.Channel{
 		microsub.Channel{UID: "0000", Name: "default", Unread: 0},
 		microsub.Channel{UID: "0001", Name: "notifications", Unread: 0},
 		microsub.Channel{UID: "1000", Name: "Friends", Unread: 0},
 		microsub.Channel{UID: "1001", Name: "Family", Unread: 0},
-	}
+	}, nil
 }
 
 // ChannelsCreate creates no channels
-func (b *NullBackend) ChannelsCreate(name string) microsub.Channel {
+func (b *NullBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 	return microsub.Channel{
 		UID:  "1234",
 		Name: name,
-	}
+	}, nil
 }
 
 // ChannelsUpdate updates no channels
-func (b *NullBackend) ChannelsUpdate(uid, name string) microsub.Channel {
+func (b *NullBackend) ChannelsUpdate(uid, name string) (microsub.Channel, error) {
 	return microsub.Channel{
 		UID:  uid,
 		Name: name,
-	}
+	}, nil
 }
 
 // ChannelsDelete delets no channels
-func (b *NullBackend) ChannelsDelete(uid string) {
+func (b *NullBackend) ChannelsDelete(uid string) error {
+	return nil
 }
 
 // TimelineGet gets no timeline
-func (b *NullBackend) TimelineGet(before, after, channel string) microsub.Timeline {
+func (b *NullBackend) TimelineGet(before, after, channel string) (microsub.Timeline, error) {
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
 		Items:  []microsub.Item{},
-	}
+	}, nil
 }
 
-func (b *NullBackend) FollowGetList(uid string) []microsub.Feed {
-	return []microsub.Feed{}
+func (b *NullBackend) FollowGetList(uid string) ([]microsub.Feed, error) {
+	return []microsub.Feed{}, nil
 }
 
-func (b *NullBackend) FollowURL(uid string, url string) microsub.Feed {
-	return microsub.Feed{Type: "feed", URL: url}
+func (b *NullBackend) FollowURL(uid string, url string) (microsub.Feed, error) {
+	return microsub.Feed{Type: "feed", URL: url}, nil
 }
 
-func (b *NullBackend) UnfollowURL(uid string, url string) {
+func (b *NullBackend) UnfollowURL(uid string, url string) error {
+	return nil
 }
 
-func (b *NullBackend) Search(query string) []microsub.Feed {
-	return []microsub.Feed{}
+func (b *NullBackend) Search(query string) ([]microsub.Feed, error) {
+	return []microsub.Feed{}, nil
 }
 
-func (b *NullBackend) PreviewURL(url string) microsub.Timeline {
+func (b *NullBackend) PreviewURL(url string) (microsub.Timeline, error) {
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
 		Items:  []microsub.Item{},
-	}
+	}, nil
 }
 
-func (b *NullBackend) MarkRead(channel string, uids []string) {
+func (b *NullBackend) MarkRead(channel string, uids []string) error {
+	return nil
 }

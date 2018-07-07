@@ -49,34 +49,67 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		values := r.URL.Query()
 		action := values.Get("action")
 		if action == "channels" {
-			channels := h.Backend.ChannelsGetList()
+			channels, err := h.Backend.ChannelsGetList()
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 			jw := json.NewEncoder(w)
 			w.Header().Add("Content-Type", "application/json")
-			jw.Encode(map[string][]microsub.Channel{
+			err = jw.Encode(map[string][]microsub.Channel{
 				"channels": channels,
 			})
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 		} else if action == "timeline" {
-			timeline := h.Backend.TimelineGet(values.Get("before"), values.Get("after"), values.Get("channel"))
+			timeline, err := h.Backend.TimelineGet(values.Get("before"), values.Get("after"), values.Get("channel"))
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 			jw := json.NewEncoder(w)
 			w.Header().Add("Content-Type", "application/json")
 			jw.SetIndent("", "    ")
-			jw.Encode(timeline)
+			err = jw.Encode(timeline)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 		} else if action == "preview" {
-			timeline := h.Backend.PreviewURL(values.Get("url"))
+			timeline, err := h.Backend.PreviewURL(values.Get("url"))
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 			jw := json.NewEncoder(w)
 			jw.SetIndent("", "    ")
 			w.Header().Add("Content-Type", "application/json")
-			jw.Encode(timeline)
+			err = jw.Encode(timeline)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 		} else if action == "follow" {
 			channel := values.Get("channel")
-			following := h.Backend.FollowGetList(channel)
+			following, err := h.Backend.FollowGetList(channel)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 			jw := json.NewEncoder(w)
 			w.Header().Add("Content-Type", "application/json")
-			jw.Encode(map[string][]microsub.Feed{
+			err = jw.Encode(map[string][]microsub.Feed{
 				"items": following,
 			})
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 		} else {
-			log.Printf("unknown action %s\n", action)
+			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 500)
+			return
 		}
 		return
 	} else if r.Method == http.MethodPost {
@@ -87,7 +120,11 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			method := values.Get("method")
 			uid := values.Get("channel")
 			if method == "delete" {
-				h.Backend.ChannelsDelete(uid)
+				err := h.Backend.ChannelsDelete(uid)
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
 				w.Header().Add("Content-Type", "application/json")
 				fmt.Fprintln(w, "[]")
 				h.Backend.(Debug).Debug()
@@ -96,37 +133,73 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			jw := json.NewEncoder(w)
 			if uid == "" {
-				channel := h.Backend.ChannelsCreate(name)
+				channel, err := h.Backend.ChannelsCreate(name)
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
 				w.Header().Add("Content-Type", "application/json")
-				jw.Encode(channel)
+				err = jw.Encode(channel)
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
 			} else {
-				channel := h.Backend.ChannelsUpdate(uid, name)
+				channel, err := h.Backend.ChannelsUpdate(uid, name)
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
 				w.Header().Add("Content-Type", "application/json")
-				jw.Encode(channel)
+				err = jw.Encode(channel)
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
 			}
 			h.Backend.(Debug).Debug()
 		} else if action == "follow" {
 			uid := values.Get("channel")
 			url := values.Get("url")
 			h.HubIncomingBackend.CreateFeed(url, uid)
-			feed := h.Backend.FollowURL(uid, url)
+			feed, err := h.Backend.FollowURL(uid, url)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 			w.Header().Add("Content-Type", "application/json")
 			jw := json.NewEncoder(w)
-			jw.Encode(feed)
+			err = jw.Encode(feed)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 		} else if action == "unfollow" {
 			uid := values.Get("channel")
 			url := values.Get("url")
-			h.Backend.UnfollowURL(uid, url)
+			err := h.Backend.UnfollowURL(uid, url)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 			w.Header().Add("Content-Type", "application/json")
 			fmt.Fprintln(w, "[]")
 		} else if action == "search" {
 			query := values.Get("query")
-			feeds := h.Backend.Search(query)
+			feeds, err := h.Backend.Search(query)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 			jw := json.NewEncoder(w)
 			w.Header().Add("Content-Type", "application/json")
-			jw.Encode(map[string][]microsub.Feed{
+			err = jw.Encode(map[string][]microsub.Feed{
 				"results": feeds,
 			})
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 		} else if action == "timeline" || r.PostForm.Get("action") == "timeline" {
 			method := values.Get("method")
 
@@ -134,9 +207,17 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				values = r.Form
 				channel := values.Get("channel")
 				if uids, e := values["entry"]; e {
-					h.Backend.MarkRead(channel, uids)
+					err := h.Backend.MarkRead(channel, uids)
+					if err != nil {
+						http.Error(w, err.Error(), 500)
+						return
+					}
 				} else if uids, e := values["entry[]"]; e {
-					h.Backend.MarkRead(channel, uids)
+					err := h.Backend.MarkRead(channel, uids)
+					if err != nil {
+						http.Error(w, err.Error(), 500)
+						return
+					}
 				} else {
 					uids := []string{}
 					for k, v := range values {
@@ -144,15 +225,20 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							uids = append(uids, v...)
 						}
 					}
-					h.Backend.MarkRead(channel, uids)
+					err := h.Backend.MarkRead(channel, uids)
+					if err != nil {
+						http.Error(w, err.Error(), 500)
+						return
+					}
 				}
 			} else {
-				log.Printf("unknown method in timeline %s\n", method)
+				http.Error(w, fmt.Sprintf("unknown method in timeline %s\n", method), 500)
+				return
 			}
 			w.Header().Add("Content-Type", "application/json")
 			fmt.Fprintln(w, "[]")
 		} else {
-			log.Printf("unknown action %s\n", action)
+			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 500)
 		}
 
 		return

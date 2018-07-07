@@ -138,7 +138,7 @@ func createMemoryBackend() microsub.Microsub {
 }
 
 // ChannelsGetList gets channels
-func (b *memoryBackend) ChannelsGetList() []microsub.Channel {
+func (b *memoryBackend) ChannelsGetList() ([]microsub.Channel, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -156,11 +156,11 @@ func (b *memoryBackend) ChannelsGetList() []microsub.Channel {
 			}
 		}
 	}
-	return channels
+	return channels, nil
 }
 
 // ChannelsCreate creates a channels
-func (b *memoryBackend) ChannelsCreate(name string) microsub.Channel {
+func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 	defer b.save()
 
 	conn := pool.Get()
@@ -178,22 +178,23 @@ func (b *memoryBackend) ChannelsCreate(name string) microsub.Channel {
 
 	conn.Do("SADD", "channels", uid)
 	conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
-	return channel
+
+	return channel, nil
 }
 
 // ChannelsUpdate updates a channels
-func (b *memoryBackend) ChannelsUpdate(uid, name string) microsub.Channel {
+func (b *memoryBackend) ChannelsUpdate(uid, name string) (microsub.Channel, error) {
 	defer b.save()
 	if c, e := b.Channels[uid]; e {
 		c.Name = name
 		b.Channels[uid] = c
-		return c
+		return c, nil
 	}
-	return microsub.Channel{}
+	return microsub.Channel{}, fmt.Errorf("Channel %s does not exist", uid)
 }
 
 // ChannelsDelete deletes a channel
-func (b *memoryBackend) ChannelsDelete(uid string) {
+func (b *memoryBackend) ChannelsDelete(uid string) error {
 	defer b.save()
 
 	conn := pool.Get()
@@ -204,6 +205,8 @@ func (b *memoryBackend) ChannelsDelete(uid string) {
 
 	delete(b.Channels, uid)
 	delete(b.Feeds, uid)
+
+	return nil
 }
 
 func mapToAuthor(result map[string]string) *microsub.Card {
@@ -391,7 +394,7 @@ func (b *memoryBackend) run() {
 	}()
 }
 
-func (b *memoryBackend) TimelineGet(before, after, channel string) microsub.Timeline {
+func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Timeline, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -430,11 +433,14 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) microsub.Time
 		return microsub.Timeline{
 			Paging: microsub.Pagination{},
 			Items:  items,
-		}
+		}, nil
 	}
 
 	log.Printf("TimelineGet %s\n", channel)
-	feeds := b.FollowGetList(channel)
+	feeds, err := b.FollowGetList(channel)
+	if err != nil {
+		return microsub.Timeline{}, err
+	}
 	log.Println(feeds)
 
 	items := []microsub.Item{}
@@ -476,11 +482,10 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) microsub.Time
 	)
 
 	if err != nil {
-		log.Println(err)
 		return microsub.Timeline{
 			Paging: microsub.Pagination{},
 			Items:  items,
-		}
+		}, err
 	}
 
 	if len(itemScores) >= 2 {
@@ -502,6 +507,7 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) microsub.Time
 		item := microsub.Item{}
 		err := json.Unmarshal(obj, &item)
 		if err != nil {
+			// FIXME: what should we do if one of the items doen't unmarshal?
 			log.Println(err)
 			continue
 		}
@@ -516,7 +522,7 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) microsub.Time
 	return microsub.Timeline{
 		Paging: paging,
 		Items:  items,
-	}
+	}, nil
 }
 
 //panic if s is not a slice
@@ -553,17 +559,17 @@ func reverseSlice(s interface{}) {
 // 	return false
 // }
 
-func (b *memoryBackend) FollowGetList(uid string) []microsub.Feed {
-	return b.Feeds[uid]
+func (b *memoryBackend) FollowGetList(uid string) ([]microsub.Feed, error) {
+	return b.Feeds[uid], nil
 }
 
-func (b *memoryBackend) FollowURL(uid string, url string) microsub.Feed {
+func (b *memoryBackend) FollowURL(uid string, url string) (microsub.Feed, error) {
 	defer b.save()
 	feed := microsub.Feed{Type: "feed", URL: url}
 
 	resp, err := b.Fetch3(uid, feed.URL)
 	if err != nil {
-		return feed
+		return feed, err
 	}
 	defer resp.Body.Close()
 
@@ -571,10 +577,10 @@ func (b *memoryBackend) FollowURL(uid string, url string) microsub.Feed {
 
 	b.ProcessContent(uid, feed.URL, resp.Header.Get("Content-Type"), resp.Body)
 
-	return feed
+	return feed, nil
 }
 
-func (b *memoryBackend) UnfollowURL(uid string, url string) {
+func (b *memoryBackend) UnfollowURL(uid string, url string) error {
 	defer b.save()
 	index := -1
 	for i, f := range b.Feeds[uid] {
@@ -587,6 +593,8 @@ func (b *memoryBackend) UnfollowURL(uid string, url string) {
 		feeds := b.Feeds[uid]
 		b.Feeds[uid] = append(feeds[:index], feeds[index+1:]...)
 	}
+
+	return nil
 }
 
 func checkURL(u string) bool {
@@ -625,7 +633,7 @@ func getPossibleURLs(query string) []string {
 	return urls
 }
 
-func (b *memoryBackend) Search(query string) []microsub.Feed {
+func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 	urls := getPossibleURLs(query)
 
 	feeds := []microsub.Feed{}
@@ -684,27 +692,25 @@ func (b *memoryBackend) Search(query string) []microsub.Feed {
 		}
 	}
 
-	return feeds
+	return feeds, nil
 }
 
-func (b *memoryBackend) PreviewURL(previewURL string) microsub.Timeline {
+func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error) {
 	resp, err := Fetch2(previewURL)
 	if err != nil {
-		log.Printf("Error while fetching %s: %v\n", previewURL, err)
-		return microsub.Timeline{}
+		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
 	items, err := b.feedItems(previewURL, resp.Header.Get("content-type"), resp.Body)
 	if err != nil {
-		log.Printf("Error while fetching %s: %v\n", previewURL, err)
-		return microsub.Timeline{}
+		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
 
 	return microsub.Timeline{
 		Items: items,
-	}
+	}, nil
 }
 
-func (b *memoryBackend) MarkRead(channel string, uids []string) {
+func (b *memoryBackend) MarkRead(channel string, uids []string) error {
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -720,6 +726,7 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) {
 
 	if _, err := conn.Do("SADD", args...); err != nil {
 		log.Printf("Marking read for channel %s has failed\n", channel)
+		return err
 	}
 
 	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
@@ -727,6 +734,7 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) {
 
 	if _, err := conn.Do("ZREM", args...); err != nil {
 		log.Printf("Marking read for channel %s has failed\n", channel)
+		return err
 	}
 
 	unread, _ := redis.Int(conn.Do("ZCARD", zchannelKey))
@@ -741,4 +749,6 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) {
 	}
 
 	log.Printf("Marking read success for %s %v\n", channel, itemUIDs)
+
+	return nil
 }

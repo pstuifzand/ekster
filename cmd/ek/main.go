@@ -173,7 +173,11 @@ Commands:
 	}
 
 	if len(commands) == 1 && commands[0] == "channels" {
-		channels := sub.ChannelsGetList()
+		channels, err := sub.ChannelsGetList()
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
+
 		for _, ch := range channels {
 			fmt.Printf("%-20s %s\n", ch.UID, ch.Name)
 		}
@@ -181,7 +185,10 @@ Commands:
 
 	if len(commands) == 2 && commands[0] == "channels" {
 		name := commands[1]
-		channel := sub.ChannelsCreate(name)
+		channel, err := sub.ChannelsCreate(name)
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
 		fmt.Printf("%s\n", channel.UID)
 	}
 
@@ -189,11 +196,17 @@ Commands:
 		uid := commands[1]
 		if uid == "-delete" {
 			uid = commands[2]
-			sub.ChannelsDelete(uid)
+			err := sub.ChannelsDelete(uid)
+			if err != nil {
+				log.Fatalf("An error occurred: %s\n", err)
+			}
 			fmt.Printf("Channel %s deleted\n", uid)
 		} else {
 			name := commands[2]
-			channel := sub.ChannelsUpdate(uid, name)
+			channel, err := sub.ChannelsUpdate(uid, name)
+			if err != nil {
+				log.Fatalf("An error occurred: %s\n", err)
+			}
 			fmt.Printf("Channel updated %s %s\n", channel.Name, channel.UID)
 		}
 	}
@@ -202,13 +215,18 @@ Commands:
 		channel := commands[1]
 
 		var timeline microsub.Timeline
+		var err error
 
 		if len(commands) == 4 && commands[2] == "-after" {
-			timeline = sub.TimelineGet("", commands[3], channel)
+			timeline, err = sub.TimelineGet("", commands[3], channel)
 		} else if len(commands) == 4 && commands[2] == "-before" {
-			timeline = sub.TimelineGet(commands[3], "", channel)
+			timeline, err = sub.TimelineGet(commands[3], "", channel)
 		} else {
-			timeline = sub.TimelineGet("", "", channel)
+			timeline, err = sub.TimelineGet("", "", channel)
+		}
+
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
 		}
 
 		for _, item := range timeline.Items {
@@ -220,7 +238,10 @@ Commands:
 
 	if len(commands) == 2 && commands[0] == "search" {
 		query := commands[1]
-		feeds := sub.Search(query)
+		feeds, err := sub.Search(query)
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
 
 		for _, feed := range feeds {
 			fmt.Println(feed.Name, " ", feed.URL)
@@ -229,8 +250,11 @@ Commands:
 
 	if len(commands) == 2 && commands[0] == "preview" {
 		url := commands[1]
-		timeline := sub.PreviewURL(url)
+		timeline, err := sub.PreviewURL(url)
 
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
 		for _, item := range timeline.Items {
 			showItem(&item)
 		}
@@ -238,7 +262,10 @@ Commands:
 
 	if len(commands) == 2 && commands[0] == "follow" {
 		uid := commands[1]
-		feeds := sub.FollowGetList(uid)
+		feeds, err := sub.FollowGetList(uid)
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
 		for _, feed := range feeds {
 			fmt.Println(feed.Name, " ", feed.URL)
 		}
@@ -247,13 +274,20 @@ Commands:
 	if len(commands) == 3 && commands[0] == "follow" {
 		uid := commands[1]
 		url := commands[2]
-		sub.FollowURL(uid, url)
+		_, err := sub.FollowURL(uid, url)
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
+		// NOTE(peter): should we show the returned feed here?
 	}
 
 	if len(commands) == 3 && commands[0] == "unfollow" {
 		uid := commands[1]
 		url := commands[2]
-		sub.UnfollowURL(uid, url)
+		err := sub.UnfollowURL(uid, url)
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
 	}
 }
 

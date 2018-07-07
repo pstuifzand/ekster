@@ -3,7 +3,6 @@ package client
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -80,12 +79,11 @@ func (c *Client) microsubPostFormRequest(action string, args map[string]string, 
 	return client.Do(req)
 }
 
-func (c *Client) ChannelsGetList() []microsub.Channel {
+func (c *Client) ChannelsGetList() ([]microsub.Channel, error) {
 	args := make(map[string]string)
 	res, err := c.microsubGetRequest("channels", args)
 	if err != nil {
-		log.Println(err)
-		return []microsub.Channel{}
+		return []microsub.Channel{}, err
 	}
 	defer res.Body.Close()
 
@@ -95,52 +93,56 @@ func (c *Client) ChannelsGetList() []microsub.Channel {
 
 	dec := json.NewDecoder(res.Body)
 	var channels channelsResponse
-	dec.Decode(&channels)
-	return channels.Channels
+	err = dec.Decode(&channels)
+	if err != nil {
+		return channels.Channels, err
+	}
+
+	return channels.Channels, nil
 }
 
-func (c *Client) TimelineGet(before, after, channel string) microsub.Timeline {
+func (c *Client) TimelineGet(before, after, channel string) (microsub.Timeline, error) {
 	args := make(map[string]string)
 	args["after"] = after
 	args["before"] = before
 	args["channel"] = channel
 	res, err := c.microsubGetRequest("timeline", args)
 	if err != nil {
-		log.Println(err)
-		return microsub.Timeline{}
+		return microsub.Timeline{}, err
 	}
 	defer res.Body.Close()
 	dec := json.NewDecoder(res.Body)
 	var timeline microsub.Timeline
 	err = dec.Decode(&timeline)
 	if err != nil {
-		log.Fatal(err)
+		return microsub.Timeline{}, err
 	}
-	return timeline
+	return timeline, nil
 }
 
-func (c *Client) PreviewURL(url string) microsub.Timeline {
+func (c *Client) PreviewURL(url string) (microsub.Timeline, error) {
 	args := make(map[string]string)
 	args["url"] = url
 	res, err := c.microsubGetRequest("preview", args)
 	if err != nil {
-		log.Println(err)
-		return microsub.Timeline{}
+		return microsub.Timeline{}, err
 	}
 	defer res.Body.Close()
 	dec := json.NewDecoder(res.Body)
 	var timeline microsub.Timeline
-	dec.Decode(&timeline)
-	return timeline
+	err = dec.Decode(&timeline)
+	if err != nil {
+		return microsub.Timeline{}, err
+	}
+	return timeline, nil
 }
 
-func (c *Client) FollowGetList(channel string) []microsub.Feed {
+func (c *Client) FollowGetList(channel string) ([]microsub.Feed, error) {
 	args := make(map[string]string)
 	args["channel"] = channel
 	res, err := c.microsubGetRequest("follow", args)
 	if err != nil {
-		log.Println(err)
-		return []microsub.Feed{}
+		return []microsub.Feed{}, nil
 	}
 	defer res.Body.Close()
 	dec := json.NewDecoder(res.Body)
@@ -148,88 +150,96 @@ func (c *Client) FollowGetList(channel string) []microsub.Feed {
 		Items []microsub.Feed `json:"items"`
 	}
 	var response followResponse
-	dec.Decode(&response)
-	return response.Items
+	err = dec.Decode(&response)
+	if err != nil {
+		return []microsub.Feed{}, nil
+	}
+	return response.Items, nil
 }
 
-func (c *Client) ChannelsCreate(name string) microsub.Channel {
+func (c *Client) ChannelsCreate(name string) (microsub.Channel, error) {
 	args := make(map[string]string)
 	args["name"] = name
 	res, err := c.microsubPostRequest("channels", args)
 	if err != nil {
-		log.Println(err)
-		return microsub.Channel{}
+		return microsub.Channel{}, nil
 	}
 	defer res.Body.Close()
 	var channel microsub.Channel
 	dec := json.NewDecoder(res.Body)
-	dec.Decode(&channel)
-	return channel
+	err = dec.Decode(&channel)
+	if err != nil {
+		return microsub.Channel{}, nil
+	}
+	return channel, nil
 }
 
-func (c *Client) ChannelsUpdate(uid, name string) microsub.Channel {
+func (c *Client) ChannelsUpdate(uid, name string) (microsub.Channel, error) {
 	args := make(map[string]string)
 	args["name"] = name
 	args["uid"] = uid
 	res, err := c.microsubPostRequest("channels", args)
 	if err != nil {
-		log.Println(err)
-		return microsub.Channel{}
+		return microsub.Channel{}, err
 	}
 	defer res.Body.Close()
 	var channel microsub.Channel
 	dec := json.NewDecoder(res.Body)
-	dec.Decode(&channel)
-	return channel
+	err = dec.Decode(&channel)
+	if err != nil {
+		return microsub.Channel{}, err
+	}
+	return channel, nil
 }
 
-func (c *Client) ChannelsDelete(uid string) {
+func (c *Client) ChannelsDelete(uid string) error {
 	args := make(map[string]string)
 	args["channel"] = uid
 	args["method"] = "delete"
 	res, err := c.microsubPostRequest("channels", args)
 	if err != nil {
-		log.Println(err)
-		return
+		return err
 	}
 	res.Body.Close()
+	return nil
 }
 
-func (c *Client) FollowURL(channel, url string) microsub.Feed {
+func (c *Client) FollowURL(channel, url string) (microsub.Feed, error) {
 	args := make(map[string]string)
 	args["channel"] = channel
 	args["url"] = url
 	res, err := c.microsubPostRequest("follow", args)
 	if err != nil {
-		log.Println(err)
-		return microsub.Feed{}
+		return microsub.Feed{}, err
 	}
 	defer res.Body.Close()
 	var feed microsub.Feed
 	dec := json.NewDecoder(res.Body)
-	dec.Decode(&feed)
-	return feed
+	err = dec.Decode(&feed)
+	if err != nil {
+		return microsub.Feed{}, err
+	}
+	return feed, nil
 }
 
-func (c *Client) UnfollowURL(channel, url string) {
+func (c *Client) UnfollowURL(channel, url string) error {
 	args := make(map[string]string)
 	args["channel"] = channel
 	args["url"] = url
 	res, err := c.microsubPostRequest("unfollow", args)
 	if err != nil {
-		log.Println(err)
-		return
+		return err
 	}
 	res.Body.Close()
+	return nil
 }
 
-func (c *Client) Search(query string) []microsub.Feed {
+func (c *Client) Search(query string) ([]microsub.Feed, error) {
 	args := make(map[string]string)
 	args["query"] = query
 	res, err := c.microsubPostRequest("search", args)
 	if err != nil {
-		log.Println(err)
-		return []microsub.Feed{}
+		return []microsub.Feed{}, err
 	}
 	type searchResponse struct {
 		Results []microsub.Feed `json:"results"`
@@ -237,11 +247,14 @@ func (c *Client) Search(query string) []microsub.Feed {
 	defer res.Body.Close()
 	var response searchResponse
 	dec := json.NewDecoder(res.Body)
-	dec.Decode(&response)
-	return response.Results
+	err = dec.Decode(&response)
+	if err != nil {
+		return []microsub.Feed{}, err
+	}
+	return response.Results, nil
 }
 
-func (c *Client) MarkRead(channel string, uids []string) {
+func (c *Client) MarkRead(channel string, uids []string) error {
 	args := make(map[string]string)
 	args["channel"] = channel
 
@@ -251,7 +264,9 @@ func (c *Client) MarkRead(channel string, uids []string) {
 	}
 
 	res, err := c.microsubPostFormRequest("mark_read", args, data)
-	if err == nil {
-		defer res.Body.Close()
+	if err != nil {
+		return err
 	}
+	res.Body.Close()
+	return nil
 }
