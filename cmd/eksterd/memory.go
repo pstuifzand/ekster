@@ -714,8 +714,6 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) error {
 	conn := pool.Get()
 	defer conn.Close()
 
-	log.Printf("Marking read for %s %v\n", channel, uids)
-
 	itemUIDs := []string{}
 	for _, uid := range uids {
 		itemUIDs = append(itemUIDs, "item:"+uid)
@@ -725,27 +723,19 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) error {
 	args := redis.Args{}.Add(channelKey).AddFlat(itemUIDs)
 
 	if _, err := conn.Do("SADD", args...); err != nil {
-		log.Printf("Marking read for channel %s has failed\n", channel)
-		return err
+		return fmt.Errorf("Marking read for channel %s has failed: %s", channel, err)
 	}
 
 	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
 	args = redis.Args{}.Add(zchannelKey).AddFlat(itemUIDs)
 
 	if _, err := conn.Do("ZREM", args...); err != nil {
-		log.Printf("Marking read for channel %s has failed\n", channel)
-		return err
+		return fmt.Errorf("Marking read for channel %s has failed: %s", channel, err)
 	}
 
-	unread, _ := redis.Int(conn.Do("ZCARD", zchannelKey))
-	unread -= len(uids)
-
-	if ch, e := b.Channels[channel]; e {
-		if unread < 0 {
-			unread = 0
-		}
-		ch.Unread = unread
-		b.Channels[channel] = ch
+	err := b.updateChannelUnreadCount(conn, channel)
+	if err != nil {
+		return err
 	}
 
 	log.Printf("Marking read success for %s %v\n", channel, itemUIDs)
