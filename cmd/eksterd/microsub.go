@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/garyburd/redigo/redis"
-	"github.com/pstuifzand/ekster/microsub"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 )
 
 type microsubHandler struct {

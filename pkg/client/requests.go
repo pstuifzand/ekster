@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/pstuifzand/ekster/microsub"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 )
 
 type Client struct {

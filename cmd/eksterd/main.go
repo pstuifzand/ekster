@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/garyburd/redigo/redis"
-	"github.com/pstuifzand/ekster/microsub"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 	"github.com/pstuifzand/ekster/pkg/util"
 	"github.com/pstuifzand/ekster/pkg/websub"
 )
