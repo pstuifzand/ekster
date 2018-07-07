@@ -9,6 +9,8 @@ import (
 
 	"linkheader"
 	"rss"
+
+	"willnorris.com/go/microformats"
 )
 
 // GetHubURL finds the HubURL for topic
@@ -51,7 +53,8 @@ func parseBodyLinks(client *http.Client, topic string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	if isFeedContentType(resp.Header.Get("Content-Type")) {
+	contentType := resp.Header.Get("Content-Type")
+	if isFeedContentType(contentType) {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return "", err
@@ -64,7 +67,16 @@ func parseBodyLinks(client *http.Client, topic string) (string, error) {
 		if feed.HubURL != "" {
 			return feed.HubURL, nil
 		}
-		return "", fmt.Errorf("No hub url found in RSS feed")
+		return "", fmt.Errorf("No WebSub hub url found in the RSS feed")
+	} else if strings.HasPrefix(contentType, "text/html") {
+		topicURL, _ := url.Parse(topic)
+		md := microformats.Parse(resp.Body, topicURL)
+		if hubs, e := md.Rels["hub"]; e {
+			if len(hubs) >= 1 {
+				return hubs[0], nil
+			}
+		}
+		return "", fmt.Errorf("No WebSub hub url found in HTML <link> elements")
 	}
 
 	return "", fmt.Errorf("Unknown content type of response: %s", resp.Header.Get("Content-Type"))
