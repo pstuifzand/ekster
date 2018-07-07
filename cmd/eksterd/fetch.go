@@ -353,11 +353,15 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 	for _, item := range items {
 		item.Read = false
 		err = b.channelAddItem(conn, channel, item)
-		log.Printf("ERROR: %s\n", err)
+		if err != nil {
+			log.Printf("ERROR: %s\n", err)
+		}
 	}
 
 	err = b.updateChannelUnreadCount(conn, channel)
-	log.Printf("error: while updating channel unread count for %s: %s\n", channel, err)
+	if err != nil {
+		log.Printf("error: while updating channel unread count for %s: %s\n", channel, err)
+	}
 
 	return nil
 }
