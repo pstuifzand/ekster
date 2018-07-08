@@ -24,10 +24,6 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	r.ParseForm()
-	log.Printf("%s %s\n", r.Method, r.URL)
-	log.Println(r.URL.Query())
-	log.Println(r.PostForm)
-	log.Println(r.Header)
 
 	if r.Method == http.MethodPost {
 		sourceID := r.URL.Query().Get("source_id")
@@ -74,7 +70,10 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			id, _ := redis.Int(conn.Do("INCR", "source:"+sourceID+"next_id"))
 			item.ID = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("source:%s:%d", sourceID, id))))
 			h.Backend.channelAddItem(conn, channel, item)
-			h.Backend.updateChannelUnreadCount(conn, channel)
+			err = h.Backend.updateChannelUnreadCount(conn, channel)
+			if err != nil {
+				log.Printf("error: while updating channel unread count for %s: %s\n", channel, err)
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")

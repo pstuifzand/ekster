@@ -360,7 +360,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 
 	err = b.updateChannelUnreadCount(conn, channel)
 	if err != nil {
-		log.Printf("error: while updating channel unread count for %s: %s\n", channel, err)
+		return err
 	}
 
 	return nil
@@ -373,8 +373,6 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) (*http.Response, error)
 }
 
 func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
-	// send to redis
-	channelKey := fmt.Sprintf("channel:%s:posts", channel)
 	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
 
 	if item.Published == "" {
@@ -394,13 +392,10 @@ func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item mic
 		Data:      data,
 	}
 
-	log.Printf("Adding item to channel %s => %s\n", channel, string(forRedis.Data))
-
 	itemKey := fmt.Sprintf("item:%s", item.ID)
 	_, err = redis.String(conn.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
 	if err != nil {
-		log.Printf("error while writing item for redis: %v\n", err)
-		return err
+		return fmt.Errorf("error while writing item for redis: %v", err)
 	}
 
 	readChannelKey := fmt.Sprintf("channel:%s:read", channel)
@@ -413,27 +408,14 @@ func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item mic
 		return nil
 	}
 
-	added, err := redis.Int64(conn.Do("SADD", channelKey, itemKey))
-	if err != nil {
-		log.Printf("error while adding item %s to channel %s for redis: %v\n", itemKey, channelKey, err)
-		return err
-	}
-
 	score, err := time.Parse(time.RFC3339, item.Published)
 	if err != nil {
-		log.Printf("error can't parse %s as time\n", item.Published)
-		return err
+		return fmt.Errorf("error can't parse %s as time", item.Published)
 	}
 
-	added, err = redis.Int64(conn.Do("ZADD", zchannelKey, score.Unix()*1.0, itemKey))
+	_, err = redis.Int64(conn.Do("ZADD", zchannelKey, score.Unix()*1.0, itemKey))
 	if err != nil {
-		log.Printf("error while zadding item %s to channel %s for redis: %v\n", itemKey, channelKey, err)
-		return err
-	}
-
-	if added > 0 {
-		log.Printf("Added item to channel %s\n", channel)
-		log.Println(item)
+		return fmt.Errorf("error while zadding item %s to channel %s for redis: %v", itemKey, zchannelKey, err)
 	}
 
 	return nil
@@ -444,7 +426,7 @@ func (b *memoryBackend) updateChannelUnreadCount(conn redis.Conn, channel string
 		zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
 		unread, err := redis.Int(conn.Do("ZCARD", zchannelKey))
 		if err != nil {
-			return err
+			return fmt.Errorf("error: while updating channel unread count for %s: %s", channel, err)
 		}
 		c.Unread = unread
 		b.Channels[channel] = c
@@ -465,7 +447,7 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	defer conn.Close()
 
 	if !strings.HasPrefix(fetchURL, "http") {
-		return nil, fmt.Errorf("error parsing %s as url", fetchURL)
+		return nil, fmt.Errorf("error parsing %s as url, has no http(s) prefix", fetchURL)
 	}
 
 	u, err := url.Parse(fetchURL)
