@@ -90,9 +90,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				http.SetCookie(w, newCookie)
+			} else {
+				sessionVar = c.Value
 			}
-
-			sessionVar = c.Value
 
 			fmt.Fprintln(w, "<h1>Ekster - Microsub server</h1>")
 			fmt.Fprintln(w, `<p><a href="/settings">Settings</a></p>`)
