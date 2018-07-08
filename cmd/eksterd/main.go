@@ -18,6 +18,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -52,8 +53,25 @@ type mainHandler struct {
 	Backend *memoryBackend
 }
 
+type session struct {
+	AuthorizationEndpoint string `redis:"authorization_endpoint"`
+	Me                    string `redis:"me"`
+	RedirectURI           string `redis:"redirect_uri"`
+	State                 string `redis:"state"`
+	ClientID              string `redis:"client_id"`
+	LoggedIn              bool   `redis:"logged_in"`
+}
+
+type authResponse struct {
+	Me string `json:"me"`
+}
+
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	conn := pool.Get()
+	defer conn.Close()
+
 	err := r.ParseForm()
+
 	if err != nil {
 		log.Println(err)
 		http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
@@ -61,6 +79,21 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodGet {
 		if r.URL.Path == "/" {
+			c, err := r.Cookie("session")
+			sessionVar := util.RandStringBytes(16)
+
+			if err == http.ErrNoCookie {
+				newCookie := &http.Cookie{
+					Name:    "session",
+					Value:   sessionVar,
+					Expires: time.Now().Add(24 * time.Hour),
+				}
+
+				http.SetCookie(w, newCookie)
+			}
+
+			sessionVar = c.Value
+
 			fmt.Fprintln(w, "<h1>Ekster - Microsub server</h1>")
 			fmt.Fprintln(w, `<p><a href="/settings">Settings</a></p>`)
 			fmt.Fprintln(w, `
@@ -70,10 +103,73 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	<button type="submit">Login</button>
 </form>
 `)
+			return
 		} else if r.URL.Path == "/auth/callback" {
+			c, err := r.Cookie("session")
+			if err == http.ErrNoCookie {
+				http.Redirect(w, r, "/", 302)
+				return
+			}
+			sessionVar := c.Value
+			var sess session
+			sessionKey := "session:" + sessionVar
+			data, err := redis.Values(conn.Do("HGETALL", sessionKey))
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+			err = redis.ScanStruct(data, &sess)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+
+			state := r.Form.Get("state")
+			if state != sess.State {
+				fmt.Fprintf(w, "ERROR: Mismatched state\n")
+				return
+			}
+			code := r.Form.Get("code")
+
+			reqData := url.Values{}
+			reqData.Set("code", code)
+			reqData.Set("client_id", sess.ClientID)
+			reqData.Set("redirect_uri", sess.RedirectURI)
+			resp, err := http.PostForm(sess.AuthorizationEndpoint, reqData)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode == 200 {
+				dec := json.NewDecoder(resp.Body)
+				var authResponse authResponse
+				err = dec.Decode(&authResponse)
+				if err != nil {
+					fmt.Fprintf(w, "ERROR: %q\n", err)
+					return
+				}
+				log.Println(authResponse)
+
+				sess.Me = authResponse.Me
+				conn.Do("HMSET", redis.Args{}.Add(sessionKey).AddFlat(sess)...)
+				fmt.Fprintf(w, "SUCCESS Me = %s", authResponse.Me)
+			} else {
+				fmt.Fprintf(w, "ERROR: HTTP response code from authorization_endpoint (%s) %d \n", sess.AuthorizationEndpoint, resp.StatusCode)
+				return
+			}
 		}
 	} else if r.Method == http.MethodPost {
 		if r.URL.Path == "/auth" {
+			c, err := r.Cookie("session")
+			if err == http.ErrNoCookie {
+				http.Redirect(w, r, "/", 302)
+				return
+			}
+
+			sessionVar := c.Value
+
 			// redirect to endpoint
 			me := r.Form.Get("url")
 			log.Println(me)
@@ -98,8 +194,17 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			state := util.RandStringBytes(16)
 			clientID := "https://p83.nl/microsub-client"
-
 			redirectURI := fmt.Sprintf("%s/auth/callback", os.Getenv("EKSTER_BASEURL"))
+
+			sess := session{
+				AuthorizationEndpoint: endpoints.AuthorizationEndpoint,
+				Me:          meURL.String(),
+				State:       state,
+				RedirectURI: redirectURI,
+				ClientID:    clientID,
+				LoggedIn:    false,
+			}
+			conn.Do("HMSET", redis.Args{}.Add("session:"+sessionVar).AddFlat(&sess)...)
 
 			q := authURL.Query()
 			q.Add("response_type", "id")
