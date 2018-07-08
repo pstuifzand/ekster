@@ -428,6 +428,7 @@ func (b *memoryBackend) updateChannelUnreadCount(conn redis.Conn, channel string
 		if err != nil {
 			return fmt.Errorf("error: while updating channel unread count for %s: %s", channel, err)
 		}
+		defer b.save()
 		c.Unread = unread
 		b.Channels[channel] = c
 	}
