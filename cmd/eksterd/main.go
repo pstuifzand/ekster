@@ -118,11 +118,19 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				os.Getenv("EKSTER_TEMPLATES")+"/templates/index.html",
 				os.Getenv("EKSTER_TEMPLATES")+"/templates/settings.html",
 			)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
 
 			var page indexPage
 			page.Session = sess
 
 			err = t.ExecuteTemplate(w, "index", page)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
 			return
 		} else if r.URL.Path == "/auth/callback" {
 			c, err := r.Cookie("session")
