@@ -20,7 +20,7 @@
             <h2 class="title">Logout</h2>
 
             <form action="/auth/logout" method="post">
-                <button type="submit">Logout</button>
+                <button type="submit" class="button is-info">Logout</button>
             </form>
             {{ else }}
             <h2 class="title">Sign in to Ekster</h2>
@@ -29,12 +29,12 @@
                 <div class="field">
                     <label class="label" for="url"></label>
                     <div class="control">
-                        <input type="text" name="url" id="url" placeholder="https://example.com/">
+                        <input type="text" name="url" id="url" class="input" placeholder="https://example.com/">
                     </div>
                 </div>
                 <div class="field is-grouped">
                     <div class="control">
-                        <button type="submit" class="button">Login</button>
+                        <button type="submit" class="button is-info">Login</button>
                     </div>
                 </div>
             </form>
