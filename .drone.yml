@@ -2,7 +2,7 @@ pipeline:
     build:
         image: golang
         commands:
-            - go get github.com/pstuifzand/microsub-server/cmd/eksterd
+            - go get github.com/pstuifzand/microsub-server/...
             - go build github.com/pstuifzand/microsub-server/cmd/eksterd
 
     publish:
