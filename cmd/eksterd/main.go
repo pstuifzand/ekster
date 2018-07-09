@@ -115,8 +115,8 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			t, err := template.ParseFiles(
-				os.Getenv("EKSTER_TEMPLATES")+"/templates/index.html",
-				os.Getenv("EKSTER_TEMPLATES")+"/templates/settings.html",
+				os.Getenv("EKSTER_TEMPLATES")+"/index.html",
+				os.Getenv("EKSTER_TEMPLATES")+"/settings.html",
 			)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %q\n", err)
