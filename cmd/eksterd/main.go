@@ -112,6 +112,12 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			if sess.LoggedIn {
 				fmt.Fprintf(w, "SUCCESS Me = %s", sess.Me)
+				fmt.Fprintln(w, `
+<h2>Logout</h2>
+<form action="/auth/logout" method="post">
+	<button type="submit">Logout</button>
+</form>
+`)
 			} else {
 				fmt.Fprintln(w, `
 <h2>Sign in to Ekster</h2>
@@ -237,8 +243,17 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			http.Redirect(w, r, authURL.String(), 302)
 			return
+		} else if r.URL.Path == "/auth/logout" {
+			c, err := r.Cookie("session")
+			if err == http.ErrNoCookie {
+				http.Redirect(w, r, "/", 302)
+				return
+			}
+			sessionVar := c.Value
+			conn.Do("DEL", "session:"+sessionVar)
+			http.Redirect(w, r, "/", 302)
+			return
 		}
-		return
 	}
 
 	http.NotFound(w, r)
