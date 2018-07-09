@@ -165,6 +165,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			req, err := http.NewRequest("POST", sess.AuthorizationEndpoint, strings.NewReader(reqData.Encode()))
 			req.Header.Add("Accept", "application/json")
+			req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 			client := http.Client{}
 			resp, err := client.Do(req)
 			if err != nil {
