@@ -163,9 +163,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			reqData.Set("client_id", sess.ClientID)
 			reqData.Set("redirect_uri", sess.RedirectURI)
 
-			req, err := http.NewRequest("POST", sess.AuthorizationEndpoint, strings.NewReader(reqData.Encode()))
+			// resp, err := http.PostForm(sess.AuthorizationEndpoint, reqData)
+			req, err := http.NewRequest(http.MethodPost, sess.AuthorizationEndpoint, strings.NewReader(reqData.Encode()))
 			req.Header.Add("Accept", "application/json")
 			req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+			req.Write(os.Stderr)
 			client := http.Client{}
 			resp, err := client.Do(req)
 			if err != nil {
