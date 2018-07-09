@@ -1,0 +1,23 @@
+<html>
+<head>
+<title>Ekster</title>
+</head>
+<body>
+<h1>Ekster - Microsub server</h1>
+<p><a href="/settings">Settings</a></p>
+
+{{ if .Session.LoggedIn }}
+
+SUCCESS Me = {{ .Session.Me }}
+<h2>Logout</h2>
+<form action="/auth/logout" method="post">
+	<button type="submit">Logout</button>
+</form>
+{{ else }}
+<h2>Sign in to Ekster</h2>
+<form action="/auth" method="post">
+	<input type="text" name="url" placeholder="https://example.com/">
+	<button type="submit">Login</button>
+</form>
+</body>
+</html>

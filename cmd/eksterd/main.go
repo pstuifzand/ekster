@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -68,17 +69,21 @@ type authResponse struct {
 	Me string `json:"me"`
 }
 
+type indexPage struct {
+	Session session
+}
+
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn := pool.Get()
 	defer conn.Close()
 
 	err := r.ParseForm()
-
 	if err != nil {
 		log.Println(err)
 		http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
 		return
 	}
+
 	if r.Method == http.MethodGet {
 		if r.URL.Path == "/" {
 			c, err := r.Cookie("session")
@@ -109,27 +114,12 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			fmt.Fprintln(w, "<h1>Ekster - Microsub server</h1>")
-			fmt.Fprintln(w, `<p><a href="/settings">Settings</a></p>`)
+			t, err := template.ParseFiles("templates/index.html", "templates/settings.html")
 
-			if sess.LoggedIn {
-				fmt.Fprintf(w, "SUCCESS Me = %s", sess.Me)
-				fmt.Fprintln(w, `
-<h2>Logout</h2>
-<form action="/auth/logout" method="post">
-	<button type="submit">Logout</button>
-</form>
-`)
-			} else {
-				fmt.Fprintln(w, `
-<h2>Sign in to Ekster</h2>
-<form action="/auth" method="post">
-	<input type="text" name="url" placeholder="https://example.com/">
-	<button type="submit">Login</button>
-</form>
-`)
-			}
+			var page indexPage
+			page.Session = sess
 
+			err = t.ExecuteTemplate(w, "index", page)
 			return
 		} else if r.URL.Path == "/auth/callback" {
 			c, err := r.Cookie("session")
