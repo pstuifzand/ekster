@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
@@ -161,7 +162,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			reqData.Set("code", code)
 			reqData.Set("client_id", sess.ClientID)
 			reqData.Set("redirect_uri", sess.RedirectURI)
-			resp, err := http.PostForm(sess.AuthorizationEndpoint, reqData)
+
+			req, err := http.NewRequest("POST", sess.AuthorizationEndpoint, strings.NewReader(reqData.Encode()))
+			req.Header.Add("Accept", "application/json")
+			client := http.Client{}
+			resp, err := client.Do(req)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %q\n", err)
 				return
