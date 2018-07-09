@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -168,7 +169,8 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			defer resp.Body.Close()
 
 			if resp.StatusCode == 200 {
-				dec := json.NewDecoder(resp.Body)
+				input := io.TeeReader(resp.Body, os.Stderr)
+				dec := json.NewDecoder(input)
 				var authResponse authResponse
 				err = dec.Decode(&authResponse)
 				if err != nil {
