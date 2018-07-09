@@ -94,15 +94,34 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				sessionVar = c.Value
 			}
 
+			var sess session
+			sessionKey := "session:" + sessionVar
+			data, err := redis.Values(conn.Do("HGETALL", sessionKey))
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+			err = redis.ScanStruct(data, &sess)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+
 			fmt.Fprintln(w, "<h1>Ekster - Microsub server</h1>")
 			fmt.Fprintln(w, `<p><a href="/settings">Settings</a></p>`)
-			fmt.Fprintln(w, `
+
+			if sess.LoggedIn {
+				fmt.Fprintf(w, "SUCCESS Me = %s", sess.Me)
+			} else {
+				fmt.Fprintln(w, `
 <h2>Sign in to Ekster</h2>
 <form action="/auth" method="post">
 	<input type="text" name="url" placeholder="https://example.com/">
 	<button type="submit">Login</button>
 </form>
 `)
+			}
+
 			return
 		} else if r.URL.Path == "/auth/callback" {
 			c, err := r.Cookie("session")
@@ -153,8 +172,10 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				log.Println(authResponse)
 
 				sess.Me = authResponse.Me
+				sess.LoggedIn = true
 				conn.Do("HMSET", redis.Args{}.Add(sessionKey).AddFlat(sess)...)
-				fmt.Fprintf(w, "SUCCESS Me = %s", authResponse.Me)
+				http.Redirect(w, r, "/", 302)
+				return
 			} else {
 				fmt.Fprintf(w, "ERROR: HTTP response code from authorization_endpoint (%s) %d \n", sess.AuthorizationEndpoint, resp.StatusCode)
 				return
