@@ -126,7 +126,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var page indexPage
 			page.Session = sess
 
-			err = t.ExecuteTemplate(w, "index", page)
+			err = t.ExecuteTemplate(w, "index.html", page)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %q\n", err)
 				return
