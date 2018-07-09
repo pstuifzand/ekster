@@ -114,7 +114,10 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			t, err := template.ParseFiles("templates/index.html", "templates/settings.html")
+			t, err := template.ParseFiles(
+				os.Getenv("EKSTER_TEMPLATES")+"/templates/index.html",
+				os.Getenv("EKSTER_TEMPLATES")+"/templates/settings.html",
+			)
 
 			var page indexPage
 			page.Session = sess
