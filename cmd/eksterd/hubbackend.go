@@ -131,7 +131,8 @@ func (h *hubIncomingBackend) GetFeeds() []Feed {
 	defer conn.Close()
 	feeds := []Feed{}
 
-	feedKeys, err := redis.Strings(conn.Do("KEYS feed:*"))
+	// FIXME(peter): replace with set of currently checked feeds
+	feedKeys, err := redis.Strings(conn.Do("KEYS", "feed:*"))
 	if err != nil {
 		log.Println(err)
 		return feeds
