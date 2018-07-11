@@ -72,6 +72,9 @@ type authResponse struct {
 type indexPage struct {
 	Session session
 }
+type settingsPage struct {
+	Session session
+}
 
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn := pool.Get()
@@ -115,8 +118,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			t, err := template.ParseFiles(
-				os.Getenv("EKSTER_TEMPLATES")+"/index.html",
-				os.Getenv("EKSTER_TEMPLATES")+"/settings.html",
+				os.Getenv("EKSTER_TEMPLATES") + "/index.html",
 			)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %q\n", err)
@@ -204,6 +206,43 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "ERROR: HTTP response code from authorization_endpoint (%s) %d \n", sess.AuthorizationEndpoint, resp.StatusCode)
 				return
 			}
+		} else if r.URL.Path == "/settings" {
+			c, err := r.Cookie("session")
+			if err == http.ErrNoCookie {
+				http.Redirect(w, r, "/", 302)
+				return
+			}
+			sessionVar := c.Value
+			var sess session
+			sessionKey := "session:" + sessionVar
+			data, err := redis.Values(conn.Do("HGETALL", sessionKey))
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+			err = redis.ScanStruct(data, &sess)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+
+			t, err := template.ParseFiles(
+				os.Getenv("EKSTER_TEMPLATES") + "/settings.html",
+			)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+
+			var page settingsPage
+			page.Session = sess
+
+			err = t.ExecuteTemplate(w, "settings.html", page)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+			return
 		}
 	} else if r.Method == http.MethodPost {
 		if r.URL.Path == "/auth" {
