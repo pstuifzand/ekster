@@ -90,6 +90,44 @@ func newMainHandler(backend *memoryBackend) (*mainHandler, error) {
 	return h, nil
 }
 
+func getSessionCookie(w http.ResponseWriter, r *http.Request) string {
+	c, err := r.Cookie("session")
+	sessionVar := util.RandStringBytes(16)
+
+	if err == http.ErrNoCookie {
+		newCookie := &http.Cookie{
+			Name:    "session",
+			Value:   sessionVar,
+			Expires: time.Now().Add(24 * time.Hour),
+		}
+
+		http.SetCookie(w, newCookie)
+	} else {
+		sessionVar = c.Value
+	}
+
+	return sessionVar
+}
+
+func loadSession(sessionVar string, conn redis.Conn) (session, error) {
+	var sess session
+	sessionKey := "session:" + sessionVar
+	data, err := redis.Values(conn.Do("HGETALL", sessionKey))
+	if err != nil {
+		return sess, err
+	}
+	err = redis.ScanStruct(data, &sess)
+	if err != nil {
+		return sess, err
+	}
+	return sess, nil
+}
+
+func saveSession(sessionVar string, sess *session, conn redis.Conn) error {
+	_, err := conn.Do("HMSET", redis.Args{}.Add("session:"+sessionVar).AddFlat(sess)...)
+	return err
+}
+
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn := pool.Get()
 	defer conn.Close()
@@ -103,29 +141,8 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodGet {
 		if r.URL.Path == "/" {
-			c, err := r.Cookie("session")
-			sessionVar := util.RandStringBytes(16)
-
-			if err == http.ErrNoCookie {
-				newCookie := &http.Cookie{
-					Name:    "session",
-					Value:   sessionVar,
-					Expires: time.Now().Add(24 * time.Hour),
-				}
-
-				http.SetCookie(w, newCookie)
-			} else {
-				sessionVar = c.Value
-			}
-
-			var sess session
-			sessionKey := "session:" + sessionVar
-			data, err := redis.Values(conn.Do("HGETALL", sessionKey))
-			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
-			}
-			err = redis.ScanStruct(data, &sess)
+			sessionVar := getSessionCookie(w, r)
+			sess, err := loadSession(sessionVar, conn)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %q\n", err)
 				return
@@ -146,19 +163,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, "/", 302)
 				return
 			}
+
 			sessionVar := c.Value
-			var sess session
-			sessionKey := "session:" + sessionVar
-			data, err := redis.Values(conn.Do("HGETALL", sessionKey))
-			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
-			}
-			err = redis.ScanStruct(data, &sess)
-			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
-			}
+			sess, err := loadSession(sessionVar, conn)
 
 			state := r.Form.Get("state")
 			if state != sess.State {
@@ -205,7 +212,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				sess.Me = authResponse.Me
 				sess.LoggedIn = true
-				conn.Do("HMSET", redis.Args{}.Add(sessionKey).AddFlat(sess)...)
+				saveSession(sessionVar, &sess, conn)
 				http.Redirect(w, r, "/", 302)
 				return
 			} else {
@@ -219,18 +226,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			sessionVar := c.Value
-			var sess session
-			sessionKey := "session:" + sessionVar
-			data, err := redis.Values(conn.Do("HGETALL", sessionKey))
-			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
-			}
-			err = redis.ScanStruct(data, &sess)
-			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
-			}
+			sess, err := loadSession(sessionVar, conn)
 
 			var page settingsPage
 			page.Session = sess
@@ -286,7 +282,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ClientID:    clientID,
 				LoggedIn:    false,
 			}
-			conn.Do("HMSET", redis.Args{}.Add("session:"+sessionVar).AddFlat(&sess)...)
+			saveSession(sessionVar, &sess, conn)
 
 			q := authURL.Query()
 			q.Add("response_type", "id")
