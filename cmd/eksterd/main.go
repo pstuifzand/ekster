@@ -80,8 +80,14 @@ type settingsPage struct {
 func newMainHandler(backend *memoryBackend) (*mainHandler, error) {
 	h := &mainHandler{Backend: backend}
 
-	templates, err := template.ParseGlob("*.html")
+	templateDir := os.Getenv("EKSTER_TEMPLATES")
+	if templateDir == "" {
+		return nil, fmt.Errorf("Missing env var EKSTER_TEMPLATES")
+	}
 
+	templateDir = strings.TrimRight(templateDir, "/")
+
+	templates, err := template.ParseGlob(fmt.Sprintf("%s/*.html", templateDir))
 	if err != nil {
 		return nil, err
 	}
