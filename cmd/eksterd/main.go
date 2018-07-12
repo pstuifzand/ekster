@@ -53,7 +53,8 @@ func init() {
 }
 
 type mainHandler struct {
-	Backend *memoryBackend
+	Backend   *memoryBackend
+	Templates *template.Template
 }
 
 type session struct {
@@ -74,6 +75,19 @@ type indexPage struct {
 }
 type settingsPage struct {
 	Session session
+}
+
+func newMainHandler(backend *memoryBackend) (*mainHandler, error) {
+	h := &mainHandler{Backend: backend}
+
+	templates, err := template.ParseGlob("*.html")
+
+	if err != nil {
+		return nil, err
+	}
+
+	h.Templates = templates
+	return h, nil
 }
 
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -117,18 +131,10 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			t, err := template.ParseFiles(
-				os.Getenv("EKSTER_TEMPLATES") + "/index.html",
-			)
-			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
-			}
-
 			var page indexPage
 			page.Session = sess
 
-			err = t.ExecuteTemplate(w, "index.html", page)
+			err = h.Templates.ExecuteTemplate(w, "index.html", page)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %q\n", err)
 				return
@@ -226,18 +232,10 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			t, err := template.ParseFiles(
-				os.Getenv("EKSTER_TEMPLATES") + "/settings.html",
-			)
-			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
-			}
-
 			var page settingsPage
 			page.Session = sess
 
-			err = t.ExecuteTemplate(w, "settings.html", page)
+			err = h.Templates.ExecuteTemplate(w, "settings.html", page)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %q\n", err)
 				return
@@ -372,10 +370,11 @@ func main() {
 	http.Handle("/incoming/", &incomingHandler{
 		Backend: &hubBackend,
 	})
-
-	http.Handle("/", &mainHandler{
-		Backend: backend.(*memoryBackend),
-	})
+	handler, err := newMainHandler(backend.(*memoryBackend))
+	if err != nil {
+		log.Fatal(err)
+	}
+	http.Handle("/", handler)
 
 	backend.(*memoryBackend).run()
 	hubBackend.run()
