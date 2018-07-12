@@ -37,6 +37,10 @@ import (
 	"github.com/pstuifzand/ekster/pkg/util"
 )
 
+const (
+	ClientID string = "https://p83.nl/microsub-client"
+)
+
 var (
 	pool        *redis.Pool
 	port        int
@@ -62,7 +66,6 @@ type session struct {
 	Me                    string `redis:"me"`
 	RedirectURI           string `redis:"redirect_uri"`
 	State                 string `redis:"state"`
-	ClientID              string `redis:"client_id"`
 	LoggedIn              bool   `redis:"logged_in"`
 }
 
@@ -182,10 +185,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			reqData := url.Values{}
 			reqData.Set("code", code)
-			reqData.Set("client_id", sess.ClientID)
+			reqData.Set("client_id", ClientID)
 			reqData.Set("redirect_uri", sess.RedirectURI)
 
-			// resp, err := http.PostForm(sess.AuthorizationEndpoint, reqData)
 			req, err := http.NewRequest(http.MethodPost, sess.AuthorizationEndpoint, strings.NewReader(reqData.Encode()))
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %q\n", err)
@@ -277,7 +279,6 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.Println(authURL)
 
 			state := util.RandStringBytes(16)
-			clientID := "https://p83.nl/microsub-client"
 			redirectURI := fmt.Sprintf("%s/auth/callback", os.Getenv("EKSTER_BASEURL"))
 
 			sess := session{
@@ -285,7 +286,6 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Me:          meURL.String(),
 				State:       state,
 				RedirectURI: redirectURI,
-				ClientID:    clientID,
 				LoggedIn:    false,
 			}
 			saveSession(sessionVar, &sess, conn)
@@ -293,7 +293,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			q := authURL.Query()
 			q.Add("response_type", "id")
 			q.Add("me", meURL.String())
-			q.Add("client_id", clientID)
+			q.Add("client_id", ClientID)
 			q.Add("redirect_uri", redirectURI)
 			q.Add("state", state)
 			authURL.RawQuery = q.Encode()
