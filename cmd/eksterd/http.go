@@ -545,6 +545,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Scope:       auth.Scope,
 			}
 
+			w.Header().Add("Content-Type", "application/json")
 			enc := json.NewEncoder(w)
 			err = enc.Encode(&res)
 			if err != nil {
