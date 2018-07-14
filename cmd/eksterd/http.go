@@ -41,10 +41,10 @@ type indexPage struct {
 type settingsPage struct {
 	Session session
 
-	CurrentChannel string
+	CurrentChannel microsub.Channel
 
-	Channels map[string]microsub.Channel
-	Feeds    map[string][]microsub.Feed
+	Channels []microsub.Channel
+	Feeds    []microsub.Feed
 }
 type logsPage struct {
 	Session session
@@ -233,9 +233,16 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page settingsPage
 			page.Session = sess
-			page.Channels = h.Backend.Channels
-			page.Feeds = h.Backend.Feeds
-			page.CurrentChannel = r.URL.Query().Get("uid")
+			currentChannel := r.URL.Query().Get("uid")
+			page.Channels, err = h.Backend.ChannelsGetList()
+			page.Feeds, err = h.Backend.FollowGetList(currentChannel)
+
+			for _, v := range page.Channels {
+				if v.UID == currentChannel {
+					page.CurrentChannel = v
+					break
+				}
+			}
 
 			err = h.Templates.ExecuteTemplate(w, "channel.html", page)
 			if err != nil {
@@ -284,8 +291,8 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page settingsPage
 			page.Session = sess
-			page.Channels = h.Backend.Channels
-			page.Feeds = h.Backend.Feeds
+			page.Channels, err = h.Backend.ChannelsGetList()
+			//page.Feeds = h.Backend.Feeds
 
 			err = h.Templates.ExecuteTemplate(w, "settings.html", page)
 			if err != nil {

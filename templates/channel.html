@@ -41,7 +41,7 @@
 
             <h1 class="title">Ekster - Microsub server</h1>
 
-            {{ $channel := index .Channels .CurrentChannel }}
+            {{ $channel := .CurrentChannel }}
 
             <nav class="breadcrumb" aria-label="breadcrumbs">
                 <ul>
@@ -53,7 +53,7 @@
             <h2 class="subtitle">{{ $channel.Name }}</h2>
 
             <div class="channel">
-                {{ range index .Feeds .CurrentChannel }}
+                {{ range .Feeds }}
                     <div class="feed box">
                         <div class="name">
                             <a href="{{ .URL }}">{{ .URL }}</a>
