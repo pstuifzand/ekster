@@ -78,6 +78,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
 			content := r.FormValue("content")
 			name := r.FormValue("name")
+			item.Type = "entry"
 			item.Name = name
 			item.Content = &microsub.Content{Text: content}
 			item.Published = time.Now().Format(time.RFC3339)
