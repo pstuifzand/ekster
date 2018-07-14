@@ -81,6 +81,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			item.Name = name
 			item.Content = &microsub.Content{Text: content}
 			item.Published = time.Now().Format(time.RFC3339)
+			ok = true
 		} else {
 			http.Error(w, "Unsupported Content-Type", 400)
 			return
