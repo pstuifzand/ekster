@@ -46,6 +46,9 @@ type settingsPage struct {
 	Channels map[string]microsub.Channel
 	Feeds    map[string][]microsub.Feed
 }
+type logsPage struct {
+	Session session
+}
 
 func newMainHandler(backend *memoryBackend) (*mainHandler, error) {
 	h := &mainHandler{Backend: backend}
@@ -141,6 +144,18 @@ func verifyAuthCode(code, redirectURI, authEndpoint string) (bool, *authResponse
 	return false, nil, fmt.Errorf("ERROR: HTTP response code from authorization_endpoint (%s) %d \n", authEndpoint, resp.StatusCode)
 }
 
+func isLoggedIn(backend *memoryBackend, sess *session) bool {
+	if !sess.LoggedIn {
+		return false
+	}
+
+	if sess.Me != backend.Me {
+		return false
+	}
+
+	return true
+}
+
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn := pool.Get()
 	defer conn.Close()
@@ -210,7 +225,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
 
-			if !sess.LoggedIn {
+			if !isLoggedIn(h.Backend, &sess) {
 				w.WriteHeader(401)
 				fmt.Fprintf(w, "Unauthorized")
 				return
@@ -228,6 +243,30 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			return
+		} else if r.URL.Path == "/logs" {
+			c, err := r.Cookie("session")
+			if err == http.ErrNoCookie {
+				http.Redirect(w, r, "/", 302)
+				return
+			}
+			sessionVar := c.Value
+			sess, err := loadSession(sessionVar, conn)
+
+			if !isLoggedIn(h.Backend, &sess) {
+				w.WriteHeader(401)
+				fmt.Fprintf(w, "Unauthorized")
+				return
+			}
+
+			var page logsPage
+			page.Session = sess
+
+			err = h.Templates.ExecuteTemplate(w, "logs.html", page)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+			return
 		} else if r.URL.Path == "/settings" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
@@ -237,7 +276,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
 
-			if !sess.LoggedIn {
+			if !isLoggedIn(h.Backend, &sess) {
 				w.WriteHeader(401)
 				fmt.Fprintf(w, "Unauthorized")
 				return
