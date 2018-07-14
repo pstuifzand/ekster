@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ekster</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.1/css/bulma.min.css">
-<link rel="micropub" href="{{ .Baseurl }}/micropub" />
-<link rel="authorization_endpoint" href="{{ .Baseurl }}/auth" />
-<link rel="token_endpoint" href="{{ .Baseurl }}/auth/token" />
 </head>
 <body>
     <section class="section">
@@ -44,27 +41,54 @@
 
             <h1 class="title">Ekster - Microsub server</h1>
 
-            {{ if .Session.LoggedIn }}
-                <h2 class="title">Logout</h2>
-                <form action="/session/logout" method="post">
-                    <button type="submit" class="button is-info">Logout</button>
-                </form>
-            {{ else }}
-                <h2 class="title">Sign in to Ekster</h2>
-                <form action="/session" method="post">
+            <div class="box">
+                <form action="/auth/approve" method="post">
+
                     <div class="field">
-                        <label class="label" for="url"></label>
+                        <label class="label">Client ID</label>
                         <div class="control">
-                            <input type="text" name="url" id="url" class="input" placeholder="https://example.com/">
+                            <p>{{ .ClientID }}</p>
                         </div>
                     </div>
-                    <div class="field is-grouped">
+
+                    <div class="field">
+                        <label class="label">RedirectURI</label>
                         <div class="control">
-                            <button type="submit" class="button is-info">Login</button>
+                            <p>{{ .RedirectURI }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="field">
+                        <label class="label">Scope</label>
+                        <div class="control">
+                            {{ range .Scope }}
+                                <p>{{ . }}</p>
+                            {{ end }}
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="label">Select a channel</label>
+                        <div class="control">
+                            <div class="select">
+                                <select name="channel">
+                                    {{ range .Channels }}
+                                        <option value="{{ .UID }}">{{ .Name }}</option>
+                                    {{ end }}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <div class="control">
+                            <button type="submit" name="accept" value="approve" class="button is-primary">
+                                Approve
+                            </button>
                         </div>
                     </div>
                 </form>
-            {{ end }}
+            </div>
         </div>
     </section>
 </body>

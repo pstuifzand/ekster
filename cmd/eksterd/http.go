@@ -37,6 +37,7 @@ type authResponse struct {
 
 type indexPage struct {
 	Session session
+	Baseurl string
 }
 type settingsPage struct {
 	Session session
@@ -48,6 +49,15 @@ type settingsPage struct {
 }
 type logsPage struct {
 	Session session
+}
+
+type authPage struct {
+	Session     session
+	Me          string
+	ClientID    string
+	Scope       []string
+	RedirectURI string
+	Channels    []microsub.Channel
 }
 
 func newMainHandler(backend *memoryBackend) (*mainHandler, error) {
@@ -178,6 +188,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page indexPage
 			page.Session = sess
+			page.Baseurl = strings.TrimRight(os.Getenv("EKSTER_BASEURL"), "/")
 
 			err = h.Templates.ExecuteTemplate(w, "index.html", page)
 			if err != nil {
@@ -185,7 +196,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			return
-		} else if r.URL.Path == "/auth/callback" {
+		} else if r.URL.Path == "/session/callback" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
 				http.Redirect(w, r, "/", 302)
@@ -300,9 +311,55 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			return
+		} else if r.URL.Path == "/auth" {
+			// check if we are logged in
+			// TODO: if not logged in, make sure we get back here
+			c, err := r.Cookie("session")
+			if err == http.ErrNoCookie {
+				http.Redirect(w, r, "/", 302)
+				return
+			}
+			sessionVar := c.Value
+			sess, err := loadSession(sessionVar, conn)
+
+			if !isLoggedIn(h.Backend, &sess) {
+				http.Redirect(w, r, "/", 302)
+				return
+			}
+
+			query := r.URL.Query()
+
+			//responseType := query.Get("response_type")
+			me := query.Get("me")
+			clientID := query.Get("client_id")
+			redirectURI := query.Get("redirect_uri")
+			//state := query.Get("state")
+			scope := query.Get("scope")
+			if scope == "" {
+				scope = "create"
+			}
+			// Save this ^^ in Redis based on me,client_id,redirect_uri
+
+			var page authPage
+			page.Session = sess
+			page.Me = me
+			page.ClientID = clientID
+			page.RedirectURI = redirectURI
+			page.Scope = strings.Split(scope, " ")
+			page.Channels, err = h.Backend.ChannelsGetList()
+
+			err = h.Templates.ExecuteTemplate(w, "auth.html", page)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+			return
+
+		} else if r.URL.Path == "/auth/token" {
 		}
+
 	} else if r.Method == http.MethodPost {
-		if r.URL.Path == "/auth" {
+		if r.URL.Path == "/session" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
 				http.Redirect(w, r, "/", 302)
@@ -334,7 +391,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.Println(authURL)
 
 			state := util.RandStringBytes(16)
-			redirectURI := fmt.Sprintf("%s/auth/callback", os.Getenv("EKSTER_BASEURL"))
+			redirectURI := fmt.Sprintf("%s/session/callback", os.Getenv("EKSTER_BASEURL"))
 
 			sess := session{
 				AuthorizationEndpoint: endpoints.AuthorizationEndpoint,
@@ -355,7 +412,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			http.Redirect(w, r, authURL.String(), 302)
 			return
-		} else if r.URL.Path == "/auth/logout" {
+		} else if r.URL.Path == "/session/logout" {
 			c, err := r.Cookie("session")
 
 			if err == http.ErrNoCookie {
@@ -367,6 +424,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			conn.Do("DEL", "session:"+sessionVar)
 			http.Redirect(w, r, "/", 302)
 			return
+		} else if r.URL.Path == "/auth/approve" {
+			// create a code
+			// and redirect
 		}
 	}
 

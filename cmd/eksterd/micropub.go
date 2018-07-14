@@ -17,6 +17,13 @@ type micropubHandler struct {
 	Backend *memoryBackend
 }
 
+/*
+ * URLs needed:
+ * - /		      with endpoint urls
+ * - /micropub    micropub endpoint
+ * - /auth        auth endpoint
+ * - /token       token endpoint
+ */
 func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -25,7 +32,10 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	r.ParseForm()
 
-	if r.Method == http.MethodPost {
+	if r.Method == http.MethodGet {
+		// show profile with endpoint urls
+
+	} else if r.Method == http.MethodPost {
 		sourceID := r.URL.Query().Get("source_id")
 
 		authHeader := r.Header.Get("Authorization")
