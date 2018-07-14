@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/ekster/pkg/microsub"
@@ -74,6 +75,12 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			item = mapToItem(simplifyMicroformat(&mfItem))
 			ok = true
+		} else if r.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
+			content := r.FormValue("content")
+			name := r.FormValue("name")
+			item.Name = name
+			item.Content = &microsub.Content{Text: content}
+			item.Published = time.Now().Format(time.RFC3339)
 		} else {
 			http.Error(w, "Unsupported Content-Type", 400)
 			return
