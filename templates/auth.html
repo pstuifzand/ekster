@@ -43,6 +43,7 @@
 
             <div class="box">
                 <form action="/auth/approve" method="post">
+                    <input type="hidden" name="state" value="{{ .State }}" />
 
                     <div class="field">
                         <label class="label">Client ID</label>
@@ -61,9 +62,7 @@
                     <div class="field">
                         <label class="label">Scope</label>
                         <div class="control">
-                            {{ range .Scope }}
-                                <p>{{ . }}</p>
-                            {{ end }}
+                            <p>{{ .Scope }}</p>
                         </div>
                     </div>
 

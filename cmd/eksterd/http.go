@@ -35,6 +35,13 @@ type authResponse struct {
 	Me string `json:"me"`
 }
 
+type authTokenResponse struct {
+	Me          string `json:"me"`
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	Scope       string `json:"scope"`
+}
+
 type indexPage struct {
 	Session session
 	Baseurl string
@@ -55,9 +62,21 @@ type authPage struct {
 	Session     session
 	Me          string
 	ClientID    string
-	Scope       []string
+	Scope       string
 	RedirectURI string
+	State       string
 	Channels    []microsub.Channel
+}
+
+type authRequest struct {
+	Me          string `redis:"me"`
+	ClientID    string `redis:"client_id"`
+	Scope       string `redis:"scope"`
+	RedirectURI string `redis:"redirect_uri"`
+	State       string `redis:"state"`
+	Code        string `redis:"code"`
+	Channel     string `redis:"channel"`
+	AccessToken string `redis:"access_token"`
 }
 
 func newMainHandler(backend *memoryBackend) (*mainHandler, error) {
@@ -151,7 +170,7 @@ func verifyAuthCode(code, redirectURI, authEndpoint string) (bool, *authResponse
 		return true, &authResponse, nil
 	}
 
-	return false, nil, fmt.Errorf("ERROR: HTTP response code from authorization_endpoint (%s) %d \n", authEndpoint, resp.StatusCode)
+	return false, nil, fmt.Errorf("HTTP response code from authorization_endpoint (%s) %d", authEndpoint, resp.StatusCode)
 }
 
 func isLoggedIn(backend *memoryBackend, sess *session) bool {
@@ -333,19 +352,36 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			me := query.Get("me")
 			clientID := query.Get("client_id")
 			redirectURI := query.Get("redirect_uri")
-			//state := query.Get("state")
+			state := query.Get("state")
 			scope := query.Get("scope")
 			if scope == "" {
 				scope = "create"
 			}
-			// Save this ^^ in Redis based on me,client_id,redirect_uri
+
+			auth := authRequest{
+				Me:          me,
+				ClientID:    clientID,
+				RedirectURI: redirectURI,
+				Scope:       scope,
+				State:       state,
+			}
+
+			_, err = conn.Do("HMSET", redis.Args{}.Add("state:"+state).AddFlat(&auth)...)
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+
+			// Save this ^^ in Redis
 
 			var page authPage
 			page.Session = sess
 			page.Me = me
 			page.ClientID = clientID
 			page.RedirectURI = redirectURI
-			page.Scope = strings.Split(scope, " ")
+			page.Scope = scope
+			page.State = state
 			page.Channels, err = h.Backend.ChannelsGetList()
 
 			err = h.Templates.ExecuteTemplate(w, "auth.html", page)
@@ -426,7 +462,96 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		} else if r.URL.Path == "/auth/approve" {
 			// create a code
-			// and redirect
+			code := util.RandStringBytes(32)
+			state := r.FormValue("state")
+			channel := r.FormValue("channel")
+			log.Println(code, state, channel)
+
+			values, err := redis.Values(conn.Do("HGETALL", "state:"+state))
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "ERROR: %q", err)
+				return
+			}
+			var auth authRequest
+			err = redis.ScanStruct(values, &auth)
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "ERROR: %q", err)
+				return
+			}
+			auth.Code = code
+			auth.Channel = channel
+			_, err = conn.Do("HMSET", redis.Args{}.Add("code:"+code).AddFlat(&auth)...)
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "ERROR: %q", err)
+				return
+			}
+			_, err = conn.Do("EXPIRE", "code:"+code, 5*60)
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "ERROR: %q", err)
+				return
+			}
+
+			redirectURI, err := url.Parse(auth.RedirectURI)
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "ERROR: %q", err)
+				return
+			}
+			log.Println(redirectURI)
+			q := redirectURI.Query()
+			q.Add("code", code)
+			q.Add("state", auth.State)
+			redirectURI.RawQuery = q.Encode()
+
+			log.Println(redirectURI)
+			http.Redirect(w, r, redirectURI.String(), 302)
+			return
+		} else if r.URL.Path == "/auth/token" {
+			//grantType := r.FormValue("grant_type")
+			code := r.FormValue("code")
+			//clientID := r.FormValue("client_id")
+			//redirectURI := r.FormValue("redirect_uri")
+			//me := r.FormValue("me")
+
+			values, err := redis.Values(conn.Do("HGETALL", "code:"+code))
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "ERROR: %q", err)
+				return
+			}
+			var auth authRequest
+			err = redis.ScanStruct(values, &auth)
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "ERROR: %q", err)
+				return
+			}
+			token := util.RandStringBytes(32)
+			_, err = conn.Do("HMSET", redis.Args{}.Add("token:"+token).AddFlat(&auth)...)
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "ERROR: %q", err)
+				return
+			}
+
+			res := authTokenResponse{
+				Me:          auth.Me,
+				AccessToken: token,
+				TokenType:   "Bearer",
+				Scope:       auth.Scope,
+			}
+
+			enc := json.NewEncoder(w)
+			err = enc.Encode(&res)
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "ERROR: %q", err)
+				return
+			}
 		}
 	}
 
