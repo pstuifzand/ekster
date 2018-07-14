@@ -210,6 +210,12 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
 
+			if !sess.LoggedIn {
+				w.WriteHeader(401)
+				fmt.Fprintf(w, "Unauthorized")
+				return
+			}
+
 			var page settingsPage
 			page.Session = sess
 			page.Channels = h.Backend.Channels
@@ -230,6 +236,12 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
+
+			if !sess.LoggedIn {
+				w.WriteHeader(401)
+				fmt.Fprintf(w, "Unauthorized")
+				return
+			}
 
 			var page settingsPage
 			page.Session = sess
