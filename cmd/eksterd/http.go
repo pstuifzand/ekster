@@ -553,6 +553,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
+			return
 		}
 	}
 
