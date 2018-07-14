@@ -45,8 +45,12 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		channel, err := redis.String(conn.Do("HGET", "sources", sourceID))
 		if err != nil {
-			http.Error(w, "Unknown source", 400)
-			return
+
+			channel, err = redis.String(conn.Do("HGET", "token:"+sourceID, "channel"))
+			if err != nil {
+				http.Error(w, "Unknown source", 400)
+				return
+			}
 		}
 
 		var item microsub.Item
