@@ -42,20 +42,17 @@
             {{ end }}
 
 
-            <h2 class="subtitle">Channels</h2>
+            <h2 class="subtitle">Channel</h2>
 
-            <div class="channels">
-                {{ range .Channels }}
-                    <div class="channel box">
+            <div class="channel">
+                {{ range index .Feeds .CurrentChannel }}
+                    <div class="feed box">
                         <div class="name">
-                            <a href="/settings/channel?uid={{ .UID }}">
-                                {{ .Name }}
-                                <span class="unread tag is-dark">{{ index $.Feeds .UID | len }}</span>
-                            </a>
+                            <a href="{{ .URL }}">{{ or .Name "Untitled" }}</a>
                         </div>
                     </div>
                 {{ else }}
-                    <div class="no-channels">No channels</div>
+                    <div class="no-channels">No feeds</div>
                 {{ end }}
             </div>
         </div>

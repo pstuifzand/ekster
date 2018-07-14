@@ -14,6 +14,7 @@ import (
 	"github.com/alecthomas/template"
 	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/ekster/pkg/indieauth"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 	"github.com/pstuifzand/ekster/pkg/util"
 )
 
@@ -39,6 +40,11 @@ type indexPage struct {
 }
 type settingsPage struct {
 	Session session
+
+	CurrentChannel string
+
+	Channels map[string]microsub.Channel
+	Feeds    map[string][]microsub.Feed
 }
 
 func newMainHandler(backend *memoryBackend) (*mainHandler, error) {
@@ -195,6 +201,27 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			return
+		} else if r.URL.Path == "/settings/channel" {
+			c, err := r.Cookie("session")
+			if err == http.ErrNoCookie {
+				http.Redirect(w, r, "/", 302)
+				return
+			}
+			sessionVar := c.Value
+			sess, err := loadSession(sessionVar, conn)
+
+			var page settingsPage
+			page.Session = sess
+			page.Channels = h.Backend.Channels
+			page.Feeds = h.Backend.Feeds
+			page.CurrentChannel = r.URL.Query().Get("uid")
+
+			err = h.Templates.ExecuteTemplate(w, "channel.html", page)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
+			return
 		} else if r.URL.Path == "/settings" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
@@ -206,6 +233,8 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page settingsPage
 			page.Session = sess
+			page.Channels = h.Backend.Channels
+			page.Feeds = h.Backend.Feeds
 
 			err = h.Templates.ExecuteTemplate(w, "settings.html", page)
 			if err != nil {
