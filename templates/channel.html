@@ -9,8 +9,6 @@
 <body>
     <section class="section">
         <div class="container">
-
-
             <nav class="navbar" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">
                     <a class="navbar-item" href="/">
@@ -50,18 +48,40 @@
                 </ul>
             </nav>
 
-            <h2 class="subtitle">{{ $channel.Name }}</h2>
+            <h2 class="subtitle is-2">{{ $channel.Name }}</h2>
 
-            <div class="channel">
-                {{ range .Feeds }}
-                    <div class="feed box">
-                        <div class="name">
-                            <a href="{{ .URL }}">{{ .URL }}</a>
+            <div class="columns">
+                <div class="column">
+                    <h3 class="title is-4">Settings</h3>
+                    <form action="/settings/channel" method="post">
+                        <input type="hidden" name="uid" value="{{ .CurrentChannel.UID }}" />
+                        <div class="field">
+                            <div class="control">
+                            <label class="label">Exclude regex</label>
+                                <input type="text" class="input" name="exclude_regex" value="{{ .CurrentSetting.ExcludeRegex }}" placeholder="enter regex to block" />
+                            </div>
                         </div>
+                        <div class="field">
+                            <button type="submit" class="button is-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="column">
+                    <h3 class="title is-4">Channels</h3>
+                
+                    <div class="channel">
+                        {{ range .Feeds }}
+                            <div class="feed box">
+                                <div class="name">
+                                    <a href="{{ .URL }}">{{ .URL }}</a>
+                                </div>
+                            </div>
+                        {{ else }}
+                            <div class="no-channels">No feeds</div>
+                        {{ end }}
                     </div>
-                {{ else }}
-                    <div class="no-channels">No feeds</div>
-                {{ end }}
+                </div>
             </div>
         </div>
     </section>

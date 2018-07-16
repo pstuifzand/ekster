@@ -37,6 +37,7 @@ import (
 type memoryBackend struct {
 	Channels      map[string]microsub.Channel
 	Feeds         map[string][]microsub.Feed
+	Settings      map[string]channelSetting
 	NextUid       int
 	Me            string
 	TokenEndpoint string
@@ -45,12 +46,18 @@ type memoryBackend struct {
 	quit   chan struct{}
 }
 
+type channelSetting struct {
+	ExcludeRegex string
+}
+
 type Debug interface {
 	Debug()
 }
 
 func (b *memoryBackend) Debug() {
 	fmt.Println(b.Channels)
+	fmt.Println(b.Feeds)
+	fmt.Println(b.Settings)
 }
 
 func (b *memoryBackend) load() error {

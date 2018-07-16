@@ -50,6 +50,7 @@ type settingsPage struct {
 	Session session
 
 	CurrentChannel microsub.Channel
+	CurrentSetting channelSetting
 
 	Channels []microsub.Channel
 	Feeds    []microsub.Feed
@@ -272,6 +273,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			for _, v := range page.Channels {
 				if v.UID == currentChannel {
 					page.CurrentChannel = v
+					if setting, e := h.Backend.Settings[v.UID]; e {
+						page.CurrentSetting = setting
+					} else {
+						page.CurrentSetting = channelSetting{}
+					}
 					break
 				}
 			}
@@ -546,6 +552,26 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
+			return
+		} else if r.URL.Path == "/settings/channel" {
+			defer h.Backend.save()
+			uid := r.FormValue("uid")
+			//name := r.FormValue("name")
+			excludeRegex := r.FormValue("exclude_regex")
+
+			if setting, e := h.Backend.Settings[uid]; e {
+				setting.ExcludeRegex = excludeRegex
+				h.Backend.Settings[uid] = setting
+			} else {
+				setting = channelSetting{
+					ExcludeRegex: excludeRegex,
+				}
+				h.Backend.Settings[uid] = setting
+			}
+
+			h.Backend.Debug()
+
+			http.Redirect(w, r, "/settings", 302)
 			return
 		}
 	}
