@@ -185,6 +185,16 @@ func isLoggedIn(backend *memoryBackend, sess *session) bool {
 	return true
 }
 
+func performIndieauthCallback(r *http.Request, sess *session) (bool, *authResponse, error) {
+	state := r.Form.Get("state")
+	if state != sess.State {
+		return false, &authResponse{}, fmt.Errorf("mismatched state")
+	}
+
+	code := r.Form.Get("code")
+	return verifyAuthCode(code, sess.RedirectURI, sess.AuthorizationEndpoint)
+}
+
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn := pool.Get()
 	defer conn.Close()
@@ -225,15 +235,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
 
-			state := r.Form.Get("state")
-			if state != sess.State {
-				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, "ERROR: Mismatched state\n")
-				return
-			}
-			code := r.Form.Get("code")
-
-			verified, authResponse, err := verifyAuthCode(code, sess.RedirectURI, sess.AuthorizationEndpoint)
+			verified, authResponse, err := performIndieauthCallback(r, &sess)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %q\n", err)
 				return
@@ -390,10 +392,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			return
-
-		} else if r.URL.Path == "/auth/token" {
 		}
-
 	} else if r.Method == http.MethodPost {
 		if r.URL.Path == "/session" {
 			c, err := r.Cookie("session")
@@ -438,15 +437,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			saveSession(sessionVar, &sess, conn)
 
-			q := authURL.Query()
-			q.Add("response_type", "id")
-			q.Add("me", meURL.String())
-			q.Add("client_id", ClientID)
-			q.Add("redirect_uri", redirectURI)
-			q.Add("state", state)
-			authURL.RawQuery = q.Encode()
+			authenticationURL := indieauth.CreateAuthenticationURL(*authURL, meURL.String(), ClientID, redirectURI, state)
 
-			http.Redirect(w, r, authURL.String(), 302)
+			http.Redirect(w, r, authenticationURL, 302)
 			return
 		} else if r.URL.Path == "/session/logout" {
 			c, err := r.Cookie("session")

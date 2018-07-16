@@ -94,16 +94,9 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 	redirectURI := fmt.Sprintf("http://%s/", local)
 	state := util.RandStringBytes(16)
 
-	q := authURL.Query()
-	q.Add("response_type", "code")
-	q.Add("me", me.String())
-	q.Add("client_id", clientID)
-	q.Add("redirect_uri", redirectURI)
-	q.Add("state", state)
-	q.Add("scope", scope)
-	authURL.RawQuery = q.Encode()
+	authorizationURL := CreateAuthorizationURL(*authURL, me.String(), clientID, redirectURI, state, scope)
 
-	log.Printf("Browse to %s\n", authURL.String())
+	log.Printf("Browse to %s\n", authorizationURL)
 
 	shutdown := make(chan struct{}, 1)
 
@@ -163,4 +156,30 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 	}
 
 	return tokenResponse, nil
+}
+
+func CreateAuthenticationURL(authURL url.URL, meURL, clientID, redirectURI, state string) string {
+	q := authURL.Query()
+
+	q.Add("response_type", "id")
+	q.Add("me", meURL)
+	q.Add("client_id", clientID)
+	q.Add("redirect_uri", redirectURI)
+	q.Add("state", state)
+
+	authURL.RawQuery = q.Encode()
+
+	return authURL.String()
+}
+
+func CreateAuthorizationURL(authURL url.URL, meURL, clientID, redirectURI, state, scope string) string {
+	q := authURL.Query()
+	q.Add("response_type", "code")
+	q.Add("me", meURL)
+	q.Add("client_id", clientID)
+	q.Add("redirect_uri", redirectURI)
+	q.Add("state", state)
+	q.Add("scope", scope)
+	authURL.RawQuery = q.Encode()
+	return authURL.String()
 }
