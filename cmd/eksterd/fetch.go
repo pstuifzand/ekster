@@ -353,7 +353,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 
 	for _, item := range items {
 		item.Read = false
-		err = b.channelAddItem(conn, channel, item)
+		err = b.channelAddItemWithMatcher(conn, channel, item)
 		if err != nil {
 			log.Printf("ERROR: %s\n", err)
 		}
