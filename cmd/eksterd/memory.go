@@ -49,9 +49,6 @@ type Debug interface {
 	Debug()
 }
 
-func init() {
-}
-
 func (b *memoryBackend) Debug() {
 	fmt.Println(b.Channels)
 }
