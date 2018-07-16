@@ -569,6 +569,18 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.Backend.Settings[uid] = setting
 			}
 
+			includeRegex := r.FormValue("include_regex")
+
+			if setting, e := h.Backend.Settings[uid]; e {
+				setting.IncludeRegex = includeRegex
+				h.Backend.Settings[uid] = setting
+			} else {
+				setting = channelSetting{
+					IncludeRegex: includeRegex,
+				}
+				h.Backend.Settings[uid] = setting
+			}
+
 			h.Backend.Debug()
 
 			http.Redirect(w, r, "/settings", 302)
