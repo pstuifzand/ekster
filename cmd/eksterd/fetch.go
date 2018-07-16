@@ -376,8 +376,24 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) (*http.Response, error)
 func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
 	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
 
-	var excludeRegex regexp.Regexp
-	testExcludeRegex := false
+	for _, setting := range b.Settings {
+		if setting.IncludeRegex != "" {
+			includeRegex, err := regexp.Compile(setting.IncludeRegex)
+			if err != nil {
+				log.Printf("error in regexp: %q\n", includeRegex)
+			} else {
+				if item.Content != nil && includeRegex.MatchString(item.Content.Text) {
+					log.Printf("Excluded %#v\n", item)
+					return nil
+				}
+
+				if includeRegex.MatchString(item.Name) {
+					log.Printf("Excluded %#v\n", item)
+					return nil
+				}
+			}
+		}
+	}
 
 	if setting, e := b.Settings[channel]; e {
 		if setting.ExcludeRegex != "" {
@@ -385,20 +401,16 @@ func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item mic
 			if err != nil {
 				log.Printf("error in regexp: %q\n", excludeRegex)
 			} else {
-				testExcludeRegex = true
+				if item.Content != nil && excludeRegex.MatchString(item.Content.Text) {
+					log.Printf("Excluded %#v\n", item)
+					return nil
+				}
+
+				if excludeRegex.MatchString(item.Name) {
+					log.Printf("Excluded %#v\n", item)
+					return nil
+				}
 			}
-		}
-	}
-
-	if testExcludeRegex {
-		if item.Content != nil && excludeRegex.MatchString(item.Content.Text) {
-			log.Printf("Excluded %#v\n", item)
-			return nil
-		}
-
-		if excludeRegex.MatchString(item.Name) {
-			log.Printf("Excluded %#v\n", item)
-			return nil
 		}
 	}
 

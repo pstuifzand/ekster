@@ -48,6 +48,7 @@ type memoryBackend struct {
 
 type channelSetting struct {
 	ExcludeRegex string
+	IncludeRegex string
 }
 
 type Debug interface {

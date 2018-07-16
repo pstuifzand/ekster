@@ -57,8 +57,14 @@
                         <input type="hidden" name="uid" value="{{ .CurrentChannel.UID }}" />
                         <div class="field">
                             <div class="control">
-                            <label class="label">Exclude regex</label>
+                            <label class="label">Blocking Regex</label>
                                 <input type="text" class="input" name="exclude_regex" value="{{ .CurrentSetting.ExcludeRegex }}" placeholder="enter regex to block" />
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="control">
+                            <label class="label">Tracking Regex</label>
+                                <input type="text" class="input" name="include_regex" value="{{ .CurrentSetting.IncludeRegex }}" placeholder="enter regex to track items" />
                             </div>
                         </div>
                         <div class="field">
