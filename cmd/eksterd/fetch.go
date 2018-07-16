@@ -29,6 +29,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"rss"
 	"strings"
 	"time"
@@ -374,6 +375,32 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) (*http.Response, error)
 
 func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
 	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
+
+	var excludeRegex regexp.Regexp
+	testExcludeRegex := false
+
+	if setting, e := b.Settings[channel]; e {
+		if setting.ExcludeRegex != "" {
+			excludeRegex, err := regexp.Compile(setting.ExcludeRegex)
+			if err != nil {
+				log.Printf("error in regexp: %q\n", excludeRegex)
+			} else {
+				testExcludeRegex = true
+			}
+		}
+	}
+
+	if testExcludeRegex {
+		if item.Content != nil && excludeRegex.MatchString(item.Content.Text) {
+			log.Printf("Excluded %#v\n", item)
+			return nil
+		}
+
+		if excludeRegex.MatchString(item.Name) {
+			log.Printf("Excluded %#v\n", item)
+			return nil
+		}
+	}
 
 	if item.Published == "" {
 		item.Published = time.Now().Format(time.RFC3339)
