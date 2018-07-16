@@ -373,24 +373,27 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) (*http.Response, error)
 	return Fetch2(fetchURL)
 }
 
-func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
-	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
-
-	for _, setting := range b.Settings {
+func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel string, item microsub.Item) error {
+	for channelKey, setting := range b.Settings {
 		if setting.IncludeRegex != "" {
+			included := false
 			includeRegex, err := regexp.Compile(setting.IncludeRegex)
 			if err != nil {
 				log.Printf("error in regexp: %q\n", includeRegex)
 			} else {
 				if item.Content != nil && includeRegex.MatchString(item.Content.Text) {
-					log.Printf("Excluded %#v\n", item)
-					return nil
+					log.Printf("Included %#v\n", item)
+					included = true
 				}
 
 				if includeRegex.MatchString(item.Name) {
-					log.Printf("Excluded %#v\n", item)
-					return nil
+					log.Printf("Included %#v\n", item)
+					included = true
 				}
+			}
+
+			if included {
+				b.channelAddItem(conn, channelKey, item)
 			}
 		}
 	}
@@ -413,6 +416,12 @@ func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item mic
 			}
 		}
 	}
+
+	return b.channelAddItem(conn, channel, item)
+}
+
+func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
+	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
 
 	if item.Published == "" {
 		item.Published = time.Now().Format(time.RFC3339)
