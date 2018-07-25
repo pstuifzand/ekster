@@ -492,13 +492,13 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			state := util.RandStringBytes(16)
 			redirectURI := fmt.Sprintf("%s/session/callback", os.Getenv("EKSTER_BASEURL"))
 
-			sess := session{
-				AuthorizationEndpoint: endpoints.AuthorizationEndpoint,
-				Me:          meURL.String(),
-				State:       state,
-				RedirectURI: redirectURI,
-				LoggedIn:    false,
-			}
+			sess, err := loadSession(sessionVar, conn)
+
+			sess.AuthorizationEndpoint = endpoints.AuthorizationEndpoint
+			sess.Me = meURL.String()
+			sess.State = state
+			sess.RedirectURI = redirectURI
+			sess.LoggedIn = false
 			saveSession(sessionVar, &sess, conn)
 
 			authenticationURL := indieauth.CreateAuthenticationURL(*authURL, meURL.String(), ClientID, redirectURI, state)
