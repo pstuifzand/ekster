@@ -11,11 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/template"
-	"github.com/garyburd/redigo/redis"
 	"github.com/pstuifzand/ekster/pkg/indieauth"
 	"github.com/pstuifzand/ekster/pkg/microsub"
 	"github.com/pstuifzand/ekster/pkg/util"
+
+	"github.com/alecthomas/template"
+	"github.com/garyburd/redigo/redis"
+	"willnorris.com/go/microformats"
 )
 
 type mainHandler struct {
@@ -67,6 +69,7 @@ type authPage struct {
 	RedirectURI string
 	State       string
 	Channels    []microsub.Channel
+	App         app
 }
 
 type authRequest struct {
@@ -194,6 +197,49 @@ func performIndieauthCallback(r *http.Request, sess *session) (bool, *authRespon
 
 	code := r.Form.Get("code")
 	return verifyAuthCode(code, sess.RedirectURI, sess.AuthorizationEndpoint)
+}
+
+type app struct {
+	Name    string
+	IconURL string
+}
+
+func getPropString(mf *microformats.Microformat, prop string) string {
+	if v, e := mf.Properties[prop]; e {
+		if len(v) > 0 {
+			if val, ok := v[0].(string); ok {
+				return val
+			}
+		}
+	}
+
+	return ""
+}
+
+func getAppInfo(clientID string) (app, error) {
+	var app app
+	clientURL, err := url.Parse(clientID)
+	if err != nil {
+		return app, err
+	}
+	resp, err := http.Get(clientID)
+	if err != nil {
+		return app, err
+	}
+	defer resp.Body.Close()
+
+	md := microformats.Parse(resp.Body, clientURL)
+
+	if len(md.Items) > 0 {
+		mf := md.Items[0]
+
+		if mf.Type[0] == "h-x-app" || mf.Type[0] == "h-app" {
+			app.Name = getPropString(mf, "name")
+			app.IconURL = getPropString(mf, "icon")
+		}
+	}
+
+	return app, nil
 }
 
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -391,6 +437,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.Scope = scope
 			page.State = state
 			page.Channels, err = h.Backend.ChannelsGetList()
+
+			app, err := getAppInfo(clientID)
+			page.App = app
 
 			err = h.Templates.ExecuteTemplate(w, "auth.html", page)
 			if err != nil {
