@@ -31,6 +31,7 @@ type session struct {
 	RedirectURI           string `redis:"redirect_uri"`
 	State                 string `redis:"state"`
 	LoggedIn              bool   `redis:"logged_in"`
+	NextURI               string `redis:"next_uri"`
 }
 
 type authResponse struct {
@@ -291,7 +292,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				sess.Me = authResponse.Me
 				sess.LoggedIn = true
 				saveSession(sessionVar, &sess, conn)
-				http.Redirect(w, r, "/", 302)
+				if sess.NextURI != "" {
+					http.Redirect(w, r, sess.NextURI, 302)
+				} else {
+					http.Redirect(w, r, "/", 302)
+				}
 				return
 			}
 			return
@@ -399,10 +404,13 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, "/", 302)
 				return
 			}
+			sess.NextURI = r.URL.String()
+
+			saveSession(sessionVar, &sess, conn)
 
 			query := r.URL.Query()
 
-			//responseType := query.Get("response_type")
+			// responseType := query.Get("response_type") // TODO: check response_type
 			me := query.Get("me")
 			clientID := query.Get("client_id")
 			redirectURI := query.Get("redirect_uri")
