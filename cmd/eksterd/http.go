@@ -292,6 +292,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				sess.Me = authResponse.Me
 				sess.LoggedIn = true
 				saveSession(sessionVar, &sess, conn)
+				log.Printf("SESSION: %#v\n", sess)
 				if sess.NextURI != "" {
 					http.Redirect(w, r, sess.NextURI, 302)
 				} else {
