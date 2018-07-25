@@ -427,8 +427,6 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Save this ^^ in Redis
-
 			var page authPage
 			page.Session = sess
 			page.Me = me
@@ -513,7 +511,6 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			code := util.RandStringBytes(32)
 			state := r.FormValue("state")
 			channel := r.FormValue("channel")
-			log.Println(code, state, channel)
 
 			values, err := redis.Values(conn.Do("HGETALL", "state:"+state))
 			if err != nil {
