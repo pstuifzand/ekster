@@ -437,6 +437,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.Channels, err = h.Backend.ChannelsGetList()
 
 			app, err := getAppInfo(clientID)
+			if err != nil {
+				log.Println(err)
+			}
 			page.App = app
 
 			err = h.Templates.ExecuteTemplate(w, "auth.html", page)
