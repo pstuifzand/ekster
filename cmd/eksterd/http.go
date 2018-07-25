@@ -235,7 +235,7 @@ func getAppInfo(clientID string) (app, error) {
 
 		if mf.Type[0] == "h-x-app" || mf.Type[0] == "h-app" {
 			app.Name = getPropString(mf, "name")
-			app.IconURL = getPropString(mf, "icon")
+			app.IconURL = getPropString(mf, "logo")
 		}
 	}
 
