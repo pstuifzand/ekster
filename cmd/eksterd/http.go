@@ -392,20 +392,19 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/auth" {
 			// check if we are logged in
 			// TODO: if not logged in, make sure we get back here
-			c, err := r.Cookie("session")
-			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
-				return
-			}
-			sessionVar := c.Value
+
+			sessionVar := getSessionCookie(w, r)
+
 			sess, err := loadSession(sessionVar, conn)
 
 			if !isLoggedIn(h.Backend, &sess) {
+				sess.NextURI = r.URL.String()
+				saveSession(sessionVar, &sess, conn)
 				http.Redirect(w, r, "/", 302)
 				return
 			}
-			sess.NextURI = r.URL.String()
 
+			sess.NextURI = r.URL.String()
 			saveSession(sessionVar, &sess, conn)
 
 			query := r.URL.Query()
