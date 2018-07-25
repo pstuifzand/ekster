@@ -559,7 +559,12 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, redirectURI.String(), 302)
 			return
 		} else if r.URL.Path == "/auth/token" {
-			//grantType := r.FormValue("grant_type")
+			grantType := r.FormValue("grant_type")
+			if grantType != "authorization_code" {
+				w.WriteHeader(400)
+				fmt.Fprintf(w, "ERROR: grant_type is not set to %q", "authorization_code")
+				return
+			}
 			code := r.FormValue("code")
 			//clientID := r.FormValue("client_id")
 			//redirectURI := r.FormValue("redirect_uri")
