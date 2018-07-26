@@ -39,17 +39,6 @@ import (
 	"willnorris.com/go/microformats"
 )
 
-type cacheItem struct {
-	item    []byte
-	created time.Time
-}
-
-var cache map[string]cacheItem
-
-func init() {
-	cache = make(map[string]cacheItem)
-}
-
 func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
