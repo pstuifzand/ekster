@@ -72,6 +72,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			jw := json.NewEncoder(w)
 			w.Header().Add("Content-Type", "application/json")
 			jw.SetIndent("", "    ")
+			jw.SetEscapeHTML(false)
 			err = jw.Encode(timeline)
 			if err != nil {
 				http.Error(w, err.Error(), 500)
