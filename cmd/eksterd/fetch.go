@@ -1,6 +1,6 @@
 // fetch url in different ways
 /*
-   Microsub server
+   ekster - microsub server
    Copyright (C) 2018  Peter Stuifzand
 
    This program is free software: you can redistribute it and/or modify
