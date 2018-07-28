@@ -34,8 +34,9 @@ import (
 	"strings"
 	"time"
 
+	"p83.nl/go/ekster/pkg/microsub"
+
 	"github.com/garyburd/redigo/redis"
-	"github.com/pstuifzand/ekster/pkg/microsub"
 	"willnorris.com/go/microformats"
 )
 

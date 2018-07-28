@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"os"
 
+	"p83.nl/go/ekster/pkg/microsub"
+
 	"github.com/garyburd/redigo/redis"
-	"github.com/pstuifzand/ekster/pkg/microsub"
 )
 
 type microsubHandler struct {

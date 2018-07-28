@@ -14,8 +14,8 @@ Very alpha: no warranty.
 ekster is build using [go](https://golang.org). To be able to install ekster
 you need a Go environment. Use these commands to install the programs.
 
-    go get -u github.com/pstuifzand/ekster/cmd/eksterd
-    go get -u github.com/pstuifzand/ekster/cmd/ek
+    go get -u p83.nl/go/ekster/cmd/eksterd
+    go get -u p83.nl/go/ekster/cmd/ek
 
 `eksterd` uses [Redis](https://redis.io/) as the database, to temporarily save
 the items and feeds. The more permanent information is saved in `backend.json`.

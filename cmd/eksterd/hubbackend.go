@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"p83.nl/go/ekster/pkg/util"
+	"p83.nl/go/ekster/pkg/websub"
+
 	"github.com/garyburd/redigo/redis"
-	"github.com/pstuifzand/ekster/pkg/util"
-	"github.com/pstuifzand/ekster/pkg/websub"
 )
 
 // LeaseSeconds is the default number of seconds we want the subscription to last

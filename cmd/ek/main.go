@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/pstuifzand/ekster/pkg/client"
-	"github.com/pstuifzand/ekster/pkg/indieauth"
-	"github.com/pstuifzand/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/client"
+	"p83.nl/go/ekster/pkg/indieauth"
+	"p83.nl/go/ekster/pkg/microsub"
 )
 
 func init() {

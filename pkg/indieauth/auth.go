@@ -11,7 +11,7 @@ import (
 
 	"linkheader"
 
-	"github.com/pstuifzand/ekster/pkg/util"
+	"p83.nl/go/ekster/pkg/util"
 	"willnorris.com/go/microformats"
 )
 

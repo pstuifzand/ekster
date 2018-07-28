@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pstuifzand/ekster/pkg/indieauth"
-	"github.com/pstuifzand/ekster/pkg/microsub"
-	"github.com/pstuifzand/ekster/pkg/util"
+	"p83.nl/go/ekster/pkg/indieauth"
+	"p83.nl/go/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/util"
 
 	"github.com/alecthomas/template"
 	"github.com/garyburd/redigo/redis"

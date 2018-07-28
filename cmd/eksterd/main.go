@@ -28,7 +28,7 @@ import (
 
 	"cloud.google.com/go/profiler"
 	"github.com/garyburd/redigo/redis"
-	"github.com/pstuifzand/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/microsub"
 )
 
 const (
