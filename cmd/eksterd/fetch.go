@@ -510,6 +510,7 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching %s: %s", u, err)
 	}
+	defer resp.Body.Close()
 
 	var b bytes.Buffer
 	resp.Write(&b)
