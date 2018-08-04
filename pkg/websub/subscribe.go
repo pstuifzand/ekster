@@ -1,8 +1,10 @@
 package websub
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"linkheader"
 	"rss"
 
+	"p83.nl/go/ekster/pkg/jsonfeed"
 	"willnorris.com/go/microformats"
 )
 
@@ -25,7 +28,7 @@ func GetHubURL(client *http.Client, topic string) (string, error) {
 		return hubURL, err
 	}
 
-	return "", fmt.Errorf("No hub url found for topic %s", topic)
+	return "", fmt.Errorf("no hub url found for topic %s", topic)
 }
 
 func isFeedContentType(contentType string) bool {
@@ -67,7 +70,7 @@ func parseBodyLinks(client *http.Client, topic string) (string, error) {
 		if feed.HubURL != "" {
 			return feed.HubURL, nil
 		}
-		return "", fmt.Errorf("No WebSub hub url found in the RSS feed")
+		return "", fmt.Errorf("no WebSub hub url found in the RSS feed")
 	} else if strings.HasPrefix(contentType, "text/html") {
 		topicURL, _ := url.Parse(topic)
 		md := microformats.Parse(resp.Body, topicURL)
@@ -76,10 +79,26 @@ func parseBodyLinks(client *http.Client, topic string) (string, error) {
 				return hubs[0], nil
 			}
 		}
-		return "", fmt.Errorf("No WebSub hub url found in HTML <link> elements")
+		return "", fmt.Errorf("no WebSub hub url found in HTML <link> elements")
+	} else if strings.HasPrefix(contentType, "application/json") {
+		var feed jsonfeed.Feed
+		dec := json.NewDecoder(resp.Body)
+		err := dec.Decode(&feed)
+		if err != nil {
+			log.Printf("error while parsing json feed: %s\n", err)
+			return "", err
+		}
+
+		for _, v := range feed.Hubs {
+			if v.Type == "WebSub" {
+				return v.URL, nil
+			}
+		}
+
+		return "", fmt.Errorf("no WebSub hub url found in jsonfeed")
 	}
 
-	return "", fmt.Errorf("Unknown content type of response: %s", resp.Header.Get("Content-Type"))
+	return "", fmt.Errorf("unknown content type of response: %s", resp.Header.Get("Content-Type"))
 }
 
 func parseLinkHeaders(client *http.Client, topic string) (string, error) {
@@ -100,7 +119,7 @@ func parseLinkHeaders(client *http.Client, topic string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("No hub url found in HTTP Link headers")
+	return "", fmt.Errorf("no hub url found in HTTP Link headers")
 }
 
 // Subscribe subscribes topicURL on hubURL

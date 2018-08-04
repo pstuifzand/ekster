@@ -114,7 +114,6 @@ func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bo
 
 	dec := json.NewDecoder(res.Body)
 	err = dec.Decode(&token)
-
 	if err != nil {
 		log.Printf("Error in json object: %v", err)
 		return false

@@ -37,6 +37,7 @@ import (
 	"p83.nl/go/ekster/pkg/microsub"
 
 	"github.com/garyburd/redigo/redis"
+	"p83.nl/go/ekster/pkg/jsonfeed"
 	"willnorris.com/go/microformats"
 )
 
@@ -100,7 +101,7 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 			}
 		}
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
-		var jfeed JSONFeed
+		var jfeed jsonfeed.Feed
 		dec := json.NewDecoder(body)
 		err := dec.Decode(&jfeed)
 		if err != nil {
@@ -224,7 +225,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 			items = append(items, item)
 		}
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
-		var feed JSONFeed
+		var feed jsonfeed.Feed
 		dec := json.NewDecoder(body)
 		err := dec.Decode(&feed)
 		if err != nil {
