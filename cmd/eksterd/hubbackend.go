@@ -199,12 +199,15 @@ func (h *hubIncomingBackend) run() error {
 		for {
 			select {
 			case <-ticker.C:
+				log.Println("Getting feeds for WebSub")
 				feeds := h.GetFeeds()
 				for _, feed := range feeds {
+					log.Printf("Looking at %s\n", feed.URL)
 					if feed.ResubscribeAt == 0 || time.Now().After(time.Unix(feed.ResubscribeAt, 0)) {
 						if feed.Callback == "" {
 							feed.Callback = fmt.Sprintf("%s/incoming/%d", os.Getenv("EKSTER_BASEURL"), feed.ID)
 						}
+						log.Printf("Send resubscribe for %s\n", feed.URL)
 						h.Subscribe(&feed)
 					}
 				}
