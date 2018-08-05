@@ -48,8 +48,20 @@ func TestInReplyTo(t *testing.T) {
 	if results[0]["in-reply-to"] != "https://github.com/w3c/csswg-drafts/issues/2589" {
 		t.Fatalf("not in-reply-to, but %s", results[0]["in-reply-to"])
 	}
+	if results[0]["syndication"] != "https://github.com/w3c/csswg-drafts/issues/2589#thumbs_up-by-tantek" {
+		t.Fatalf("not in-reply-to, but %s", results[0]["syndication"])
+	}
 	if results[0]["published"] != "2018-04-25 11:14-0700" {
 		t.Fatalf("not published, but %s", results[0]["published"])
+	}
+	if results[0]["updated"] != "2018-04-25 11:14-0700" {
+		t.Fatalf("not updated, but %s", results[0]["updated"])
+	}
+	if results[0]["url"] != "http://tantek.com/2018/115/t1/" {
+		t.Fatalf("not url, but %s", results[0]["url"])
+	}
+	if results[0]["uid"] != "http://tantek.com/2018/115/t1/" {
+		t.Fatalf("not uid, but %s", results[0]["url"])
 	}
 
 	if authorValue, e := results[0]["author"]; e {
