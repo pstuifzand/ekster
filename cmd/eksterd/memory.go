@@ -641,6 +641,10 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) (*http.Response, error)
 }
 
 func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel string, item microsub.Item) error {
+	// an item is posted
+	// check for all channels as channel
+	// if regex matches item
+	//  - add item to channel
 	for channelKey, setting := range b.Settings {
 		if setting.IncludeRegex != "" {
 			included := false
@@ -671,9 +675,15 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 			if err != nil {
 				log.Printf("error in regexp: %q\n", excludeRegex)
 			} else {
-				if item.Content != nil && excludeRegex.MatchString(item.Content.Text) {
-					log.Printf("Excluded %#v\n", item)
-					return nil
+				if item.Content != nil {
+					if excludeRegex.MatchString(item.Content.Text) {
+						log.Printf("Excluded %#v\n", item)
+						return nil
+					}
+					if excludeRegex.MatchString(item.Content.HTML) {
+						log.Printf("Excluded %#v\n", item)
+						return nil
+					}
 				}
 
 				if excludeRegex.MatchString(item.Name) {
