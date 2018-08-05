@@ -161,6 +161,7 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 	if strings.HasPrefix(contentType, "text/html") {
 		data := microformats.Parse(body, u)
 		results := jf2.SimplifyMicroformatData(data)
+
 		found := -1
 		for {
 			for i, r := range results {
@@ -174,7 +175,14 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 				results = append(results[:found], results[found+1:]...)
 				for i := range results {
 					if results[i]["type"] == "entry" && results[i]["author"] == card["url"] {
-						results[i]["author"] = card
+						author := make(map[string]string)
+						author["type"] = "card"
+						for k, v := range card {
+							if val, ok := v.(string); ok {
+								author[k] = val
+							}
+						}
+						results[i]["author"] = author
 					}
 				}
 				found = -1

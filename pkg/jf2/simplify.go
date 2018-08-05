@@ -170,15 +170,13 @@ func SimplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
 	return items
 }
 
-func fetchValue(key string, values map[string]interface{}) string {
+func fetchValue(key string, values map[string]string) string {
 	if value, e := values[key]; e {
-		if stringValue, ok:= value.(string); ok {
-			return stringValue
-		}
+		return value
 	}
 	return ""
 }
-func MapToAuthor(result map[string]interface{}) *microsub.Card {
+func MapToAuthor(result map[string]string) *microsub.Card {
 	item := &microsub.Card{}
 	item.Type = "card"
 	item.Name = fetchValue("name", result);
@@ -213,13 +211,13 @@ func MapToItem(result map[string]interface{}) microsub.Item {
 	}
 
 	if authorValue, e := result["author"]; e {
-		if author, ok := authorValue.(map[string]interface{}); ok {
+		if author, ok := authorValue.(map[string]string); ok {
 			item.Author = MapToAuthor(author)
 		}
 	}
 
 	if checkinValue, e := result["checkin"]; e {
-		if checkin, ok := checkinValue.(map[string]interface{}); ok {
+		if checkin, ok := checkinValue.(map[string]string); ok {
 			item.Checkin = MapToAuthor(checkin)
 		}
 	}
