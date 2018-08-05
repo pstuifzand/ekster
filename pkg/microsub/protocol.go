@@ -57,26 +57,27 @@ type Content struct {
 
 // Item is a post object
 type Item struct {
-	Type       string   `json:"type"`
-	Name       string   `json:"name,omitempty"`
-	Published  string   `json:"published,omitempty"`
-	Updated    string   `json:"updated,omitempty"`
-	URL        string   `json:"url,omitempty"`
-	UID        string   `json:"uid,omitempty"`
-	Author     *Card    `json:"author,omitempty"`
-	Category   []string `json:"category,omitempty"`
-	Photo      []string `json:"photo,omitempty"`
-	LikeOf     []string `json:"like-of,omitempty"`
-	BookmarkOf []string `json:"bookmark-of,omitempty"`
-	RepostOf   []string `json:"repost-of,omitempty"`
-	InReplyTo  []string `json:"in-reply-to,omitempty"`
-	Summary    []string `json:"summary,omitempty"`
-	Content    *Content `json:"content,omitempty"`
-	Latitude   string   `json:"latitude,omitempty"`
-	Longitude  string   `json:"longitude,omitempty"`
-	Checkin    *Card    `json:"checkin,omitempty"`
-	ID         string   `json:"_id,omitempty"`
-	Read       bool     `json:"_is_read"`
+	Type       string          `json:"type"`
+	Name       string          `json:"name,omitempty"`
+	Published  string          `json:"published,omitempty"`
+	Updated    string          `json:"updated,omitempty"`
+	URL        string          `json:"url,omitempty"`
+	UID        string          `json:"uid,omitempty"`
+	Author     *Card           `json:"author,omitempty"`
+	Category   []string        `json:"category,omitempty"`
+	Photo      []string        `json:"photo,omitempty"`
+	LikeOf     []string        `json:"like-of,omitempty"`
+	BookmarkOf []string        `json:"bookmark-of,omitempty"`
+	RepostOf   []string        `json:"repost-of,omitempty"`
+	InReplyTo  []string        `json:"in-reply-to,omitempty"`
+	Summary    []string        `json:"summary,omitempty"`
+	Content    *Content        `json:"content,omitempty"`
+	Latitude   string          `json:"latitude,omitempty"`
+	Longitude  string          `json:"longitude,omitempty"`
+	Checkin    *Card           `json:"checkin,omitempty"`
+	Refs       map[string]Item `json:"refs,omitempty"`
+	ID         string          `json:"_id,omitempty"`
+	Read       bool            `json:"_is_read"`
 }
 
 // Pagination contains information about paging

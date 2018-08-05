@@ -34,7 +34,15 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 	for k, v := range item {
 		if k == "bookmark-of" || k == "like-of" || k == "repost-of" || k == "in-reply-to" {
 			if value, ok := v[0].(*microformats.Microformat); ok {
-				feedItem[k] = value.Value
+				if value.Type[0] == "h-cite" {
+					refs := make(map[string]interface{})
+					u := value.Properties["url"][0].(string)
+					refs[u] = SimplifyMicroformat(value)
+					feedItem["refs"] = refs
+					feedItem[k] = u
+				} else {
+					feedItem[k] = value.Value
+				}
 			} else {
 				feedItem[k] = v
 			}
@@ -214,6 +222,18 @@ func MapToItem(result map[string]interface{}) microsub.Item {
 
 	if checkin, e := result["checkin"]; e {
 		item.Checkin = MapToAuthor(checkin.(map[string]string))
+	}
+
+	if refsValue, e := result["refs"]; e {
+		if refs, ok := refsValue.(map[string]interface{}); ok {
+			item.Refs = make(map[string]microsub.Item)
+
+			for key, ref := range refs {
+				refItem := MapToItem(ref.(map[string]interface{}))
+				refItem.Type = "entry"
+				item.Refs[key] = refItem
+			}
+		}
 	}
 
 	if content, e := result["content"]; e {
