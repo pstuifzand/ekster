@@ -137,7 +137,8 @@ func SimplifyMicroformat(item *microformats.Microformat) map[string]interface{} 
 }
 
 func SimplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
-	items := []map[string]interface{}{}
+	var items []map[string]interface{}
+
 	for _, item := range md.Items {
 		if len(item.Type) >= 1 && item.Type[0] == "h-feed" {
 			for _, childItem := range item.Children {
@@ -190,6 +191,10 @@ func MapToItem(result map[string]interface{}) microsub.Item {
 	item := microsub.Item{}
 
 	item.Type = "entry"
+
+	if itemType, e := result["type"]; e {
+		item.Type = itemType.(string)
+	}
 
 	if name, e := result["name"]; e {
 		item.Name = name.(string)
