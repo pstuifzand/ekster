@@ -20,11 +20,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -665,7 +667,7 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 		}
 		defer feedResp.Body.Close()
 
-		parsedFeed, err := b.feedHeader(fetchUrl.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
+		parsedFeed, err := feedHeader(fetchUrl.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
 		if err != nil {
 			log.Printf("Error in parse of %s - %v\n", fetchUrl, err)
 			continue
@@ -684,9 +686,10 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 						log.Printf("Error in fetch of %s - %v\n", alt, err)
 						continue
 					}
+					// FIXME: don't defer in for loop (possible memory leak)
 					defer feedResp.Body.Close()
 
-					parsedFeed, err := b.feedHeader(alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
+					parsedFeed, err := feedHeader(alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
 					if err != nil {
 						log.Printf("Error in parse of %s - %v\n", alt, err)
 						continue
@@ -706,7 +709,7 @@ func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
-	items, err := b.feedItems(previewURL, resp.Header.Get("content-type"), resp.Body)
+	items, err := feedItems(previewURL, resp.Header.Get("content-type"), resp.Body)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
@@ -748,3 +751,145 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) error {
 
 	return nil
 }
+
+func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
+	conn := pool.Get()
+	defer conn.Close()
+
+	items, err := feedItems(fetchURL, contentType, body)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range items {
+		item.Read = false
+		err = b.channelAddItemWithMatcher(conn, channel, item)
+		if err != nil {
+			log.Printf("ERROR: %s\n", err)
+		}
+	}
+
+	err = b.updateChannelUnreadCount(conn, channel)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Fetch3 fills stuff
+func (b *memoryBackend) Fetch3(channel, fetchURL string) (*http.Response, error) {
+	log.Printf("Fetching channel=%s fetchURL=%s\n", channel, fetchURL)
+	return Fetch2(fetchURL)
+}
+
+func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel string, item microsub.Item) error {
+	for channelKey, setting := range b.Settings {
+		if setting.IncludeRegex != "" {
+			included := false
+			includeRegex, err := regexp.Compile(setting.IncludeRegex)
+			if err != nil {
+				log.Printf("error in regexp: %q\n", includeRegex)
+			} else {
+				if item.Content != nil && includeRegex.MatchString(item.Content.Text) {
+					log.Printf("Included %#v\n", item)
+					included = true
+				}
+
+				if includeRegex.MatchString(item.Name) {
+					log.Printf("Included %#v\n", item)
+					included = true
+				}
+			}
+
+			if included {
+				b.channelAddItem(conn, channelKey, item)
+			}
+		}
+	}
+
+	if setting, e := b.Settings[channel]; e {
+		if setting.ExcludeRegex != "" {
+			excludeRegex, err := regexp.Compile(setting.ExcludeRegex)
+			if err != nil {
+				log.Printf("error in regexp: %q\n", excludeRegex)
+			} else {
+				if item.Content != nil && excludeRegex.MatchString(item.Content.Text) {
+					log.Printf("Excluded %#v\n", item)
+					return nil
+				}
+
+				if excludeRegex.MatchString(item.Name) {
+					log.Printf("Excluded %#v\n", item)
+					return nil
+				}
+			}
+		}
+	}
+
+	return b.channelAddItem(conn, channel, item)
+}
+
+func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
+	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
+
+	if item.Published == "" {
+		item.Published = time.Now().Format(time.RFC3339)
+	}
+
+	data, err := json.Marshal(item)
+	if err != nil {
+		log.Printf("error while creating item for redis: %v\n", err)
+		return err
+	}
+
+	forRedis := redisItem{
+		ID:        item.ID,
+		Published: item.Published,
+		Read:      item.Read,
+		Data:      data,
+	}
+
+	itemKey := fmt.Sprintf("item:%s", item.ID)
+	_, err = redis.String(conn.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
+	if err != nil {
+		return fmt.Errorf("error while writing item for redis: %v", err)
+	}
+
+	readChannelKey := fmt.Sprintf("channel:%s:read", channel)
+	isRead, err := redis.Bool(conn.Do("SISMEMBER", readChannelKey, itemKey))
+	if err != nil {
+		return err
+	}
+
+	if isRead {
+		return nil
+	}
+
+	score, err := time.Parse(time.RFC3339, item.Published)
+	if err != nil {
+		return fmt.Errorf("error can't parse %s as time", item.Published)
+	}
+
+	_, err = redis.Int64(conn.Do("ZADD", zchannelKey, score.Unix()*1.0, itemKey))
+	if err != nil {
+		return fmt.Errorf("error while zadding item %s to channel %s for redis: %v", itemKey, zchannelKey, err)
+	}
+
+	return nil
+}
+
+func (b *memoryBackend) updateChannelUnreadCount(conn redis.Conn, channel string) error {
+	if c, e := b.Channels[channel]; e {
+		zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
+		unread, err := redis.Int(conn.Do("ZCARD", zchannelKey))
+		if err != nil {
+			return fmt.Errorf("error: while updating channel unread count for %s: %s", channel, err)
+		}
+		defer b.save()
+		c.Unread = unread
+		b.Channels[channel] = c
+	}
+	return nil
+}
+

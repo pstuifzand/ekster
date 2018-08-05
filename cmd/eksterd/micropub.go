@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"p83.nl/go/ekster/pkg/jf2"
 	"p83.nl/go/ekster/pkg/microsub"
 
 	"github.com/garyburd/redigo/redis"
@@ -91,7 +92,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			item = mapToItem(simplifyMicroformat(&mfItem))
+			item = mapToItem(jf2.SimplifyMicroformat(&mfItem))
 			ok = true
 		} else if r.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
 			content := r.FormValue("content")

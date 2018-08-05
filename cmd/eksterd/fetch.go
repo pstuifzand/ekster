@@ -29,19 +29,20 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"regexp"
-	"rss"
 	"strings"
 	"time"
 
+	"rss"
+
+	"p83.nl/go/ekster/pkg/jf2"
+	"p83.nl/go/ekster/pkg/jsonfeed"
 	"p83.nl/go/ekster/pkg/microsub"
 
 	"github.com/garyburd/redigo/redis"
-	"p83.nl/go/ekster/pkg/jsonfeed"
 	"willnorris.com/go/microformats"
 )
 
-func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
+func feedHeader(fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
 
@@ -53,7 +54,7 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 
 	if strings.HasPrefix(contentType, "text/html") {
 		data := microformats.Parse(body, u)
-		results := simplifyMicroformatData(data)
+		results := jf2.SimplifyMicroformatData(data)
 		found := -1
 		for i, r := range results {
 			if r["type"] == "card" {
@@ -75,7 +76,7 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 					u, _ := url.Parse(fetchURL)
 
 					md := microformats.Parse(resp.Body, u)
-					author := simplifyMicroformatData(md)
+					author := jf2.SimplifyMicroformatData(md)
 					for _, a := range author {
 						if a["type"] == "card" {
 							card = a
@@ -154,7 +155,7 @@ func (b *memoryBackend) feedHeader(fetchURL, contentType string, body io.Reader)
 	return feed, nil
 }
 
-func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
+func feedItems(fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
 
@@ -164,7 +165,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 
 	if strings.HasPrefix(contentType, "text/html") {
 		data := microformats.Parse(body, u)
-		results := simplifyMicroformatData(data)
+		results := jf2.SimplifyMicroformatData(data)
 		found := -1
 		for {
 			for i, r := range results {
@@ -198,7 +199,7 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 					u, _ := url.Parse(fetchURL)
 
 					md := microformats.Parse(resp.Body, u)
-					author := simplifyMicroformatData(md)
+					author := jf2.SimplifyMicroformatData(md)
 					for _, a := range author {
 						if a["type"] == "card" {
 							results[i]["author"] = a
@@ -331,147 +332,6 @@ func (b *memoryBackend) feedItems(fetchURL, contentType string, body io.Reader) 
 	}
 
 	return items, nil
-}
-
-func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
-	conn := pool.Get()
-	defer conn.Close()
-
-	items, err := b.feedItems(fetchURL, contentType, body)
-	if err != nil {
-		return err
-	}
-
-	for _, item := range items {
-		item.Read = false
-		err = b.channelAddItemWithMatcher(conn, channel, item)
-		if err != nil {
-			log.Printf("ERROR: %s\n", err)
-		}
-	}
-
-	err = b.updateChannelUnreadCount(conn, channel)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Fetch3 fills stuff
-func (b *memoryBackend) Fetch3(channel, fetchURL string) (*http.Response, error) {
-	log.Printf("Fetching channel=%s fetchURL=%s\n", channel, fetchURL)
-	return Fetch2(fetchURL)
-}
-
-func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel string, item microsub.Item) error {
-	for channelKey, setting := range b.Settings {
-		if setting.IncludeRegex != "" {
-			included := false
-			includeRegex, err := regexp.Compile(setting.IncludeRegex)
-			if err != nil {
-				log.Printf("error in regexp: %q\n", includeRegex)
-			} else {
-				if item.Content != nil && includeRegex.MatchString(item.Content.Text) {
-					log.Printf("Included %#v\n", item)
-					included = true
-				}
-
-				if includeRegex.MatchString(item.Name) {
-					log.Printf("Included %#v\n", item)
-					included = true
-				}
-			}
-
-			if included {
-				b.channelAddItem(conn, channelKey, item)
-			}
-		}
-	}
-
-	if setting, e := b.Settings[channel]; e {
-		if setting.ExcludeRegex != "" {
-			excludeRegex, err := regexp.Compile(setting.ExcludeRegex)
-			if err != nil {
-				log.Printf("error in regexp: %q\n", excludeRegex)
-			} else {
-				if item.Content != nil && excludeRegex.MatchString(item.Content.Text) {
-					log.Printf("Excluded %#v\n", item)
-					return nil
-				}
-
-				if excludeRegex.MatchString(item.Name) {
-					log.Printf("Excluded %#v\n", item)
-					return nil
-				}
-			}
-		}
-	}
-
-	return b.channelAddItem(conn, channel, item)
-}
-
-func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
-	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
-
-	if item.Published == "" {
-		item.Published = time.Now().Format(time.RFC3339)
-	}
-
-	data, err := json.Marshal(item)
-	if err != nil {
-		log.Printf("error while creating item for redis: %v\n", err)
-		return err
-	}
-
-	forRedis := redisItem{
-		ID:        item.ID,
-		Published: item.Published,
-		Read:      item.Read,
-		Data:      data,
-	}
-
-	itemKey := fmt.Sprintf("item:%s", item.ID)
-	_, err = redis.String(conn.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
-	if err != nil {
-		return fmt.Errorf("error while writing item for redis: %v", err)
-	}
-
-	readChannelKey := fmt.Sprintf("channel:%s:read", channel)
-	isRead, err := redis.Bool(conn.Do("SISMEMBER", readChannelKey, itemKey))
-	if err != nil {
-		return err
-	}
-
-	if isRead {
-		return nil
-	}
-
-	score, err := time.Parse(time.RFC3339, item.Published)
-	if err != nil {
-		return fmt.Errorf("error can't parse %s as time", item.Published)
-	}
-
-	_, err = redis.Int64(conn.Do("ZADD", zchannelKey, score.Unix()*1.0, itemKey))
-	if err != nil {
-		return fmt.Errorf("error while zadding item %s to channel %s for redis: %v", itemKey, zchannelKey, err)
-	}
-
-	return nil
-}
-
-func (b *memoryBackend) updateChannelUnreadCount(conn redis.Conn, channel string) error {
-	if c, e := b.Channels[channel]; e {
-		zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
-		unread, err := redis.Int(conn.Do("ZCARD", zchannelKey))
-		if err != nil {
-			return fmt.Errorf("error: while updating channel unread count for %s: %s", channel, err)
-		}
-		defer b.save()
-		c.Unread = unread
-		b.Channels[channel] = c
-	}
-	return nil
 }
 
 type redisItem struct {

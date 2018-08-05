@@ -15,7 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-package main
+package jf2
 
 import (
 	"log"
@@ -40,7 +40,7 @@ func TestInReplyTo(t *testing.T) {
 	}
 
 	data := microformats.Parse(f, u)
-	results := simplifyMicroformatData(data)
+	results := SimplifyMicroformatData(data)
 
 	if results[0]["type"] != "entry" {
 		t.Fatalf("not an h-entry, but %s", results[0]["type"])
