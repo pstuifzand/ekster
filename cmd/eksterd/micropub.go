@@ -92,7 +92,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			item = mapToItem(jf2.SimplifyMicroformat(&mfItem))
+			item = jf2.MapToItem(jf2.SimplifyMicroformat(&mfItem))
 			ok = true
 		} else if r.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
 			content := r.FormValue("content")

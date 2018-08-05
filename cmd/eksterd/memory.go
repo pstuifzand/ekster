@@ -18,6 +18,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,6 +33,7 @@ import (
 	"time"
 
 	"p83.nl/go/ekster/pkg/feedbin"
+	"p83.nl/go/ekster/pkg/fetch"
 	"p83.nl/go/ekster/pkg/microsub"
 
 	"github.com/garyburd/redigo/redis"
@@ -56,6 +59,18 @@ type channelSetting struct {
 
 type Debug interface {
 	Debug()
+}
+
+type redisItem struct {
+	ID        string
+	Published string
+	Read      bool
+	Data      []byte
+}
+
+type fetch2 struct {}
+func (f *fetch2) Fetch(url string) (*http.Response, error) {
+	return Fetch2(url)
 }
 
 func (b *memoryBackend) Debug() {
@@ -87,7 +102,7 @@ func (b *memoryBackend) load() error {
 	for uid, channel := range b.Channels {
 		log.Printf("loading channel %s - %s\n", uid, channel.Name)
 		// for _, feed := range b.Feeds[uid] {
-		//log.Printf("- loading feed %s\n", feed.URL)
+		// log.Printf("- loading feed %s\n", feed.URL)
 		// resp, err := b.Fetch3(uid, feed.URL)
 		// if err != nil {
 		// 	log.Printf("Error while Fetch3 of %s: %v\n", feed.URL, err)
@@ -217,164 +232,6 @@ func (b *memoryBackend) ChannelsDelete(uid string) error {
 	return nil
 }
 
-func mapToAuthor(result map[string]string) *microsub.Card {
-	item := &microsub.Card{}
-	item.Type = "card"
-	if name, e := result["name"]; e {
-		item.Name = name
-	}
-	if u, e := result["url"]; e {
-		item.URL = u
-	}
-	if photo, e := result["photo"]; e {
-		item.Photo = photo
-	}
-	if value, e := result["longitude"]; e {
-		item.Longitude = value
-	}
-	if value, e := result["latitude"]; e {
-		item.Latitude = value
-	}
-	if value, e := result["country-name"]; e {
-		item.CountryName = value
-	}
-	if value, e := result["locality"]; e {
-		item.Locality = value
-	}
-	return item
-}
-
-func mapToItem(result map[string]interface{}) microsub.Item {
-	item := microsub.Item{}
-
-	item.Type = "entry"
-
-	if name, e := result["name"]; e {
-		item.Name = name.(string)
-	}
-
-	if url, e := result["url"]; e {
-		item.URL = url.(string)
-	}
-
-	if uid, e := result["uid"]; e {
-		item.UID = uid.(string)
-	}
-
-	if author, e := result["author"]; e {
-		item.Author = mapToAuthor(author.(map[string]string))
-	}
-
-	if checkin, e := result["checkin"]; e {
-		item.Checkin = mapToAuthor(checkin.(map[string]string))
-	}
-
-	if content, e := result["content"]; e {
-		itemContent := &microsub.Content{}
-		set := false
-		if c, ok := content.(map[string]interface{}); ok {
-			if html, e2 := c["html"]; e2 {
-				itemContent.HTML = html.(string)
-				set = true
-			}
-			if text, e2 := c["value"]; e2 {
-				itemContent.Text = text.(string)
-				set = true
-			}
-		}
-		if set {
-			item.Content = itemContent
-		}
-	}
-
-	// TODO: Check how to improve this
-
-	if value, e := result["like-of"]; e {
-		for _, v := range value.([]interface{}) {
-			if u, ok := v.(string); ok {
-				item.LikeOf = append(item.LikeOf, u)
-			}
-		}
-	}
-
-	if value, e := result["repost-of"]; e {
-		if repost, ok := value.(string); ok {
-			item.RepostOf = append(item.RepostOf, repost)
-		} else if repost, ok := value.([]interface{}); ok {
-			for _, v := range repost {
-				if u, ok := v.(string); ok {
-					item.RepostOf = append(item.RepostOf, u)
-				}
-			}
-		}
-	}
-
-	if value, e := result["bookmark-of"]; e {
-		for _, v := range value.([]interface{}) {
-			if u, ok := v.(string); ok {
-				item.BookmarkOf = append(item.BookmarkOf, u)
-			}
-		}
-	}
-
-	if value, e := result["in-reply-to"]; e {
-		if replyTo, ok := value.(string); ok {
-			item.InReplyTo = append(item.InReplyTo, replyTo)
-		} else if valueArray, ok := value.([]interface{}); ok {
-			for _, v := range valueArray {
-				if replyTo, ok := v.(string); ok {
-					item.InReplyTo = append(item.InReplyTo, replyTo)
-				} else if cite, ok := v.(map[string]interface{}); ok {
-					item.InReplyTo = append(item.InReplyTo, cite["url"].(string))
-				}
-			}
-		}
-	}
-
-	if value, e := result["photo"]; e {
-		for _, v := range value.([]interface{}) {
-			item.Photo = append(item.Photo, v.(string))
-		}
-	}
-
-	if value, e := result["category"]; e {
-		if cats, ok := value.([]string); ok {
-			for _, v := range cats {
-				item.Category = append(item.Category, v)
-			}
-		} else if cats, ok := value.([]interface{}); ok {
-			for _, v := range cats {
-				if cat, ok := v.(string); ok {
-					item.Category = append(item.Category, cat)
-				} else if cat, ok := v.(map[string]interface{}); ok {
-					item.Category = append(item.Category, cat["value"].(string))
-				}
-			}
-		} else if cat, ok := value.(string); ok {
-			item.Category = append(item.Category, cat)
-		}
-	}
-
-	if published, e := result["published"]; e {
-		item.Published = published.(string)
-	} else {
-		item.Published = time.Now().Format(time.RFC3339)
-	}
-
-	if updated, e := result["updated"]; e {
-		item.Updated = updated.(string)
-	}
-
-	if id, e := result["_id"]; e {
-		item.ID = id.(string)
-	}
-	if read, e := result["_is_read"]; e {
-		item.Read = read.(bool)
-	}
-
-	return item
-}
-
 func (b *memoryBackend) run() {
 	b.ticker = time.NewTicker(10 * time.Minute)
 	b.quit = make(chan struct{})
@@ -454,9 +311,9 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Tim
 	items := []microsub.Item{}
 
 	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
-	//channelKey := fmt.Sprintf("channel:%s:posts", channel)
+	// channelKey := fmt.Sprintf("channel:%s:posts", channel)
 
-	//itemJsons, err := redis.ByteSlices(conn.Do("SORT", channelKey, "BY", "*->Published", "GET", "*->Data", "ASC", "ALPHA"))
+	// itemJsons, err := redis.ByteSlices(conn.Do("SORT", channelKey, "BY", "*->Published", "GET", "*->Data", "ASC", "ALPHA"))
 	// if err != nil {
 	// 	log.Println(err)
 	// 	return microsub.Timeline{
@@ -533,7 +390,7 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Tim
 	}, nil
 }
 
-//panic if s is not a slice
+// panic if s is not a slice
 func reverseSlice(s interface{}) {
 	size := reflect.ValueOf(s).Len()
 	swap := reflect.Swapper(s)
@@ -667,7 +524,7 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 		}
 		defer feedResp.Body.Close()
 
-		parsedFeed, err := feedHeader(fetchUrl.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
+		parsedFeed, err := fetch.FeedHeader(&fetch2{}, fetchUrl.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
 		if err != nil {
 			log.Printf("Error in parse of %s - %v\n", fetchUrl, err)
 			continue
@@ -689,7 +546,7 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 					// FIXME: don't defer in for loop (possible memory leak)
 					defer feedResp.Body.Close()
 
-					parsedFeed, err := feedHeader(alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
+					parsedFeed, err := fetch.FeedHeader(&fetch2{}, alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
 					if err != nil {
 						log.Printf("Error in parse of %s - %v\n", alt, err)
 						continue
@@ -709,7 +566,7 @@ func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
-	items, err := feedItems(previewURL, resp.Header.Get("content-type"), resp.Body)
+	items, err := fetch.FeedItems(&fetch2{}, previewURL, resp.Header.Get("content-type"), resp.Body)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
@@ -756,7 +613,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 	conn := pool.Get()
 	defer conn.Close()
 
-	items, err := feedItems(fetchURL, contentType, body)
+	items, err := fetch.FeedItems(&fetch2{}, fetchURL, contentType, body)
 	if err != nil {
 		return err
 	}
@@ -893,3 +750,48 @@ func (b *memoryBackend) updateChannelUnreadCount(conn redis.Conn, channel string
 	return nil
 }
 
+// Fetch2 fetches stuff
+func Fetch2(fetchURL string) (*http.Response, error) {
+	conn := pool.Get()
+	defer conn.Close()
+
+	if !strings.HasPrefix(fetchURL, "http") {
+		return nil, fmt.Errorf("error parsing %s as url, has no http(s) prefix", fetchURL)
+	}
+
+	u, err := url.Parse(fetchURL)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing %s as url: %s", fetchURL, err)
+	}
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+
+	cacheKey := fmt.Sprintf("http_cache:%s", u.String())
+	data, err := redis.Bytes(conn.Do("GET", cacheKey))
+	if err == nil {
+		log.Printf("HIT %s\n", u.String())
+		rd := bufio.NewReader(bytes.NewReader(data))
+		return http.ReadResponse(rd, req)
+	}
+
+	log.Printf("MISS %s\n", u.String())
+
+	client := http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error while fetching %s: %s", u, err)
+	}
+	defer resp.Body.Close()
+
+	var b bytes.Buffer
+	resp.Write(&b)
+
+	cachedCopy := make([]byte, b.Len())
+	cur := b.Bytes()
+	copy(cachedCopy, cur)
+
+	conn.Do("SET", cacheKey, cachedCopy, "EX", 60*60)
+
+	cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
+	return cachedResp, err
+}

@@ -21,6 +21,9 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
+
+	"p83.nl/go/ekster/pkg/microsub"
 
 	"willnorris.com/go/microformats"
 )
@@ -154,4 +157,162 @@ func SimplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
 		}
 	}
 	return items
+}
+
+func MapToAuthor(result map[string]string) *microsub.Card {
+	item := &microsub.Card{}
+	item.Type = "card"
+	if name, e := result["name"]; e {
+		item.Name = name
+	}
+	if u, e := result["url"]; e {
+		item.URL = u
+	}
+	if photo, e := result["photo"]; e {
+		item.Photo = photo
+	}
+	if value, e := result["longitude"]; e {
+		item.Longitude = value
+	}
+	if value, e := result["latitude"]; e {
+		item.Latitude = value
+	}
+	if value, e := result["country-name"]; e {
+		item.CountryName = value
+	}
+	if value, e := result["locality"]; e {
+		item.Locality = value
+	}
+	return item
+}
+
+func MapToItem(result map[string]interface{}) microsub.Item {
+	item := microsub.Item{}
+
+	item.Type = "entry"
+
+	if name, e := result["name"]; e {
+		item.Name = name.(string)
+	}
+
+	if url, e := result["url"]; e {
+		item.URL = url.(string)
+	}
+
+	if uid, e := result["uid"]; e {
+		item.UID = uid.(string)
+	}
+
+	if author, e := result["author"]; e {
+		item.Author = MapToAuthor(author.(map[string]string))
+	}
+
+	if checkin, e := result["checkin"]; e {
+		item.Checkin = MapToAuthor(checkin.(map[string]string))
+	}
+
+	if content, e := result["content"]; e {
+		itemContent := &microsub.Content{}
+		set := false
+		if c, ok := content.(map[string]interface{}); ok {
+			if html, e2 := c["html"]; e2 {
+				itemContent.HTML = html.(string)
+				set = true
+			}
+			if text, e2 := c["value"]; e2 {
+				itemContent.Text = text.(string)
+				set = true
+			}
+		}
+		if set {
+			item.Content = itemContent
+		}
+	}
+
+	// TODO: Check how to improve this
+
+	if value, e := result["like-of"]; e {
+		for _, v := range value.([]interface{}) {
+			if u, ok := v.(string); ok {
+				item.LikeOf = append(item.LikeOf, u)
+			}
+		}
+	}
+
+	if value, e := result["repost-of"]; e {
+		if repost, ok := value.(string); ok {
+			item.RepostOf = append(item.RepostOf, repost)
+		} else if repost, ok := value.([]interface{}); ok {
+			for _, v := range repost {
+				if u, ok := v.(string); ok {
+					item.RepostOf = append(item.RepostOf, u)
+				}
+			}
+		}
+	}
+
+	if value, e := result["bookmark-of"]; e {
+		for _, v := range value.([]interface{}) {
+			if u, ok := v.(string); ok {
+				item.BookmarkOf = append(item.BookmarkOf, u)
+			}
+		}
+	}
+
+	if value, e := result["in-reply-to"]; e {
+		if replyTo, ok := value.(string); ok {
+			item.InReplyTo = append(item.InReplyTo, replyTo)
+		} else if valueArray, ok := value.([]interface{}); ok {
+			for _, v := range valueArray {
+				if replyTo, ok := v.(string); ok {
+					item.InReplyTo = append(item.InReplyTo, replyTo)
+				} else if cite, ok := v.(map[string]interface{}); ok {
+					item.InReplyTo = append(item.InReplyTo, cite["url"].(string))
+				}
+			}
+		}
+	}
+
+	if value, e := result["photo"]; e {
+		for _, v := range value.([]interface{}) {
+			item.Photo = append(item.Photo, v.(string))
+		}
+	}
+
+	if value, e := result["category"]; e {
+		if cats, ok := value.([]string); ok {
+			for _, v := range cats {
+				item.Category = append(item.Category, v)
+			}
+		} else if cats, ok := value.([]interface{}); ok {
+			for _, v := range cats {
+				if cat, ok := v.(string); ok {
+					item.Category = append(item.Category, cat)
+				} else if cat, ok := v.(map[string]interface{}); ok {
+					item.Category = append(item.Category, cat["value"].(string))
+				}
+			}
+		} else if cat, ok := value.(string); ok {
+			item.Category = append(item.Category, cat)
+		}
+	}
+
+	if published, e := result["published"]; e {
+		item.Published = published.(string)
+	} else {
+		item.Published = time.Now().Format(time.RFC3339)
+	}
+
+	if updated, e := result["updated"]; e {
+		item.Updated = updated.(string)
+	}
+
+	if id, e := result["_id"]; e {
+		item.ID = id.(string)
+	}
+	if read, e := result["_is_read"]; e {
+		item.Read = read.(bool)
+	}
+
+	return item
 }

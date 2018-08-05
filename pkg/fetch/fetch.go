@@ -16,18 +16,14 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-package main
+package fetch
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -38,11 +34,10 @@ import (
 	"p83.nl/go/ekster/pkg/jsonfeed"
 	"p83.nl/go/ekster/pkg/microsub"
 
-	"github.com/garyburd/redigo/redis"
 	"willnorris.com/go/microformats"
 )
 
-func feedHeader(fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
+func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
 
@@ -68,7 +63,7 @@ func feedHeader(fetchURL, contentType string, body io.Reader) (microsub.Feed, er
 
 			if as, ok := card.(string); ok {
 				if strings.HasPrefix(as, "http") {
-					resp, err := Fetch2(fetchURL)
+					resp, err := fetcher.Fetch(fetchURL)
 					if err != nil {
 						return feed, err
 					}
@@ -155,7 +150,7 @@ func feedHeader(fetchURL, contentType string, body io.Reader) (microsub.Feed, er
 	return feed, nil
 }
 
-func feedItems(fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
+func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
 
@@ -191,7 +186,7 @@ func feedItems(fetchURL, contentType string, body io.Reader) ([]microsub.Item, e
 		for i, r := range results {
 			if as, ok := r["author"].(string); ok {
 				if r["type"] == "entry" && strings.HasPrefix(as, "http") {
-					resp, err := Fetch2(fetchURL)
+					resp, err := fetcher.Fetch(fetchURL)
 					if err != nil {
 						return items, err
 					}
@@ -218,11 +213,11 @@ func feedItems(fetchURL, contentType string, body io.Reader) ([]microsub.Item, e
 				r["_id"] = hex.EncodeToString([]byte(uid.(string)))
 			} else {
 				continue
-				//r["_id"] = "" // generate random value
+				// r["_id"] = "" // generate random value
 			}
 
 			// mapToItem adds published
-			item := mapToItem(r)
+			item := jf2.MapToItem(r)
 			items = append(items, item)
 		}
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
@@ -332,57 +327,4 @@ func feedItems(fetchURL, contentType string, body io.Reader) ([]microsub.Item, e
 	}
 
 	return items, nil
-}
-
-type redisItem struct {
-	ID        string
-	Published string
-	Read      bool
-	Data      []byte
-}
-
-// Fetch2 fetches stuff
-func Fetch2(fetchURL string) (*http.Response, error) {
-	conn := pool.Get()
-	defer conn.Close()
-
-	if !strings.HasPrefix(fetchURL, "http") {
-		return nil, fmt.Errorf("error parsing %s as url, has no http(s) prefix", fetchURL)
-	}
-
-	u, err := url.Parse(fetchURL)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing %s as url: %s", fetchURL, err)
-	}
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-
-	cacheKey := fmt.Sprintf("http_cache:%s", u.String())
-	data, err := redis.Bytes(conn.Do("GET", cacheKey))
-	if err == nil {
-		log.Printf("HIT %s\n", u.String())
-		rd := bufio.NewReader(bytes.NewReader(data))
-		return http.ReadResponse(rd, req)
-	}
-
-	log.Printf("MISS %s\n", u.String())
-
-	client := http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error while fetching %s: %s", u, err)
-	}
-	defer resp.Body.Close()
-
-	var b bytes.Buffer
-	resp.Write(&b)
-
-	cachedCopy := make([]byte, b.Len())
-	cur := b.Bytes()
-	copy(cachedCopy, cur)
-
-	conn.Do("SET", cacheKey, cachedCopy, "EX", 60*60)
-
-	cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
-	return cachedResp, err
 }
