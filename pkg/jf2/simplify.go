@@ -69,12 +69,14 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 		} else if k == "featured" {
 			feedItem[k] = v
 		} else if k == "checkin" || k == "author" {
+			if value, ok := v[0].(string); ok {
+				feedItem[k] = value
+			}
 			card, err := simplifyCard(v)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
-
 			feedItem[k] = card
 		} else if value, ok := v[0].(*microformats.Microformat); ok {
 			mType := value.Type[0][2:]
@@ -168,30 +170,24 @@ func SimplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
 	return items
 }
 
-func MapToAuthor(result map[string]string) *microsub.Card {
+func fetchValue(key string, values map[string]interface{}) string {
+	if value, e := values[key]; e {
+		if stringValue, ok:= value.(string); ok {
+			return stringValue
+		}
+	}
+	return ""
+}
+func MapToAuthor(result map[string]interface{}) *microsub.Card {
 	item := &microsub.Card{}
 	item.Type = "card"
-	if name, e := result["name"]; e {
-		item.Name = name
-	}
-	if u, e := result["url"]; e {
-		item.URL = u
-	}
-	if photo, e := result["photo"]; e {
-		item.Photo = photo
-	}
-	if value, e := result["longitude"]; e {
-		item.Longitude = value
-	}
-	if value, e := result["latitude"]; e {
-		item.Latitude = value
-	}
-	if value, e := result["country-name"]; e {
-		item.CountryName = value
-	}
-	if value, e := result["locality"]; e {
-		item.Locality = value
-	}
+	item.Name = fetchValue("name", result);
+	item.URL = fetchValue("url", result);
+	item.Photo = fetchValue("photo", result);
+	item.Longitude = fetchValue("longitude", result);
+	item.Latitude = fetchValue("latitude", result);
+	item.CountryName = fetchValue("country-name", result);
+	item.Locality = fetchValue("locality", result);
 	return item
 }
 
@@ -216,12 +212,16 @@ func MapToItem(result map[string]interface{}) microsub.Item {
 		item.UID = uid.(string)
 	}
 
-	if author, e := result["author"]; e {
-		item.Author = MapToAuthor(author.(map[string]string))
+	if authorValue, e := result["author"]; e {
+		if author, ok := authorValue.(map[string]interface{}); ok {
+			item.Author = MapToAuthor(author)
+		}
 	}
 
-	if checkin, e := result["checkin"]; e {
-		item.Checkin = MapToAuthor(checkin.(map[string]string))
+	if checkinValue, e := result["checkin"]; e {
+		if checkin, ok := checkinValue.(map[string]interface{}); ok {
+			item.Checkin = MapToAuthor(checkin)
+		}
 	}
 
 	if refsValue, e := result["refs"]; e {
