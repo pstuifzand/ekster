@@ -48,4 +48,36 @@ func TestInReplyTo(t *testing.T) {
 	if results[0]["in-reply-to"] != "https://github.com/w3c/csswg-drafts/issues/2589" {
 		t.Fatalf("not in-reply-to, but %s", results[0]["in-reply-to"])
 	}
+	if results[0]["published"] != "2018-04-25 11:14-0700" {
+		t.Fatalf("not published, but %s", results[0]["published"])
+	}
+
+	if authorValue, e := results[0]["author"]; e {
+		if author, ok := authorValue.(map[string]string); ok {
+			if author["name"] != "Tantek Çelik" {
+				t.Fatalf("name is not expected name, but %q", author["name"])
+			}
+			if author["photo"] != "http://tantek.com/logo.jpg" {
+				t.Fatalf("photo is not expected photo, but %q", author["photo"])
+			}
+			if author["url"] != "http://tantek.com/" {
+				t.Fatalf("url is not expected url, but %q", author["url"])
+			}
+		} else {
+			t.Fatal("author not a map")
+		}
+	} else {
+		t.Fatal("author missing")
+	}
+
+	if contentValue, e := results[0]["content"]; e {
+		if content, ok := contentValue.(map[string]string); ok {
+			if content["text"] != "👍" {
+				t.Fatal("text content missing")
+			}
+			if content["html"] != "👍" {
+				t.Fatal("html content missing")
+			}
+		}
+	}
 }
