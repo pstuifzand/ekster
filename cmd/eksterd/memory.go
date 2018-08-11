@@ -68,7 +68,8 @@ type redisItem struct {
 	Data      []byte
 }
 
-type fetch2 struct {}
+type fetch2 struct{}
+
 func (f *fetch2) Fetch(url string) (*http.Response, error) {
 	return Fetch2(url)
 }
@@ -645,6 +646,7 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 	// check for all channels as channel
 	// if regex matches item
 	//  - add item to channel
+
 	for channelKey, setting := range b.Settings {
 		if setting.IncludeRegex != "" {
 			included := false
@@ -652,18 +654,14 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 			if err != nil {
 				log.Printf("error in regexp: %q\n", includeRegex)
 			} else {
-				if item.Content != nil && includeRegex.MatchString(item.Content.Text) {
-					log.Printf("Included %#v\n", item)
-					included = true
+				if item.Content != nil {
+					included = includeRegex.MatchString(item.Content.Text) || includeRegex.MatchString(item.Content.HTML)
 				}
-
-				if includeRegex.MatchString(item.Name) {
-					log.Printf("Included %#v\n", item)
-					included = true
-				}
+				included = included || includeRegex.MatchString(item.Name)
 			}
 
 			if included {
+				log.Printf("Included %#v\n", item)
 				b.channelAddItem(conn, channelKey, item)
 			}
 		}
@@ -685,7 +683,6 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 						return nil
 					}
 				}
-
 				if excludeRegex.MatchString(item.Name) {
 					log.Printf("Excluded %#v\n", item)
 					return nil
