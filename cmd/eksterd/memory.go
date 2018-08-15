@@ -511,6 +511,8 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 			log.Printf("Error while fetching %s: %v\n", u, err)
 			continue
 		}
+		defer resp.Body.Close()
+
 		fetchUrl, err := url.Parse(u)
 		md := microformats.Parse(resp.Body, fetchUrl)
 		if err != nil {
@@ -567,6 +569,7 @@ func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
+	defer resp.Body.Close()
 	items, err := fetch.FeedItems(&fetch2{}, previewURL, resp.Header.Get("content-type"), resp.Body)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
