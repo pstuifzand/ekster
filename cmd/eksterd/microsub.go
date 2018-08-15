@@ -225,18 +225,11 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if method == "mark_read" || r.PostForm.Get("method") == "mark_read" {
 				values = r.Form
 				channel := values.Get("channel")
+				var markAsRead []string
 				if uids, e := values["entry"]; e {
-					err := h.Backend.MarkRead(channel, uids)
-					if err != nil {
-						http.Error(w, err.Error(), 500)
-						return
-					}
+					markAsRead = uids
 				} else if uids, e := values["entry[]"]; e {
-					err := h.Backend.MarkRead(channel, uids)
-					if err != nil {
-						http.Error(w, err.Error(), 500)
-						return
-					}
+					markAsRead = uids
 				} else {
 					uids := []string{}
 					for k, v := range values {
@@ -244,7 +237,11 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							uids = append(uids, v...)
 						}
 					}
-					err := h.Backend.MarkRead(channel, uids)
+					markAsRead = uids
+				}
+
+				if len(markAsRead) > 0 {
+					err := h.Backend.MarkRead(channel, markAsRead)
 					if err != nil {
 						http.Error(w, err.Error(), 500)
 						return
