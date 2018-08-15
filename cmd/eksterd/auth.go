@@ -25,7 +25,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/garyburd/redigo/redis"
+	"github.com/gomodule/redigo/redis"
 )
 
 // TokenResponse is the information that we get back from the token endpoint of the user...

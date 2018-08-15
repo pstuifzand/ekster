@@ -26,7 +26,7 @@ import (
 
 	"p83.nl/go/ekster/pkg/microsub"
 
-	"github.com/garyburd/redigo/redis"
+	"github.com/gomodule/redigo/redis"
 )
 
 type microsubHandler struct {

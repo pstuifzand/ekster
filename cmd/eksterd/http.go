@@ -33,7 +33,7 @@ import (
 	"p83.nl/go/ekster/pkg/util"
 
 	"github.com/alecthomas/template"
-	"github.com/garyburd/redigo/redis"
+	"github.com/gomodule/redigo/redis"
 	"willnorris.com/go/microformats"
 )
 

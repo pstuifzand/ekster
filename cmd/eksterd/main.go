@@ -27,7 +27,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/profiler"
-	"github.com/garyburd/redigo/redis"
+	"github.com/gomodule/redigo/redis"
+
 	"p83.nl/go/ekster/pkg/microsub"
 )
 
