@@ -109,6 +109,41 @@ func loadEndpoints(c *client.Client, me *url.URL, filename string) error {
 func main() {
 	flag.Parse()
 
+	flag.Usage = func() {
+		fmt.Print(`Ek is a tool for managing Microsub servers.
+
+Usage:
+
+	ek command [arguments]
+
+Commands:
+
+	connect URL                  login to Indieauth url
+
+	channels                     list channels
+	channels NAME                create channel with NAME
+	channels UID NAME            update channel UID with NAME
+	channels -delete UID         delete channel with UID
+
+	timeline UID                 show posts for channel UID
+	timeline UID -after AFTER    show posts for channel UID starting from AFTER
+	timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
+
+	search QUERY                 search for feeds from QUERY
+
+	preview URL                  show items from the feed at URL
+
+	follow UID                   show follow list for channel UID
+	follow UID URL               follow URL on channel UID
+
+	unfollow UID URL             unfollow URL on channel UID
+
+Global arguments:
+
+`)
+		flag.PrintDefaults()
+	}
+
 	configDir := fmt.Sprintf("%s/.config/microsub", os.Getenv("HOME"))
 
 	if len(os.Args) == 3 && os.Args[1] == "connect" {
@@ -170,31 +205,7 @@ func main() {
 
 func performCommands(sub microsub.Microsub, commands []string) {
 	if len(commands) == 0 {
-		fmt.Printf(`%s <command> options...
-
-Commands:
-
-  connect URL                  login to Indieauth url
-
-  channels                     list channels
-  channels NAME                create channel with NAME
-  channels UID NAME            update channel UID with NAME
-  channels -delete UID         delete channel with UID
-
-  timeline UID                 show posts for channel UID
-  timeline UID -after AFTER    show posts for channel UID starting from AFTER
-  timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
-
-  search QUERY                 search for feeds from QUERY
-
-  preview URL                  show items from the feed at URL
-
-  follow UID                   show follow list for channel UID
-  follow UID URL               follow URL on channel UID
-
-  unfollow UID URL             unfollow URL on channel UID
-
-`, os.Args[0])
+		flag.Usage()
 		return
 	}
 
