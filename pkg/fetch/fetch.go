@@ -19,6 +19,7 @@
 package fetch
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"io"
@@ -29,6 +30,9 @@ import (
 	"time"
 
 	"rss"
+
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 
 	"p83.nl/go/ekster/pkg/jf2"
 	"p83.nl/go/ekster/pkg/jsonfeed"
@@ -286,15 +290,17 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 			return items, err
 		}
 
+		baseURL, _ := url.Parse(fetchURL)
+
 		for _, feedItem := range feed.Items {
 			var item microsub.Item
 			item.Type = "entry"
 			item.Name = feedItem.Title
 			item.Content = &microsub.Content{}
 			if len(feedItem.Content) > 0 {
-				item.Content.HTML = feedItem.Content
+				item.Content.HTML = expandHref(feedItem.Content, baseURL)
 			} else if len(feedItem.Summary) > 0 {
-				item.Content.HTML = feedItem.Summary
+				item.Content.HTML = expandHref(feedItem.Summary, baseURL)
 			}
 			item.URL = feedItem.Link
 			if feedItem.ID == "" {
@@ -335,4 +341,71 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 	}
 
 	return items, nil
+}
+
+// expandHref expands relative URLs in a.href and img.src attributes to be absolute URLs.
+func expandHref(s string, base *url.URL) string {
+	var buf bytes.Buffer
+
+	node, _ := html.Parse(strings.NewReader(s))
+
+	for c := node.FirstChild; c != nil; c = c.NextSibling {
+		expandHrefRec(c, base)
+	}
+
+	html.Render(&buf, node)
+
+	return buf.String()
+}
+
+func getAttrPtr(node *html.Node, name string) *string {
+	if node == nil {
+		return nil
+	}
+	for i, attr := range node.Attr {
+		if strings.EqualFold(attr.Key, name) {
+			return &node.Attr[i].Val
+		}
+	}
+	return nil
+}
+
+func isAtom(node *html.Node, atoms ...atom.Atom) bool {
+	if node == nil {
+		return false
+	}
+	for _, atom := range atoms {
+		if atom == node.DataAtom {
+			return true
+		}
+	}
+	return false
+}
+
+func expandHrefRec(node *html.Node, base *url.URL) {
+	if isAtom(node, atom.A) {
+		href := getAttrPtr(node, "href")
+		if href != nil {
+			if urlParsed, err := url.Parse(*href); err == nil {
+				urlParsed = base.ResolveReference(urlParsed)
+				*href = urlParsed.String()
+			}
+		}
+		return
+	}
+
+	if isAtom(node, atom.Img) {
+		href := getAttrPtr(node, "src")
+		if href != nil {
+			if urlParsed, err := url.Parse(*href); err == nil {
+				urlParsed = base.ResolveReference(urlParsed)
+				*href = urlParsed.String()
+			}
+		}
+		return
+	}
+
+	for c := node.FirstChild; c != nil; c = c.NextSibling {
+		expandHrefRec(c, base)
+	}
 }
