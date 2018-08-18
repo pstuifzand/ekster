@@ -654,14 +654,16 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 	for channelKey, setting := range b.Settings {
 		if setting.IncludeRegex != "" {
 			included := false
+
 			includeRegex, err := regexp.Compile(setting.IncludeRegex)
 			if err != nil {
 				log.Printf("error in regexp: %q\n", includeRegex)
 			} else {
-				if item.Content != nil {
-					included = includeRegex.MatchString(item.Content.Text) || includeRegex.MatchString(item.Content.HTML)
+				included = matchItemText(item, includeRegex)
+
+				for _, v := range item.Refs {
+					included = included || matchItemText(v, includeRegex)
 				}
-				included = included || includeRegex.MatchString(item.Name)
 			}
 
 			if included {
@@ -703,6 +705,14 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 	}
 
 	return b.channelAddItem(conn, channel, item)
+}
+
+func matchItemText(item microsub.Item, includeRegex *regexp.Regexp) bool {
+	var included bool
+	if item.Content != nil {
+		included = includeRegex.MatchString(item.Content.Text) || includeRegex.MatchString(item.Content.HTML)
+	}
+	return included || includeRegex.MatchString(item.Name)
 }
 
 func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
