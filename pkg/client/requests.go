@@ -3,7 +3,9 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 
@@ -14,6 +16,8 @@ type Client struct {
 	Me               *url.URL
 	MicrosubEndpoint *url.URL
 	Token            string
+
+	logging bool
 }
 
 func (c *Client) microsubGetRequest(action string, args map[string]string) (*http.Response, error) {
@@ -34,7 +38,19 @@ func (c *Client) microsubGetRequest(action string, args map[string]string) (*htt
 
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
 
-	return client.Do(req)
+	if c.logging {
+		x, _ := httputil.DumpRequestOut(req, true)
+		log.Printf("REQUEST:\n\n%s\n\n", x)
+	}
+
+	res, err := client.Do(req)
+
+	if c.logging {
+		x, _ := httputil.DumpResponse(res, true)
+		log.Printf("RESPONSE:\n\n%s\n\n", x)
+	}
+
+	return res, err
 }
 
 func (c *Client) microsubPostRequest(action string, args map[string]string) (*http.Response, error) {
@@ -55,7 +71,19 @@ func (c *Client) microsubPostRequest(action string, args map[string]string) (*ht
 
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
 
-	return client.Do(req)
+	if c.logging {
+		x, _ := httputil.DumpRequestOut(req, true)
+		log.Printf("REQUEST:\n\n%s\n\n", x)
+	}
+
+	res, err := client.Do(req)
+
+	if c.logging {
+		x, _ := httputil.DumpResponse(res, true)
+		log.Printf("RESPONSE:\n\n%s\n\n", x)
+	}
+
+	return res, err
 }
 
 func (c *Client) microsubPostFormRequest(action string, args map[string]string, data url.Values) (*http.Response, error) {
@@ -94,11 +122,8 @@ func (c *Client) ChannelsGetList() ([]microsub.Channel, error) {
 	dec := json.NewDecoder(res.Body)
 	var channels channelsResponse
 	err = dec.Decode(&channels)
-	if err != nil {
-		return channels.Channels, err
-	}
 
-	return channels.Channels, nil
+	return channels.Channels, err
 }
 
 func (c *Client) TimelineGet(before, after, channel string) (microsub.Timeline, error) {
