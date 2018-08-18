@@ -19,6 +19,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/url"
@@ -27,6 +28,10 @@ import (
 	"p83.nl/go/ekster/pkg/client"
 	"p83.nl/go/ekster/pkg/indieauth"
 	"p83.nl/go/ekster/pkg/microsub"
+)
+
+var (
+	verbose = flag.Bool("verbose", false, "show verbose logging")
 )
 
 func init() {
@@ -102,6 +107,8 @@ func loadEndpoints(c *client.Client, me *url.URL, filename string) error {
 }
 
 func main() {
+	flag.Parse()
+
 	configDir := fmt.Sprintf("%s/.config/microsub", os.Getenv("HOME"))
 
 	if len(os.Args) == 3 && os.Args[1] == "connect" {
@@ -156,7 +163,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	performCommands(&c, os.Args[1:])
+	c.Logging = *verbose
+
+	performCommands(&c, flag.Args())
 }
 
 func performCommands(sub microsub.Microsub, commands []string) {

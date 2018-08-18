@@ -17,7 +17,7 @@ type Client struct {
 	MicrosubEndpoint *url.URL
 	Token            string
 
-	logging bool
+	Logging bool
 }
 
 func (c *Client) microsubGetRequest(action string, args map[string]string) (*http.Response, error) {
@@ -38,14 +38,14 @@ func (c *Client) microsubGetRequest(action string, args map[string]string) (*htt
 
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
 
-	if c.logging {
+	if c.Logging {
 		x, _ := httputil.DumpRequestOut(req, true)
 		log.Printf("REQUEST:\n\n%s\n\n", x)
 	}
 
 	res, err := client.Do(req)
 
-	if c.logging {
+	if c.Logging {
 		x, _ := httputil.DumpResponse(res, true)
 		log.Printf("RESPONSE:\n\n%s\n\n", x)
 	}
@@ -71,14 +71,14 @@ func (c *Client) microsubPostRequest(action string, args map[string]string) (*ht
 
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
 
-	if c.logging {
+	if c.Logging {
 		x, _ := httputil.DumpRequestOut(req, true)
 		log.Printf("REQUEST:\n\n%s\n\n", x)
 	}
 
 	res, err := client.Do(req)
 
-	if c.logging {
+	if c.Logging {
 		x, _ := httputil.DumpResponse(res, true)
 		log.Printf("RESPONSE:\n\n%s\n\n", x)
 	}
