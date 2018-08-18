@@ -653,20 +653,13 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 	var updatedChannels []string
 	for channelKey, setting := range b.Settings {
 		if setting.IncludeRegex != "" {
-			included := false
-
-			includeRegex, err := regexp.Compile(setting.IncludeRegex)
+			re, err := regexp.Compile(setting.IncludeRegex)
 			if err != nil {
-				log.Printf("error in regexp: %q\n", includeRegex)
-			} else {
-				included = matchItemText(item, includeRegex)
-
-				for _, v := range item.Refs {
-					included = included || matchItemText(v, includeRegex)
-				}
+				log.Printf("error in regexp: %q, %s\n", setting.IncludeRegex, err)
+				return nil
 			}
 
-			if included {
+			if matchItem(item, re) {
 				log.Printf("Included %#v\n", item)
 				b.channelAddItem(conn, channelKey, item)
 				updatedChannels = append(updatedChannels, channelKey)
@@ -685,21 +678,11 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 			excludeRegex, err := regexp.Compile(setting.ExcludeRegex)
 			if err != nil {
 				log.Printf("error in regexp: %q\n", excludeRegex)
-			} else {
-				if item.Content != nil {
-					if excludeRegex.MatchString(item.Content.Text) {
-						log.Printf("Excluded %#v\n", item)
-						return nil
-					}
-					if excludeRegex.MatchString(item.Content.HTML) {
-						log.Printf("Excluded %#v\n", item)
-						return nil
-					}
-				}
-				if excludeRegex.MatchString(item.Name) {
-					log.Printf("Excluded %#v\n", item)
-					return nil
-				}
+				return nil
+			}
+			if matchItem(item, excludeRegex) {
+				log.Printf("Excluded %#v\n", item)
+				return nil
 			}
 		}
 	}
@@ -707,12 +690,30 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 	return b.channelAddItem(conn, channel, item)
 }
 
-func matchItemText(item microsub.Item, includeRegex *regexp.Regexp) bool {
-	var included bool
-	if item.Content != nil {
-		included = includeRegex.MatchString(item.Content.Text) || includeRegex.MatchString(item.Content.HTML)
+func matchItem(item microsub.Item, re *regexp.Regexp) bool {
+	if matchItemText(item, re) {
+		return true
 	}
-	return included || includeRegex.MatchString(item.Name)
+
+	for _, v := range item.Refs {
+		if matchItemText(v, re) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func matchItemText(item microsub.Item, re *regexp.Regexp) bool {
+	if item.Content != nil {
+		if re.MatchString(item.Content.Text) {
+			return true
+		}
+		if re.MatchString(item.Content.HTML) {
+			return true
+		}
+	}
+	return re.MatchString(item.Name)
 }
 
 func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
