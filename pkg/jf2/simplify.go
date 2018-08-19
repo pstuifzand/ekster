@@ -255,9 +255,13 @@ func MapToItem(result map[string]interface{}) microsub.Item {
 	// TODO: Check how to improve this
 
 	if value, e := result["like-of"]; e {
-		for _, v := range value.([]interface{}) {
-			if u, ok := v.(string); ok {
-				item.LikeOf = append(item.LikeOf, u)
+		if likeOf, ok := value.(string); ok {
+			item.LikeOf = append(item.LikeOf, likeOf)
+		} else if likeOfs, ok := value.([]interface{}); ok {
+			for _, v := range likeOfs {
+				if u, ok := v.(string); ok {
+					item.LikeOf = append(item.LikeOf, u)
+				}
 			}
 		}
 	}
@@ -275,9 +279,13 @@ func MapToItem(result map[string]interface{}) microsub.Item {
 	}
 
 	if value, e := result["bookmark-of"]; e {
-		for _, v := range value.([]interface{}) {
-			if u, ok := v.(string); ok {
-				item.BookmarkOf = append(item.BookmarkOf, u)
+		if bookmark, ok := value.(string); ok {
+			item.BookmarkOf = append(item.BookmarkOf, bookmark)
+		} else if bookmarks, ok := value.([]interface{}); ok {
+			for _, v := range bookmarks {
+				if u, ok := v.(string); ok {
+					item.BookmarkOf = append(item.BookmarkOf, u)
+				}
 			}
 		}
 	}
