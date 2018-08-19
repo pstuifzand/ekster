@@ -3,6 +3,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -83,6 +84,11 @@ func (c *Client) microsubPostRequest(action string, args map[string]string) (*ht
 		log.Printf("RESPONSE:\n\n%s\n\n", x)
 	}
 
+	if res.StatusCode != 200 {
+		msg, _ := ioutil.ReadAll(res.Body)
+		return nil, fmt.Errorf("unsuccessful response: %d: %q", res.StatusCode, string(msg))
+	}
+
 	return res, err
 }
 
@@ -104,7 +110,14 @@ func (c *Client) microsubPostFormRequest(action string, args map[string]string, 
 
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
 
-	return client.Do(req)
+	res, err := client.Do(req)
+
+	if res.StatusCode != 200 {
+		msg, _ := ioutil.ReadAll(res.Body)
+		return nil, fmt.Errorf("unsuccessful response: %d: %q", res.StatusCode, string(msg))
+	}
+
+	return res, err
 }
 
 func (c *Client) ChannelsGetList() ([]microsub.Channel, error) {
