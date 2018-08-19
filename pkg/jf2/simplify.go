@@ -259,7 +259,7 @@ func MapToItem(result map[string]interface{}) microsub.Item {
 
 	if summary, e := result["summary"]; e {
 		if summaryString, ok := summary.(string); ok {
-			item.Summary = summaryString
+			item.Summary = append(item.Summary, summaryString)
 		}
 	}
 
