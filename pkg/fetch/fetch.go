@@ -301,7 +301,11 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 				item.Content.HTML = expandHref(feedItem.Content, baseURL)
 			}
 			if len(feedItem.Summary) > 0 {
-				item.Summary = feedItem.Summary
+				if len(item.Content.HTML) == 0 {
+					item.Content.HTML = feedItem.Summary
+				} else {
+					item.Summary = feedItem.Summary
+				}
 			}
 			item.URL = feedItem.Link
 			if feedItem.ID == "" {
