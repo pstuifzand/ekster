@@ -261,7 +261,7 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 			item.Content.HTML = feedItem.ContentHTML
 			item.Content.Text = feedItem.ContentText
 			item.URL = feedItem.URL
-			item.Summary = []string{feedItem.Summary}
+			item.Summary = feedItem.Summary
 			item.ID = hex.EncodeToString([]byte(feedItem.ID))
 			item.Published = feedItem.DatePublished
 
@@ -299,8 +299,9 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 			item.Content = &microsub.Content{}
 			if len(feedItem.Content) > 0 {
 				item.Content.HTML = expandHref(feedItem.Content, baseURL)
-			} else if len(feedItem.Summary) > 0 {
-				item.Content.HTML = expandHref(feedItem.Summary, baseURL)
+			}
+			if len(feedItem.Summary) > 0 {
+				item.Summary = feedItem.Summary
 			}
 			item.URL = feedItem.Link
 			if feedItem.ID == "" {

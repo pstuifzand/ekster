@@ -70,7 +70,7 @@ type Item struct {
 	BookmarkOf []string        `json:"bookmark-of,omitempty"`
 	RepostOf   []string        `json:"repost-of,omitempty"`
 	InReplyTo  []string        `json:"in-reply-to,omitempty"`
-	Summary    []string        `json:"summary,omitempty"`
+	Summary    string          `json:"summary,omitempty"`
 	Content    *Content        `json:"content,omitempty"`
 	Latitude   string          `json:"latitude,omitempty"`
 	Longitude  string          `json:"longitude,omitempty"`

@@ -28,7 +28,7 @@ import (
 	"willnorris.com/go/microformats"
 )
 
-func simplify(itemType string, item map[string][]interface{}) map[string]interface{} {
+func simplify(itemType string, item map[string][]interface{}, author map[string]string) map[string]interface{} {
 	feedItem := make(map[string]interface{})
 
 	for k, v := range item {
@@ -37,7 +37,7 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 				if value.Type[0] == "h-cite" {
 					refs := make(map[string]interface{})
 					u := value.Properties["url"][0].(string)
-					refs[u] = SimplifyMicroformat(value)
+					refs[u] = SimplifyMicroformat(value, nil)
 					feedItem["refs"] = refs
 					feedItem[k] = u
 				} else {
@@ -45,6 +45,16 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 				}
 			} else {
 				feedItem[k] = v
+			}
+		} else if k == "summary" {
+			if content, ok := v[0].(map[string]interface{}); ok {
+				if text, e := content["value"]; e {
+					delete(content, "value")
+					content["text"] = text
+				}
+				feedItem[k] = content
+			} else if summary, ok := v[0].(string); ok {
+				feedItem[k] = summary
 			}
 		} else if k == "content" {
 			if content, ok := v[0].(map[string]interface{}); ok {
@@ -80,7 +90,7 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 			feedItem[k] = card
 		} else if value, ok := v[0].(*microformats.Microformat); ok {
 			mType := value.Type[0][2:]
-			m := simplify(mType, value.Properties)
+			m := simplify(mType, value.Properties, author)
 			m["type"] = mType
 			feedItem[k] = m
 		} else if value, ok := v[0].(string); ok {
@@ -105,6 +115,10 @@ func simplify(itemType string, item map[string][]interface{}) map[string]interfa
 		}
 	}
 
+	if _, e := feedItem["author"]; !e {
+		feedItem["author"] = author
+	}
+
 	return feedItem
 }
 func simplifyCard(v []interface{}) (map[string]string, error) {
@@ -121,16 +135,16 @@ func simplifyCard(v []interface{}) (map[string]string, error) {
 	return nil, fmt.Errorf("not convertable to a card %q", v)
 }
 
-func SimplifyMicroformat(item *microformats.Microformat) map[string]interface{} {
+func SimplifyMicroformat(item *microformats.Microformat, author map[string]string) map[string]interface{} {
 	itemType := item.Type[0][2:]
-	newItem := simplify(itemType, item.Properties)
+	newItem := simplify(itemType, item.Properties, author)
 	newItem["type"] = itemType
 
 	children := []map[string]interface{}{}
 
 	if len(item.Children) > 0 {
 		for _, c := range item.Children {
-			child := SimplifyMicroformat(c)
+			child := SimplifyMicroformat(c, author)
 			if c, e := child["children"]; e {
 				if ar, ok := c.([]map[string]interface{}); ok {
 					children = append(children, ar...)
@@ -151,18 +165,29 @@ func SimplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
 
 	for _, item := range md.Items {
 		if len(item.Type) >= 1 && item.Type[0] == "h-feed" {
+			var feedAuthor map[string]string
+
+			if author, e := item.Properties["author"]; e && len(author) > 0 {
+				feedAuthor, _ = simplifyCard(author)
+			}
 			for _, childItem := range item.Children {
-				newItem := SimplifyMicroformat(childItem)
+				newItem := SimplifyMicroformat(childItem, feedAuthor)
 				items = append(items, newItem)
 			}
 			return items
 		}
 
-		newItem := SimplifyMicroformat(item)
-		items = append(items, newItem)
+		newItem := SimplifyMicroformat(item, nil)
+		if newItem["type"] == "entry" || newItem["type"] == "event" || newItem["type"] == "card" {
+			items = append(items, newItem)
+		}
 		if c, e := newItem["children"]; e {
 			if ar, ok := c.([]map[string]interface{}); ok {
-				items = append(items, ar...)
+				for _, item := range ar {
+					if item["type"] == "entry" || item["type"] == "event" || item["type"] == "card" {
+						items = append(items, item)
+					}
+				}
 			}
 			delete(newItem, "children")
 		}
@@ -179,13 +204,13 @@ func fetchValue(key string, values map[string]string) string {
 func MapToAuthor(result map[string]string) *microsub.Card {
 	item := &microsub.Card{}
 	item.Type = "card"
-	item.Name = fetchValue("name", result);
-	item.URL = fetchValue("url", result);
-	item.Photo = fetchValue("photo", result);
-	item.Longitude = fetchValue("longitude", result);
-	item.Latitude = fetchValue("latitude", result);
-	item.CountryName = fetchValue("country-name", result);
-	item.Locality = fetchValue("locality", result);
+	item.Name = fetchValue("name", result)
+	item.URL = fetchValue("url", result)
+	item.Photo = fetchValue("photo", result)
+	item.Longitude = fetchValue("longitude", result)
+	item.Latitude = fetchValue("latitude", result)
+	item.CountryName = fetchValue("country-name", result)
+	item.Locality = fetchValue("locality", result)
 	return item
 }
 
@@ -232,6 +257,10 @@ func MapToItem(result map[string]interface{}) microsub.Item {
 				item.Refs[key] = refItem
 			}
 		}
+	}
+
+	if summary, e := result["summary"]; e {
+		item.Summary = summary.(string)
 	}
 
 	if content, e := result["content"]; e {
