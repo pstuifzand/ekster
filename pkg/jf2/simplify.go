@@ -49,10 +49,8 @@ func simplify(itemType string, item map[string][]interface{}, author map[string]
 		} else if k == "summary" {
 			if content, ok := v[0].(map[string]interface{}); ok {
 				if text, e := content["value"]; e {
-					delete(content, "value")
-					content["text"] = text
+					feedItem[k] = text
 				}
-				feedItem[k] = content
 			} else if summary, ok := v[0].(string); ok {
 				feedItem[k] = summary
 			}
@@ -260,7 +258,9 @@ func MapToItem(result map[string]interface{}) microsub.Item {
 	}
 
 	if summary, e := result["summary"]; e {
-		item.Summary = summary.(string)
+		if summaryString, ok := summary.(string); ok {
+			item.Summary = summaryString
+		}
 	}
 
 	if content, e := result["content"]; e {
