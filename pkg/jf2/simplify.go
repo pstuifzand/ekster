@@ -271,7 +271,7 @@ func MapToItem(result map[string]interface{}) microsub.Item {
 				itemContent.HTML = html.(string)
 				set = true
 			}
-			if text, e2 := c["value"]; e2 {
+			if text, e2 := c["text"]; e2 {
 				itemContent.Text = text.(string)
 				set = true
 			}
