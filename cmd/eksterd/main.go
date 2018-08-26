@@ -26,7 +26,6 @@ import (
 	"regexp"
 	"time"
 
-	"cloud.google.com/go/profiler"
 	"github.com/gomodule/redigo/redis"
 
 	"p83.nl/go/ekster/pkg/microsub"
@@ -60,17 +59,6 @@ func newPool(addr string) *redis.Pool {
 }
 
 func main() {
-
-	if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") != "" {
-		if err := profiler.Start(profiler.Config{
-			Service:        "microsub-server",
-			ServiceVersion: "1.0",
-			ProjectID:      "microsub-server", // optional on GCP
-		}); err != nil {
-			log.Fatalf("Cannot start the profiler: %v", err)
-		}
-	}
-
 	log.Println("eksterd - microsub server")
 	flag.Parse()
 
