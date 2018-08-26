@@ -63,6 +63,13 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if r.Method == http.MethodOptions {
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+		w.Header().Add("Access-Control-Allow-Methods", "GET, POST")
+		w.Header().Add("Access-Control-Allow-Headers", "Authorization")
+		return
+	}
+
 	if r.Method == http.MethodGet {
 		values := r.URL.Query()
 		action := values.Get("action")
@@ -74,6 +81,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			jw := json.NewEncoder(w)
 			w.Header().Add("Content-Type", "application/json")
+			w.Header().Add("Access-Control-Allow-Origin", "*")
 			err = jw.Encode(map[string][]microsub.Channel{
 				"channels": channels,
 			})
@@ -89,6 +97,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			jw := json.NewEncoder(w)
 			w.Header().Add("Content-Type", "application/json")
+			w.Header().Add("Access-Control-Allow-Origin", "*")
 			jw.SetIndent("", "    ")
 			jw.SetEscapeHTML(false)
 			err = jw.Encode(timeline)
