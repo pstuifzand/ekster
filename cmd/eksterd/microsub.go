@@ -45,6 +45,13 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.URL.Query())
 	log.Println(r.PostForm)
 
+	if r.Method == http.MethodOptions {
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+		w.Header().Add("Access-Control-Allow-Methods", "GET, POST")
+		w.Header().Add("Access-Control-Allow-Headers", "Authorization")
+		return
+	}
+
 	if auth {
 		authorization := r.Header.Get("Authorization")
 
@@ -61,13 +68,6 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Wrong me", 403)
 			return
 		}
-	}
-
-	if r.Method == http.MethodOptions {
-		w.Header().Add("Access-Control-Allow-Origin", "*")
-		w.Header().Add("Access-Control-Allow-Methods", "GET, POST")
-		w.Header().Add("Access-Control-Allow-Headers", "Authorization")
-		return
 	}
 
 	if r.Method == http.MethodGet {
