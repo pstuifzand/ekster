@@ -71,6 +71,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodGet {
+		w.Header().Add("Access-Control-Allow-Origin", "*")
 		values := r.URL.Query()
 		action := values.Get("action")
 		if action == "channels" {
@@ -81,7 +82,6 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			jw := json.NewEncoder(w)
 			w.Header().Add("Content-Type", "application/json")
-			w.Header().Add("Access-Control-Allow-Origin", "*")
 			err = jw.Encode(map[string][]microsub.Channel{
 				"channels": channels,
 			})
@@ -97,7 +97,6 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			jw := json.NewEncoder(w)
 			w.Header().Add("Content-Type", "application/json")
-			w.Header().Add("Access-Control-Allow-Origin", "*")
 			jw.SetIndent("", "    ")
 			jw.SetEscapeHTML(false)
 			err = jw.Encode(timeline)
@@ -141,6 +140,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	} else if r.Method == http.MethodPost {
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+
 		values := r.URL.Query()
 		action := values.Get("action")
 		if action == "channels" {
