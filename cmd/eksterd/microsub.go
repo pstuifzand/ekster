@@ -32,7 +32,6 @@ import (
 type microsubHandler struct {
 	Backend            microsub.Microsub
 	HubIncomingBackend HubBackend
-	Redis              redis.Conn
 }
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +56,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		var token TokenResponse
 
-		if !h.cachedCheckAuthToken(authorization, &token) {
+		if !h.cachedCheckAuthToken(conn, authorization, &token) {
 			log.Printf("Token could not be validated")
 			http.Error(w, "Can't validate token", 403)
 			return

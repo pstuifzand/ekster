@@ -39,7 +39,7 @@ type TokenResponse struct {
 
 var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")
 
-func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) bool {
+func (h *microsubHandler) cachedCheckAuthToken(conn redis.Conn, header string, r *TokenResponse) bool {
 	log.Println("Cached checking Auth Token")
 
 	tokens := authHeaderRegex.FindStringSubmatch(header)
@@ -51,7 +51,7 @@ func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) 
 
 	var err error
 
-	values, err := redis.Values(h.Redis.Do("HGETALL", key))
+	values, err := redis.Values(conn.Do("HGETALL", key))
 	if err == nil && len(values) > 0 {
 		if err = redis.ScanStruct(values, r); err == nil {
 			return true
@@ -65,16 +65,16 @@ func (h *microsubHandler) cachedCheckAuthToken(header string, r *TokenResponse) 
 
 	if authorized {
 		fmt.Printf("Token response: %#v\n", r)
-		_, err = h.Redis.Do("HMSET", redis.Args{}.Add(key).AddFlat(r)...)
+		_, err = conn.Do("HMSET", redis.Args{}.Add(key).AddFlat(r)...)
 		if err != nil {
 			log.Printf("Error while setting token: %v\n", err)
 			return authorized
 		}
-		_, err = h.Redis.Do("EXPIRE", key, uint64(10*time.Minute/time.Second))
+		_, err = conn.Do("EXPIRE", key, uint64(10*time.Minute/time.Second))
 		if err != nil {
 			log.Printf("Error while setting expire on token: %v\n", err)
 			log.Println("Deleting token")
-			_, err = h.Redis.Do("DEL", key)
+			_, err = conn.Do("DEL", key)
 			if err != nil {
 				log.Printf("Deleting token failed: %v", err)
 			}

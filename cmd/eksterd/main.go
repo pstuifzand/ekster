@@ -101,7 +101,6 @@ func main() {
 	http.Handle("/microsub", &microsubHandler{
 		Backend:            backend,
 		HubIncomingBackend: &hubBackend,
-		Redis:              nil,
 	})
 	http.Handle("/incoming/", &incomingHandler{
 		Backend: &hubBackend,
