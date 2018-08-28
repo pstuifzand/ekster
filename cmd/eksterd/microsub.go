@@ -37,8 +37,8 @@ type microsubHandler struct {
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var logger = log.New(os.Stdout, "logger: ", log.Lshortfile)
-	h.Redis = redis.NewLoggingConn(pool.Get(), logger, "microsub")
-	defer h.Redis.Close()
+	conn := redis.NewLoggingConn(pool.Get(), logger, "microsub")
+	defer conn.Close()
 
 	r.ParseForm()
 	log.Printf("%s %s\n", r.Method, r.URL)
