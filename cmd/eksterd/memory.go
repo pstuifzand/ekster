@@ -301,14 +301,14 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Tim
 	conn := pool.Get()
 	defer conn.Close()
 
+	items := []microsub.Item{}
+
 	log.Printf("TimelineGet %s\n", channel)
 	feeds, err := b.FollowGetList(channel)
 	if err != nil {
-		return microsub.Timeline{}, err
+		return microsub.Timeline{Items: items}, err
 	}
 	log.Println(feeds)
-
-	var items []microsub.Item
 
 	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
 
