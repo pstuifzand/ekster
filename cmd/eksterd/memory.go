@@ -346,6 +346,9 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Tim
 	if len(itemScores) >= 2 {
 		before = itemScores[1]
 		after = itemScores[len(itemScores)-1]
+	} else {
+		before = ""
+		after = ""
 	}
 
 	for i := 0; i < len(itemScores); i += 2 {
