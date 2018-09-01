@@ -38,8 +38,8 @@ import (
 )
 
 type mainHandler struct {
-	Backend   *memoryBackend
-	Templates *template.Template
+	Backend     *memoryBackend
+	TemplateDir string
 }
 
 type session struct {
@@ -110,14 +110,25 @@ func newMainHandler(backend *memoryBackend) (*mainHandler, error) {
 	}
 
 	templateDir = strings.TrimRight(templateDir, "/")
+	h.TemplateDir = templateDir
 
-	templates, err := template.ParseGlob(fmt.Sprintf("%s/*.html", templateDir))
-	if err != nil {
-		return nil, err
-	}
-
-	h.Templates = templates
 	return h, nil
+}
+
+func (h *mainHandler) templateFile(filename string) string {
+	return fmt.Sprintf("%s/%s", h.TemplateDir, filename)
+}
+
+func (h *mainHandler) renderTemplate(w io.Writer, filename string, data interface{}) error {
+	t, err := template.ParseFiles(h.templateFile("base.html"), h.templateFile(filename))
+	if err != nil {
+		return err
+	}
+	err = t.ExecuteTemplate(w, filename, data)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func getSessionCookie(w http.ResponseWriter, r *http.Request) string {
@@ -198,6 +209,10 @@ func verifyAuthCode(code, redirectURI, authEndpoint string) (bool, *authResponse
 func isLoggedIn(backend *memoryBackend, sess *session) bool {
 	if !sess.LoggedIn {
 		return false
+	}
+
+	if !auth {
+		return true
 	}
 
 	if sess.Me != backend.Me {
@@ -284,10 +299,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.Session = sess
 			page.Baseurl = strings.TrimRight(os.Getenv("EKSTER_BASEURL"), "/")
 
-			err = h.Templates.ExecuteTemplate(w, "index.html", page)
+			err = h.renderTemplate(w, "index.html", page)
 			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
+				fmt.Fprintf(w, "ERROR: %s\n", err)
 			}
 			return
 		} else if r.URL.Path == "/session/callback" {
@@ -351,10 +365,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			err = h.Templates.ExecuteTemplate(w, "channel.html", page)
+			err = h.renderTemplate(w, "channel.html", page)
 			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
+				fmt.Fprintf(w, "ERROR: %s\n", err)
 			}
 			return
 		} else if r.URL.Path == "/logs" {
@@ -375,10 +388,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var page logsPage
 			page.Session = sess
 
-			err = h.Templates.ExecuteTemplate(w, "logs.html", page)
+			err = h.renderTemplate(w, "logs.html", page)
 			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
+				fmt.Fprintf(w, "ERROR: %s\n", err)
 			}
 			return
 		} else if r.URL.Path == "/settings" {
@@ -399,12 +411,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var page settingsPage
 			page.Session = sess
 			page.Channels, err = h.Backend.ChannelsGetList()
-			//page.Feeds = h.Backend.Feeds
+			// page.Feeds = h.Backend.Feeds
 
-			err = h.Templates.ExecuteTemplate(w, "settings.html", page)
+			err = h.renderTemplate(w, "settings.html", page)
 			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
+				fmt.Fprintf(w, "ERROR: %s\n", err)
 			}
 			return
 		} else if r.URL.Path == "/auth" {
@@ -467,10 +478,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			page.App = app
 
-			err = h.Templates.ExecuteTemplate(w, "auth.html", page)
+			err = h.renderTemplate(w, "auth.html", page)
 			if err != nil {
-				fmt.Fprintf(w, "ERROR: %q\n", err)
-				return
+				fmt.Fprintf(w, "ERROR: %s\n", err)
 			}
 			return
 		}
@@ -591,9 +601,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			code := r.FormValue("code")
-			//clientID := r.FormValue("client_id")
-			//redirectURI := r.FormValue("redirect_uri")
-			//me := r.FormValue("me")
+			// clientID := r.FormValue("client_id")
+			// redirectURI := r.FormValue("redirect_uri")
+			// me := r.FormValue("me")
 
 			values, err := redis.Values(conn.Do("HGETALL", "code:"+code))
 			if err != nil {
@@ -635,7 +645,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/settings/channel" {
 			defer h.Backend.save()
 			uid := r.FormValue("uid")
-			//name := r.FormValue("name")
+			// name := r.FormValue("name")
 			excludeRegex := r.FormValue("exclude_regex")
 
 			if setting, e := h.Backend.Settings[uid]; e {
