@@ -34,6 +34,7 @@ import (
 
 	"p83.nl/go/ekster/pkg/fetch"
 	"p83.nl/go/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/util"
 
 	"github.com/gomodule/redigo/redis"
 	"willnorris.com/go/microformats"
@@ -185,6 +186,10 @@ func (b *memoryBackend) ChannelsGetList() ([]microsub.Channel, error) {
 			}
 		}
 	}
+	util.StablePartition(channels, 0, len(channels), func(i int) bool {
+		return channels[i].Unread > 0
+	})
+
 	return channels, nil
 }
 
