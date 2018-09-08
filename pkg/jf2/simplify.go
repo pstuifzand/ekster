@@ -176,19 +176,20 @@ func SimplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
 		}
 
 		newItem := SimplifyMicroformat(item, nil)
-		if newItem["type"] == "entry" || newItem["type"] == "event" || newItem["type"] == "card" {
-			items = append(items, newItem)
-		}
-		if c, e := newItem["children"]; e {
-			if ar, ok := c.([]map[string]interface{}); ok {
-				for _, item := range ar {
-					if item["type"] == "entry" || item["type"] == "event" || item["type"] == "card" {
-						items = append(items, item)
-					}
-				}
-			}
-			delete(newItem, "children")
-		}
+		delete(newItem, "children")
+		// if newItem["type"] == "entry" || newItem["type"] == "event" || newItem["type"] == "card" {
+		// 	items = append(items, newItem)
+		// }
+		// if c, e := newItem["children"]; e {
+		// 	if ar, ok := c.([]map[string]interface{}); ok {
+		// 		for _, item := range ar {
+		// 			if item["type"] == "entry" || item["type"] == "event" || item["type"] == "card" {
+		// 				items = append(items, item)
+		// 			}
+		// 		}
+		// 	}
+		// 	delete(newItem, "children")
+		// }
 	}
 	return items
 }
