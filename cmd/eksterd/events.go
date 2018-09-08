@@ -23,7 +23,7 @@ func newConsumer(conn net.Conn) *Consumer {
 	fmt.Fprint(conn, "\r\n")
 
 	go func() {
-		ticker := time.Tick(10 * time.Second)
+		ticker := time.NewTicker(10 * time.Second).C
 		for {
 			select {
 			case <-ticker:
