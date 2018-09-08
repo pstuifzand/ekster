@@ -52,6 +52,8 @@ type memoryBackend struct {
 
 	ticker *time.Ticker
 	quit   chan struct{}
+
+	listeners []microsub.EventListener
 }
 
 type channelSetting struct {
@@ -738,6 +740,8 @@ func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item mic
 		return fmt.Errorf("error while zadding item %s to channel %s for redis: %v", itemKey, zchannelKey, err)
 	}
 
+	b.sendMessage(microsub.Message("item added " + item.ID))
+
 	return nil
 }
 
@@ -807,4 +811,15 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 
 	cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
 	return cachedResp, err
+}
+
+func (b *memoryBackend) sendMessage(msg microsub.Message) {
+	for _, l := range b.listeners {
+		l.WriteMessage(microsub.Event{msg})
+	}
+}
+
+func (b *memoryBackend) AddEventListener(el microsub.EventListener) error {
+	b.listeners = append(b.listeners, el)
+	return nil
 }

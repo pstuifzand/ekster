@@ -23,7 +23,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"p83.nl/go/ekster/pkg/microsub"
 
@@ -135,36 +134,9 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else if action == "events" {
-			//w.Header().Add("Content-Type", "text/event-stream")
-
-			c := make(chan string)
-			go func() {
-				c <- "test"
-				time.Sleep(10 * time.Second)
-				c <- "test"
-				time.Sleep(10 * time.Second)
-				c <- "test"
-				time.Sleep(10 * time.Second)
-				c <- "test"
-				time.Sleep(10 * time.Second)
-				c <- "end"
-			}()
-
 			conn, _, _ := w.(http.Hijacker).Hijack()
-			fmt.Fprint(conn, "HTTP/1.0 200 OK\r\n")
-			fmt.Fprint(conn, "Content-Type: text/event-stream\r\n")
-			fmt.Fprint(conn, "Access-Control-Allow-Origin: *\r\n")
-			fmt.Fprint(conn, "\r\n")
-			go func() {
-				for t := range c {
-					fmt.Fprint(conn, `event: ping`)
-					fmt.Fprint(conn, "\r\n")
-					fmt.Fprintf(conn, `data: %s`, t)
-					fmt.Fprint(conn, "\r\n")
-					fmt.Fprint(conn, "\r\n")
-				}
-				conn.Close()
-			}()
+			cons := newConsumer(conn)
+			h.Backend.AddEventListener(cons)
 		} else {
 			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 500)
 			return

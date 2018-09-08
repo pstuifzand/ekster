@@ -100,6 +100,16 @@ type Feed struct {
 	Author      Card   `json:"author,omitempty"`
 }
 
+type Message string
+
+type Event struct {
+	Msg Message
+}
+
+type EventListener interface {
+	WriteMessage(evt Event)
+}
+
 // Microsub is the main protocol that should be implemented by a backend
 type Microsub interface {
 	ChannelsGetList() ([]Channel, error)
@@ -118,4 +128,6 @@ type Microsub interface {
 
 	Search(query string) ([]Feed, error)
 	PreviewURL(url string) (Timeline, error)
+
+	AddEventListener(el EventListener) error
 }
