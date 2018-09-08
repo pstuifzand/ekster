@@ -308,3 +308,7 @@ func (c *Client) MarkRead(channel string, uids []string) error {
 	res.Body.Close()
 	return nil
 }
+
+func (c *Client) AddEventListener(el microsub.EventListener) error {
+	panic("implement me")
+}
