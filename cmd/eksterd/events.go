@@ -23,9 +23,10 @@ func newConsumer(conn net.Conn) *Consumer {
 	fmt.Fprint(conn, "\r\n")
 
 	go func() {
+		ticker := time.Tick(10 * time.Second)
 		for {
 			select {
-			case <-time.Tick(10 * time.Second):
+			case <-ticker:
 				fmt.Fprint(conn, `event: ping`)
 				fmt.Fprint(conn, "\r\n")
 				fmt.Fprint(conn, "\r\n")
