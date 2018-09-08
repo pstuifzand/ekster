@@ -23,6 +23,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"p83.nl/go/ekster/pkg/microsub"
 
@@ -132,6 +133,27 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
+			}
+		} else if action == "events" {
+			w.Header().Add("Content-Type", "text/event-stream")
+
+			c := make(chan string)
+			go func() {
+				c <- "test"
+				time.Sleep(10 * time.Second)
+				c <- "test"
+				time.Sleep(10 * time.Second)
+				c <- "test"
+				time.Sleep(10 * time.Second)
+				c <- "test"
+				time.Sleep(10 * time.Second)
+				c <- "end"
+			}()
+
+			for t := range c {
+				fmt.Fprintln(w, `event: ping`)
+				fmt.Fprintf(w, `event: %s\n`, t)
+				fmt.Fprintln(w)
 			}
 		} else {
 			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 500)
