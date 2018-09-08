@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"time"
 
 	"p83.nl/go/ekster/pkg/microsub"
 )
@@ -22,13 +23,21 @@ func newConsumer(conn net.Conn) *Consumer {
 	fmt.Fprint(conn, "\r\n")
 
 	go func() {
-		for msg := range cons.output {
-			fmt.Fprint(conn, `event: ping`)
-			fmt.Fprint(conn, "\r\n")
-			fmt.Fprint(conn, `data:`)
-			json.NewEncoder(conn).Encode(msg)
-			fmt.Fprint(conn, "\r\n")
-			fmt.Fprint(conn, "\r\n")
+		for {
+			select {
+			case <-time.Tick(10 * time.Second):
+				fmt.Fprint(conn, `event: ping`)
+				fmt.Fprint(conn, "\r\n")
+				fmt.Fprint(conn, "\r\n")
+
+			case msg := <-cons.output:
+				fmt.Fprint(conn, `event: message`)
+				fmt.Fprint(conn, "\r\n")
+				fmt.Fprint(conn, `data:`)
+				json.NewEncoder(conn).Encode(msg)
+				fmt.Fprint(conn, "\r\n")
+				fmt.Fprint(conn, "\r\n")
+			}
 		}
 		conn.Close()
 	}()
