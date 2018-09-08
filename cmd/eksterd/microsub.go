@@ -135,7 +135,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else if action == "events" {
-			w.Header().Add("Content-Type", "text/event-stream")
+			//w.Header().Add("Content-Type", "text/event-stream")
 
 			c := make(chan string)
 			go func() {
@@ -150,11 +150,21 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				c <- "end"
 			}()
 
-			for t := range c {
-				fmt.Fprintln(w, `event: ping`)
-				fmt.Fprintf(w, `event: %s\n`, t)
-				fmt.Fprintln(w)
-			}
+			conn, _, _ := w.(http.Hijacker).Hijack()
+			fmt.Fprint(conn, "HTTP/1.0 200 OK\r\n")
+			fmt.Fprint(conn, "Content-Type: text/event-stream\r\n")
+			fmt.Fprint(conn, "Access-Control-Allow-Origin: *\r\n")
+			fmt.Fprint(conn, "\r\n")
+			go func() {
+				for t := range c {
+					fmt.Fprint(conn, `event: ping`)
+					fmt.Fprint(conn, "\r\n")
+					fmt.Fprintf(conn, `data: %s`, t)
+					fmt.Fprint(conn, "\r\n")
+					fmt.Fprint(conn, "\r\n")
+				}
+				conn.Close()
+			}()
 		} else {
 			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 500)
 			return
