@@ -34,7 +34,7 @@ import (
 
 const (
 	// Version is the version of the command
-	Version = "0.8.1"
+	Version = "0.8.2"
 )
 
 var (
@@ -503,6 +503,70 @@ func performCommands(sub microsub.Microsub, commands []string) {
 				}
 			}
 		} else if filetype == "json" {
+			var export Export
+
+			f, err := os.Open(filename)
+			if err != nil {
+				log.Fatalf("can't open file %s: %s", filename, err)
+			}
+			defer f.Close()
+
+			err = json.NewDecoder(f).Decode(&export)
+			if err != nil {
+				log.Fatalf("error while reading %s: %s", filename, err)
+			}
+
+			channelMap := make(map[string]microsub.Channel)
+
+			channels, err := sub.ChannelsGetList()
+			if err != nil {
+				log.Fatalf("an error occurred: %s\n", err)
+			}
+
+			for _, c := range channels {
+				channelMap[c.Name] = c
+			}
+
+			for _, c := range export.Channels {
+				uid := ""
+
+				if ch, e := channelMap[c.Name]; !e {
+					channelCreated, err := sub.ChannelsCreate(c.Name)
+					if err != nil {
+						log.Printf("An error occurred: %q\n", err)
+						continue
+					}
+
+					uid = channelCreated.UID
+					log.Printf("Channel created: %s\n", c.Name)
+				} else {
+					uid = ch.UID
+				}
+
+				feedMap := make(map[string]bool)
+
+				feeds, err := sub.FollowGetList(uid)
+				if err != nil {
+					log.Fatalf("An error occurred: %q\n", err)
+				}
+
+				for _, f := range feeds {
+					feedMap[f.URL] = true
+				}
+
+				for _, feed := range export.Feeds[uid] {
+
+					if _, e := feedMap[string(feed)]; !e {
+						_, err := sub.FollowURL(uid, string(feed))
+						if err != nil {
+							log.Printf("An error occurred: %q\n", err)
+							continue
+						}
+						log.Printf("Feed followed: %s\n", string(feed))
+					}
+				}
+			}
+
 		} else {
 			log.Fatalf("unsupported filetype %q", filetype)
 		}
