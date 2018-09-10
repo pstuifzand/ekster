@@ -32,9 +32,29 @@ import (
 	"p83.nl/go/ekster/pkg/microsub"
 )
 
+const (
+	// Version is the version of the command
+	Version = "0.8.1"
+)
+
 var (
 	verbose = flag.Bool("verbose", false, "show verbose logging")
 )
+
+// Export is the JSON export format
+type Export struct {
+	Version   string                  `json:"version"`
+	Generator string                  `json:"generator"`
+	Channels  []ExportChannel         `json:"channels,omitempty"`
+	Feeds     map[string][]ExportFeed `json:"feeds,omitempty"`
+}
+
+type ExportFeed string
+
+type ExportChannel struct {
+	UID  string `json:"uid,omitempty"`
+	Name string `json:"channel,omitempty"`
+}
 
 func init() {
 	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
@@ -142,6 +162,9 @@ Commands:
 
 	export opml                  export feeds as OPML
 	import opml FILENAME         import OPML feeds
+
+	export json                  export feeds as json
+	import json FILENAME         import json feeds
 
 Global arguments:
 
@@ -334,6 +357,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 
 	if len(commands) == 2 && commands[0] == "export" {
 		filetype := commands[1]
+
 		if filetype == "opml" {
 			output := opml.OPML{}
 			output.Head.Title = "Microsub channels and feeds"
@@ -374,6 +398,33 @@ func performCommands(sub microsub.Microsub, commands []string) {
 				log.Fatalf("An error occurred: %s\n", err)
 			}
 			os.Stdout.WriteString(xml)
+		} else if filetype == "json" {
+			contents := Export{Version: "1.0", Generator: "ek version " + Version}
+
+			channels, err := sub.ChannelsGetList()
+			if err != nil {
+				log.Fatalf("An error occurred: %s\n", err)
+			}
+
+			for _, c := range channels {
+				contents.Channels = append(contents.Channels, ExportChannel{UID: c.UID, Name: c.Name})
+			}
+
+			contents.Feeds = make(map[string][]ExportFeed)
+
+			for _, c := range channels {
+				list, err := sub.FollowGetList(c.UID)
+				if err != nil {
+					log.Fatalf("An error occurred: %s\n", err)
+				}
+				for _, f := range list {
+					contents.Feeds[c.UID] = append(contents.Feeds[c.UID], ExportFeed(f.URL))
+				}
+			}
+			err = json.NewEncoder(os.Stdout).Encode(&contents)
+			if err != nil {
+				log.Fatalf("An error occurred: %s\n", err)
+			}
 		} else {
 			log.Fatalf("unsupported filetype %q", filetype)
 		}
@@ -451,7 +502,14 @@ func performCommands(sub microsub.Microsub, commands []string) {
 					}
 				}
 			}
+		} else if filetype == "json" {
+		} else {
+			log.Fatalf("unsupported filetype %q", filetype)
 		}
+	}
+
+	if len(commands) == 1 && commands[0] == "version" {
+		fmt.Printf("ek %s\n", Version)
 	}
 }
 
