@@ -141,6 +141,7 @@ Commands:
 	unfollow UID URL             unfollow URL on channel UID
 
 	export opml                  export feeds as OPML
+	import opml FILENAME         import OPML feeds
 
 Global arguments:
 
@@ -375,6 +376,81 @@ func performCommands(sub microsub.Microsub, commands []string) {
 			os.Stdout.WriteString(xml)
 		} else {
 			log.Fatalf("unsupported filetype %q", filetype)
+		}
+	}
+
+	if len(commands) == 3 && commands[0] == "import" {
+		filetype := commands[1]
+		filename := commands[2]
+
+		if filetype == "opml" {
+			channelMap := make(map[string]microsub.Channel)
+
+			channels, err := sub.ChannelsGetList()
+			if err != nil {
+				log.Fatalf("an error occurred: %s\n", err)
+			}
+
+			for _, c := range channels {
+				channelMap[c.Name] = c
+			}
+
+			xml, err := opml.NewOPMLFromFile(filename)
+			if err != nil {
+				log.Fatalf("An error occurred: %s\n", err)
+			}
+
+			for _, c := range xml.Body.Outlines {
+				if c.HTMLURL != "" {
+					log.Printf("First row item has url: %s\n", c.HTMLURL)
+					continue
+				}
+				if len(c.Outlines) == 0 {
+					continue
+				}
+
+				uid := ""
+
+				if ch, e := channelMap[c.Text]; !e {
+					channelCreated, err := sub.ChannelsCreate(c.Text)
+					if err != nil {
+						log.Printf("An error occurred: %q\n", err)
+						continue
+					}
+
+					uid = channelCreated.UID
+					log.Printf("Channel created: %s\n", c.Text)
+				} else {
+					uid = ch.UID
+				}
+
+				feedMap := make(map[string]bool)
+
+				feeds, err := sub.FollowGetList(uid)
+				if err != nil {
+					log.Fatalf("An error occurred: %q\n", err)
+				}
+
+				for _, f := range feeds {
+					feedMap[f.URL] = true
+				}
+
+				for _, f := range c.Outlines {
+					if f.HTMLURL == "" {
+						log.Println("Missing url on second row item")
+						continue
+					}
+
+					if _, e := feedMap[f.HTMLURL]; !e {
+						_, err := sub.FollowURL(uid, f.HTMLURL)
+						if err != nil {
+							log.Printf("An error occurred: %q\n", err)
+							continue
+						}
+						log.Printf("Feed followed: %s\n", f.HTMLURL)
+					}
+				}
+			}
 		}
 	}
 }
