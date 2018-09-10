@@ -24,7 +24,9 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"time"
 
+	"github.com/gilliek/go-opml/opml"
 	"p83.nl/go/ekster/pkg/client"
 	"p83.nl/go/ekster/pkg/indieauth"
 	"p83.nl/go/ekster/pkg/microsub"
@@ -137,6 +139,8 @@ Commands:
 	follow UID URL               follow URL on channel UID
 
 	unfollow UID URL             unfollow URL on channel UID
+
+	export opml                  export feeds as OPML
 
 Global arguments:
 
@@ -324,6 +328,53 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		err := sub.UnfollowURL(uid, url)
 		if err != nil {
 			log.Fatalf("An error occurred: %s\n", err)
+		}
+	}
+
+	if len(commands) == 2 && commands[0] == "export" {
+		filetype := commands[1]
+		if filetype == "opml" {
+			output := opml.OPML{}
+			output.Head.Title = "Microsub channels and feeds"
+			output.Head.DateCreated = time.Now().Format(time.RFC3339)
+			output.Version = "1.0"
+
+			channels, err := sub.ChannelsGetList()
+			if err != nil {
+				log.Fatalf("An error occurred: %s\n", err)
+			}
+
+			for _, c := range channels {
+				var feeds []opml.Outline
+				list, err := sub.FollowGetList(c.UID)
+				if err != nil {
+					log.Fatalf("An error occurred: %s\n", err)
+				}
+				for _, f := range list {
+					feeds = append(feeds, opml.Outline{
+						Title:   f.Name,
+						Text:    f.Name,
+						Type:    f.Type,
+						URL:     f.URL,
+						HTMLURL: f.URL,
+						XMLURL:  f.URL,
+					})
+				}
+
+				output.Body.Outlines = append(output.Body.Outlines, opml.Outline{
+					Text:     c.Name,
+					Title:    c.Name,
+					Outlines: feeds,
+				})
+			}
+
+			xml, err := output.XML()
+			if err != nil {
+				log.Fatalf("An error occurred: %s\n", err)
+			}
+			os.Stdout.WriteString(xml)
+		} else {
+			log.Fatalf("unsupported filetype %q", filetype)
 		}
 	}
 }
