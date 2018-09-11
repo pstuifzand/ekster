@@ -86,28 +86,44 @@ Connect with `ek` to you microsub server. After that you can call `ek` to
 control your microsub server. It should even work with other servers that
 support microsub.
 
-    ek <command> options...
+    Ek is a tool for managing Microsub servers.
+
+    Usage:
+
+        ek [global arguments] command [arguments]
 
     Commands:
 
-      channels                     list channels
-      channels NAME                create channel with NAME
-      channels UID NAME            update channel UID with NAME
-      channels -delete UID         delete channel with UID
+        connect URL                  login to Indieauth url
 
-      timeline UID                 show posts for channel UID
-      timeline UID -after AFTER    show posts for channel UID starting from AFTER
-      timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
+        channels                     list channels
+        channels NAME                create channel with NAME
+        channels UID NAME            update channel UID with NAME
+        channels -delete UID         delete channel with UID
 
-      search QUERY                 search for feeds from QUERY
+        timeline UID                 show posts for channel UID
+        timeline UID -after AFTER    show posts for channel UID starting from AFTER
+        timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
 
-      preview URL                  show items from the feed at URL
+        search QUERY                 search for feeds from QUERY
 
-      follow UID                   show follow list for channel UID
-      follow UID URL               follow URL on channel UID
+        preview URL                  show items from the feed at URL
 
-      unfollow UID URL             unfollow URL on channel UID
+        follow UID                   show follow list for channel uid
+        follow UID URL               follow url on channel uid
 
+        unfollow UID URL             unfollow url on channel uid
+
+        export opml                  export feeds as opml
+        import opml FILENAME         import opml feeds
+
+        export json                  export feeds as json
+        import json FILENAME         import json feeds
+
+    global arguments:
+
+      -verbose
+            show verbose logging
 
 ## Configuration: backend.json
 
