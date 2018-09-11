@@ -9,6 +9,8 @@ Very alpha: no warranty.
 
 ## Installing and running ekster
 
+There are two methods for installing and running ekster.
+
 ### Method 1: Install ekster (from source)
 
 ekster is build using [go](https://golang.org). To be able to install ekster
@@ -25,7 +27,7 @@ the items and feeds. The more permanent information is saved in `backend.json`.
 Run both Redis and `eksterd`.
 
 Generate the configuration file "backend.json". Run this command only once, as
-it will regenerate the configuration, from scratch. See **Configuration** for
+it will regenerate the configuration from scratch. See **Configuration** below for
 how to set up the json file.
 
     eksterd new
@@ -36,30 +38,44 @@ Start redis
 
 Start eksterd and pass the redis and port arguments.
 
-    EKSTER_BASEURL=https://example.com eksterd -redis localhost:6379 -port 8090
+    EKSTER_TEMPLATES=$GOPATH/src/p83.nl/go/ekster/templates EKSTER_BASEURL=https://example.com eksterd -redis localhost:6379 -port 8090
 
 You can now access `eksterd` on port `8090`. To really use it, you should proxy
 `eksterd` behind a HTTP reverse proxy on port 80, or 443.
 
 ### Method 2: Using Docker / Docker Compose
 
-It's now also possible to use docker-compose to start a ekster server.
-
+It's now also possible to use docker-compose to start an ekster server. Create an empty directory. 
+Download [docker-compose.yml](https://raw.githubusercontent.com/pstuifzand/ekster/master/docker-compose.yml) from Github 
+and run the following commands in that directory.
+    
     docker-compose pull
     docker-compose run web new
+    # edit the backend.json file according to the instructions
     docker-compose up
+
+This will first pull the Docker image from the Docker hub. Then run the image to generate a default backend.json file.
+After editing, you can run `docker-compose up` to start the server. This will start Redis and ekster in such a way
+so that you can run the program without problems. By default it will choose a random port, to run the server.
+To make it really useful, you need to run this on an internet connected server and choose a fixed port.
+
+The nicest way to run this docker-compose environment is with a proxy in the front. You can run ekster behind 
+[nginx-proxy](https://github.com/jwilder/nginx-proxy).
 
 ## When ekster is running
 
 Add a link in the `<head>` tag to let the microsub client know where to find your server.
 
-   <link rel="microsub" href="https://microsub.example.com/microsub">
+    <link rel="microsub" href="https://microsub.example.com/microsub">
 
 The domain name `microsub.example.com` needs to be replaced with the vhost that
 you use to proxy the server.
 
 The microsub server responds to the `/microsub` url with the micropub protocol.
 You can use `ek` to talk to the endpoint.
+
+It's also possible to visit the microsub server with your browser, there are a few ways to 
+change settings.
 
 ## Commands
 
@@ -135,8 +151,8 @@ When generating this file for the first time. It will contain a default
 configuration. This can be changed (and perhaps should be changed).
 The two parts that should be changed are:
 
-   "Me": "...",
-   "TokenEndpoint": "...",
+    "Me": "...",
+    "TokenEndpoint": "...",
 
 
 The `Me` value should be set to the URL you use to sign into Monocle, or
