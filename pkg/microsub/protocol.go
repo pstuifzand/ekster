@@ -40,40 +40,40 @@ type Channel struct {
 type Card struct {
 	Filled      bool   `json:"-,omitempty"`
 	Type        string `json:"type,omitempty"`
-	Name        string `json:"name,omitempty"`
-	URL         string `json:"url,omitempty"`
-	Photo       string `json:"photo,omitempty"`
-	Locality    string `json:"locality,omitempty"`
-	Region      string `json:"region,omitempty"`
-	CountryName string `json:"country-name,omitempty"`
-	Longitude   string `json:"longitude,omitempty"`
-	Latitude    string `json:"latitude,omitempty"`
+	Name        string `json:"name,omitempty" mf2:"name"`
+	URL         string `json:"url,omitempty" mf2:"url"`
+	Photo       string `json:"photo,omitempty" mf2:"photo"`
+	Locality    string `json:"locality,omitempty" mf2:"locality"`
+	Region      string `json:"region,omitempty" mf2:"region"`
+	CountryName string `json:"country-name,omitempty" mf2:"country-name"`
+	Longitude   string `json:"longitude,omitempty" mf2:"longitude"`
+	Latitude    string `json:"latitude,omitempty" mf2:"latitude"`
 }
 
 type Content struct {
-	Text string `json:"text,omitempty"`
-	HTML string `json:"html,omitempty"`
+	Text string `json:"text,omitempty" mf2:"value"`
+	HTML string `json:"html,omitempty" mf2:"html"`
 }
 
 // Item is a post object
 type Item struct {
 	Type       string          `json:"type"`
-	Name       string          `json:"name,omitempty"`
-	Published  string          `json:"published,omitempty"`
-	Updated    string          `json:"updated,omitempty"`
-	URL        string          `json:"url,omitempty"`
-	UID        string          `json:"uid,omitempty"`
-	Author     *Card           `json:"author,omitempty"`
-	Category   []string        `json:"category,omitempty"`
-	Photo      []string        `json:"photo,omitempty"`
-	LikeOf     []string        `json:"like-of,omitempty"`
-	BookmarkOf []string        `json:"bookmark-of,omitempty"`
-	RepostOf   []string        `json:"repost-of,omitempty"`
-	InReplyTo  []string        `json:"in-reply-to,omitempty"`
-	Content    *Content        `json:"content,omitempty"`
-	Latitude   string          `json:"latitude,omitempty"`
-	Longitude  string          `json:"longitude,omitempty"`
-	Checkin    *Card           `json:"checkin,omitempty"`
+	Name       string          `json:"name,omitempty" mf2:"name"`
+	Published  string          `json:"published,omitempty" mf2:"published"`
+	Updated    string          `json:"updated,omitempty" mf2:"updated"`
+	URL        string          `json:"url,omitempty" mf2:"url"`
+	UID        string          `json:"uid,omitempty" mf2:"uid"`
+	Author     *Card           `json:"author,omitempty" mf2:"author"`
+	Category   []string        `json:"category,omitempty" mf2:"category"`
+	Photo      []string        `json:"photo,omitempty" mf2:"photo"`
+	LikeOf     []string        `json:"like-of,omitempty" mf2:"like-of"`
+	BookmarkOf []string        `json:"bookmark-of,omitempty" mf2:"bookmark-of"`
+	RepostOf   []string        `json:"repost-of,omitempty" mf2:"repost-of"`
+	InReplyTo  []string        `json:"in-reply-to,omitempty" mf2:"in-reply-to"`
+	Content    *Content        `json:"content,omitempty" mf2:"content"`
+	Latitude   string          `json:"latitude,omitempty" mf2:"latitude"`
+	Longitude  string          `json:"longitude,omitempty" mf2:"longitude"`
+	Checkin    *Card           `json:"checkin,omitempty" mf2:"checkin"`
 	Refs       map[string]Item `json:"refs,omitempty"`
 	ID         string          `json:"_id,omitempty"`
 	Read       bool            `json:"_is_read"`

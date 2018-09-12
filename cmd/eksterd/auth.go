@@ -26,20 +26,12 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"p83.nl/go/ekster/pkg/auth"
 )
-
-// TokenResponse is the information that we get back from the token endpoint of the user...
-type TokenResponse struct {
-	Me       string `json:"me"`
-	ClientID string `json:"client_id"`
-	Scope    string `json:"scope"`
-	IssuedAt int64  `json:"issued_at"`
-	Nonce    int64  `json:"nonce"`
-}
 
 var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")
 
-func (h *microsubHandler) cachedCheckAuthToken(conn redis.Conn, header string, r *TokenResponse) bool {
+func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *auth.TokenResponse) bool {
 	log.Println("Cached checking Auth Token")
 
 	tokens := authHeaderRegex.FindStringSubmatch(header)
@@ -60,7 +52,7 @@ func (h *microsubHandler) cachedCheckAuthToken(conn redis.Conn, header string, r
 		log.Printf("Error while HGETALL %v\n", err)
 	}
 
-	authorized := h.checkAuthToken(header, r)
+	authorized := b.checkAuthToken(header, r)
 	authorized = true
 
 	if authorized {
@@ -85,10 +77,10 @@ func (h *microsubHandler) cachedCheckAuthToken(conn redis.Conn, header string, r
 	return authorized
 }
 
-func (h *microsubHandler) checkAuthToken(header string, token *TokenResponse) bool {
+func (b *memoryBackend) checkAuthToken(header string, token *auth.TokenResponse) bool {
 	log.Println("Checking auth token")
 
-	tokenEndpoint := h.Backend.(*memoryBackend).TokenEndpoint
+	tokenEndpoint := b.TokenEndpoint
 
 	req, err := http.NewRequest("GET", tokenEndpoint, nil)
 	if err != nil {

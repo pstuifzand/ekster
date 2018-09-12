@@ -15,7 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-package main
+package server
 
 import (
 	"encoding/json"
@@ -23,20 +23,29 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 
 	"p83.nl/go/ekster/pkg/microsub"
 
 	"github.com/gomodule/redigo/redis"
 )
 
+var (
+	entryRegex = regexp.MustCompile("^entry\\[\\d+\\]$")
+)
+
 type microsubHandler struct {
-	Backend            microsub.Microsub
-	HubIncomingBackend HubBackend
+	backend microsub.Microsub
+	pool    *redis.Pool
+}
+
+func NewMicrosubHandler(backend microsub.Microsub, pool *redis.Pool) http.Handler {
+	return &microsubHandler{backend, pool}
 }
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var logger = log.New(os.Stdout, "logger: ", log.Lshortfile)
-	conn := redis.NewLoggingConn(pool.Get(), logger, "microsub")
+	conn := redis.NewLoggingConn(h.pool.Get(), logger, "microsub")
 	defer conn.Close()
 
 	r.ParseForm()
@@ -51,30 +60,12 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if auth {
-		authorization := r.Header.Get("Authorization")
-
-		var token TokenResponse
-
-		if !h.cachedCheckAuthToken(conn, authorization, &token) {
-			log.Printf("Token could not be validated")
-			http.Error(w, "Can't validate token", 403)
-			return
-		}
-
-		if token.Me != h.Backend.(*memoryBackend).Me {
-			log.Printf("Missing \"me\" in token response: %#v\n", token)
-			http.Error(w, "Wrong me", 403)
-			return
-		}
-	}
-
 	if r.Method == http.MethodGet {
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 		values := r.URL.Query()
 		action := values.Get("action")
 		if action == "channels" {
-			channels, err := h.Backend.ChannelsGetList()
+			channels, err := h.backend.ChannelsGetList()
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
@@ -89,7 +80,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else if action == "timeline" {
-			timeline, err := h.Backend.TimelineGet(values.Get("before"), values.Get("after"), values.Get("channel"))
+			timeline, err := h.backend.TimelineGet(values.Get("before"), values.Get("after"), values.Get("channel"))
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
@@ -104,7 +95,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else if action == "preview" {
-			timeline, err := h.Backend.PreviewURL(values.Get("url"))
+			timeline, err := h.backend.PreviewURL(values.Get("url"))
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
@@ -119,7 +110,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		} else if action == "follow" {
 			channel := values.Get("channel")
-			following, err := h.Backend.FollowGetList(channel)
+			following, err := h.backend.FollowGetList(channel)
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
@@ -136,7 +127,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "events" {
 			conn, _, _ := w.(http.Hijacker).Hijack()
 			cons := newConsumer(conn)
-			h.Backend.AddEventListener(cons)
+			h.backend.AddEventListener(cons)
 		} else {
 			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 500)
 			return
@@ -152,20 +143,19 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			method := values.Get("method")
 			uid := values.Get("channel")
 			if method == "delete" {
-				err := h.Backend.ChannelsDelete(uid)
+				err := h.backend.ChannelsDelete(uid)
 				if err != nil {
 					http.Error(w, err.Error(), 500)
 					return
 				}
 				w.Header().Add("Content-Type", "application/json")
 				fmt.Fprintln(w, "[]")
-				h.Backend.(Debug).Debug()
 				return
 			}
 
 			jw := json.NewEncoder(w)
 			if uid == "" {
-				channel, err := h.Backend.ChannelsCreate(name)
+				channel, err := h.backend.ChannelsCreate(name)
 				if err != nil {
 					http.Error(w, err.Error(), 500)
 					return
@@ -177,7 +167,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			} else {
-				channel, err := h.Backend.ChannelsUpdate(uid, name)
+				channel, err := h.backend.ChannelsUpdate(uid, name)
 				if err != nil {
 					http.Error(w, err.Error(), 500)
 					return
@@ -189,12 +179,11 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			h.Backend.(Debug).Debug()
 		} else if action == "follow" {
 			uid := values.Get("channel")
 			url := values.Get("url")
-			h.HubIncomingBackend.CreateFeed(url, uid)
-			feed, err := h.Backend.FollowURL(uid, url)
+			// h.HubIncomingBackend.CreateFeed(url, uid)
+			feed, err := h.backend.FollowURL(uid, url)
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
@@ -209,7 +198,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "unfollow" {
 			uid := values.Get("channel")
 			url := values.Get("url")
-			err := h.Backend.UnfollowURL(uid, url)
+			err := h.backend.UnfollowURL(uid, url)
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
@@ -218,7 +207,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, "[]")
 		} else if action == "search" {
 			query := values.Get("query")
-			feeds, err := h.Backend.Search(query)
+			feeds, err := h.backend.Search(query)
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
@@ -254,7 +243,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if len(markAsRead) > 0 {
-					err := h.Backend.MarkRead(channel, markAsRead)
+					err := h.backend.MarkRead(channel, markAsRead)
 					if err != nil {
 						http.Error(w, err.Error(), 500)
 						return

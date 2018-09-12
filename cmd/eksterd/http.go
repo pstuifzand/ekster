@@ -211,7 +211,7 @@ func isLoggedIn(backend *memoryBackend, sess *session) bool {
 		return false
 	}
 
-	if !auth {
+	if !authEnabled {
 		return true
 	}
 
@@ -448,7 +448,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				scope = "create"
 			}
 
-			auth := authRequest{
+			authReq := authRequest{
 				Me:          me,
 				ClientID:    clientID,
 				RedirectURI: redirectURI,
@@ -456,7 +456,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				State:       state,
 			}
 
-			_, err = conn.Do("HMSET", redis.Args{}.Add("state:"+state).AddFlat(&auth)...)
+			_, err = conn.Do("HMSET", redis.Args{}.Add("state:"+state).AddFlat(&authReq)...)
 			if err != nil {
 				log.Println(err)
 				fmt.Fprintf(w, "ERROR: %q\n", err)

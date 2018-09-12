@@ -23,12 +23,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"regexp"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"p83.nl/go/ekster/pkg/auth"
 
 	"p83.nl/go/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/server"
 )
 
 const (
@@ -38,16 +39,15 @@ const (
 var (
 	pool        *redis.Pool
 	port        int
-	auth        bool
+	authEnabled bool
 	redisServer = flag.String("redis", "redis:6379", "")
-	entryRegex  = regexp.MustCompile("^entry\\[\\d+\\]$")
 )
 
 func init() {
 	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
 
 	flag.IntVar(&port, "port", 80, "port for serving api")
-	flag.BoolVar(&auth, "auth", true, "use auth")
+	flag.BoolVar(&authEnabled, "auth", true, "use auth")
 }
 
 func newPool(addr string) *redis.Pool {
@@ -58,11 +58,33 @@ func newPool(addr string) *redis.Pool {
 	}
 }
 
+func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization := r.Header.Get("Authorization")
+
+		var token auth.TokenResponse
+
+		if !b.AuthTokenAccepted(authorization, &token) {
+			log.Printf("Token could not be validated")
+			http.Error(w, "Can't validate token", 403)
+			return
+		}
+
+		if token.Me != b.Me {
+			log.Printf("Missing \"me\" in token response: %#v\n", token)
+			http.Error(w, "Wrong me", 403)
+			return
+		}
+
+		handler.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	log.Println("eksterd - microsub server")
 	flag.Parse()
 
-	if auth {
+	if authEnabled {
 		log.Println("Using auth")
 	} else {
 		log.Println("Authentication disabled")
@@ -98,10 +120,13 @@ func main() {
 		Backend: backend.(*memoryBackend),
 	})
 
-	http.Handle("/microsub", &microsubHandler{
-		Backend:            backend,
-		HubIncomingBackend: &hubBackend,
-	})
+	handler := server.NewMicrosubHandler(backend, pool)
+	if authEnabled {
+		handler = WithAuth(handler, backend.(*memoryBackend))
+	}
+
+	http.Handle("/microsub", handler)
+
 	http.Handle("/incoming/", &incomingHandler{
 		Backend: &hubBackend,
 	})

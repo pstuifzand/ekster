@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"p83.nl/go/ekster/pkg/auth"
 	"p83.nl/go/ekster/pkg/fetch"
 	"p83.nl/go/ekster/pkg/microsub"
 	"p83.nl/go/ekster/pkg/util"
@@ -41,6 +42,8 @@ import (
 )
 
 type memoryBackend struct {
+	hubIncomingBackend
+
 	lock     sync.RWMutex
 	Channels map[string]microsub.Channel
 	Feeds    map[string][]microsub.Feed
@@ -76,6 +79,12 @@ type fetch2 struct{}
 
 func (f *fetch2) Fetch(url string) (*http.Response, error) {
 	return Fetch2(url)
+}
+
+func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse) bool {
+	conn := pool.Get()
+	defer conn.Close()
+	return b.cachedCheckAuthToken(conn, header, r)
 }
 
 func (b *memoryBackend) Debug() {
@@ -412,6 +421,8 @@ func (b *memoryBackend) FollowURL(uid string, url string) (microsub.Feed, error)
 
 	b.ProcessContent(uid, feed.URL, resp.Header.Get("Content-Type"), resp.Body)
 
+	b.CreateFeed(url, uid)
+
 	return feed, nil
 }
 
@@ -498,12 +509,14 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 		}
 		defer feedResp.Body.Close()
 
+		// TODO: Combine FeedHeader and FeedItems so we can use it here
 		parsedFeed, err := fetch.FeedHeader(&fetch2{}, fetchUrl.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
 		if err != nil {
 			log.Printf("Error in parse of %s - %v\n", fetchUrl, err)
 			continue
 		}
 
+		// TODO: Only include the feed if it contains some items
 		feeds = append(feeds, parsedFeed)
 
 		if alts, e := md.Rels["alternate"]; e {
