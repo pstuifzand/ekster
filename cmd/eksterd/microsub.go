@@ -29,6 +29,10 @@ import (
 	"github.com/gomodule/redigo/redis"
 )
 
+const (
+	OutputContentType = "application/json; charset=utf-8"
+)
+
 type microsubHandler struct {
 	Backend            microsub.Microsub
 	HubIncomingBackend HubBackend
@@ -69,7 +73,6 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	const OutputContentType = "application/json; charset=utf-8"
 	if r.Method == http.MethodGet {
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 		values := r.URL.Query()
