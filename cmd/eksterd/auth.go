@@ -43,7 +43,7 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 
 	var err error
 
-	areweauth, err := getCachedValue(err, conn, key, r)
+	areweauth, err := getCachedValue(conn, key, r)
 	if areweauth {
 		return true
 	}
@@ -76,7 +76,8 @@ func setCachedTokenResponseValue(err error, conn redis.Conn, key string, r *auth
 	}
 }
 
-func getCachedValue(err error, conn redis.Conn, key string, r *auth.TokenResponse) (bool, error) {
+// getCachedValue gets the cached value from Redis
+func getCachedValue(conn redis.Conn, key string, r *auth.TokenResponse) (bool, error) {
 	values, err := redis.Values(conn.Do("HGETALL", key))
 	if err == nil && len(values) > 0 {
 		if err = redis.ScanStruct(values, r); err == nil {
