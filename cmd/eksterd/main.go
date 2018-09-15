@@ -120,7 +120,7 @@ func main() {
 		Backend: backend.(*memoryBackend),
 	})
 
-	handler := server.NewMicrosubHandler(backend, pool)
+	handler := server.NewMicrosubHandler(backend)
 	if authEnabled {
 		handler = WithAuth(handler, backend.(*memoryBackend))
 	}

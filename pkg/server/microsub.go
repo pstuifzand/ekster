@@ -22,12 +22,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
 
 	"p83.nl/go/ekster/pkg/microsub"
-
-	"github.com/gomodule/redigo/redis"
 )
 
 var (
@@ -36,18 +33,13 @@ var (
 
 type microsubHandler struct {
 	backend microsub.Microsub
-	pool    *redis.Pool
 }
 
-func NewMicrosubHandler(backend microsub.Microsub, pool *redis.Pool) http.Handler {
-	return &microsubHandler{backend, pool}
+func NewMicrosubHandler(backend microsub.Microsub) http.Handler {
+	return &microsubHandler{backend}
 }
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var logger = log.New(os.Stdout, "logger: ", log.Lshortfile)
-	conn := redis.NewLoggingConn(h.pool.Get(), logger, "microsub")
-	defer conn.Close()
-
 	r.ParseForm()
 	log.Printf("%s %s\n", r.Method, r.URL)
 	log.Println(r.URL.Query())
