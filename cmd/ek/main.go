@@ -359,72 +359,9 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		filetype := commands[1]
 
 		if filetype == "opml" {
-			output := opml.OPML{}
-			output.Head.Title = "Microsub channels and feeds"
-			output.Head.DateCreated = time.Now().Format(time.RFC3339)
-			output.Version = "1.0"
-
-			channels, err := sub.ChannelsGetList()
-			if err != nil {
-				log.Fatalf("An error occurred: %s\n", err)
-			}
-
-			for _, c := range channels {
-				var feeds []opml.Outline
-				list, err := sub.FollowGetList(c.UID)
-				if err != nil {
-					log.Fatalf("An error occurred: %s\n", err)
-				}
-				for _, f := range list {
-					feeds = append(feeds, opml.Outline{
-						Title:   f.Name,
-						Text:    f.Name,
-						Type:    f.Type,
-						URL:     f.URL,
-						HTMLURL: f.URL,
-						XMLURL:  f.URL,
-					})
-				}
-
-				output.Body.Outlines = append(output.Body.Outlines, opml.Outline{
-					Text:     c.Name,
-					Title:    c.Name,
-					Outlines: feeds,
-				})
-			}
-
-			xml, err := output.XML()
-			if err != nil {
-				log.Fatalf("An error occurred: %s\n", err)
-			}
-			os.Stdout.WriteString(xml)
+			exportOpmlFromMicrosub(sub)
 		} else if filetype == "json" {
-			contents := Export{Version: "1.0", Generator: "ek version " + Version}
-
-			channels, err := sub.ChannelsGetList()
-			if err != nil {
-				log.Fatalf("An error occurred: %s\n", err)
-			}
-
-			for _, c := range channels {
-				contents.Channels = append(contents.Channels, ExportChannel{UID: c.UID, Name: c.Name})
-			}
-
-			contents.Feeds = make(map[string][]ExportFeed)
-
-			for _, c := range channels {
-				list, err := sub.FollowGetList(c.UID)
-				if err != nil {
-					log.Fatalf("An error occurred: %s\n", err)
-				}
-				for _, f := range list {
-					contents.Feeds[c.UID] = append(contents.Feeds[c.UID], ExportFeed(f.URL))
-				}
-			}
-			err = json.NewEncoder(os.Stdout).Encode(&contents)
-			if err != nil {
-				log.Fatalf("An error occurred: %s\n", err)
-			}
+			exportJsonFromMicrosub(sub)
 		} else {
 			log.Fatalf("unsupported filetype %q", filetype)
 		}
@@ -435,138 +372,9 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		filename := commands[2]
 
 		if filetype == "opml" {
-			channelMap := make(map[string]microsub.Channel)
-
-			channels, err := sub.ChannelsGetList()
-			if err != nil {
-				log.Fatalf("an error occurred: %s\n", err)
-			}
-
-			for _, c := range channels {
-				channelMap[c.Name] = c
-			}
-
-			xml, err := opml.NewOPMLFromFile(filename)
-			if err != nil {
-				log.Fatalf("An error occurred: %s\n", err)
-			}
-
-			for _, c := range xml.Body.Outlines {
-				if c.HTMLURL != "" {
-					log.Printf("First row item has url: %s\n", c.HTMLURL)
-					continue
-				}
-				if len(c.Outlines) == 0 {
-					continue
-				}
-
-				uid := ""
-
-				if ch, e := channelMap[c.Text]; !e {
-					channelCreated, err := sub.ChannelsCreate(c.Text)
-					if err != nil {
-						log.Printf("An error occurred: %q\n", err)
-						continue
-					}
-
-					uid = channelCreated.UID
-					log.Printf("Channel created: %s\n", c.Text)
-				} else {
-					uid = ch.UID
-				}
-
-				feedMap := make(map[string]bool)
-
-				feeds, err := sub.FollowGetList(uid)
-				if err != nil {
-					log.Fatalf("An error occurred: %q\n", err)
-				}
-
-				for _, f := range feeds {
-					feedMap[f.URL] = true
-				}
-
-				for _, f := range c.Outlines {
-					if f.HTMLURL == "" {
-						log.Println("Missing url on second row item")
-						continue
-					}
-
-					if _, e := feedMap[f.HTMLURL]; !e {
-						_, err := sub.FollowURL(uid, f.HTMLURL)
-						if err != nil {
-							log.Printf("An error occurred: %q\n", err)
-							continue
-						}
-						log.Printf("Feed followed: %s\n", f.HTMLURL)
-					}
-				}
-			}
+			importOpmlIntoMicrosub(sub, filename)
 		} else if filetype == "json" {
-			var export Export
-
-			f, err := os.Open(filename)
-			if err != nil {
-				log.Fatalf("can't open file %s: %s", filename, err)
-			}
-			defer f.Close()
-
-			err = json.NewDecoder(f).Decode(&export)
-			if err != nil {
-				log.Fatalf("error while reading %s: %s", filename, err)
-			}
-
-			channelMap := make(map[string]microsub.Channel)
-
-			channels, err := sub.ChannelsGetList()
-			if err != nil {
-				log.Fatalf("an error occurred: %s\n", err)
-			}
-
-			for _, c := range channels {
-				channelMap[c.Name] = c
-			}
-
-			for _, c := range export.Channels {
-				uid := ""
-
-				if ch, e := channelMap[c.Name]; !e {
-					channelCreated, err := sub.ChannelsCreate(c.Name)
-					if err != nil {
-						log.Printf("An error occurred: %q\n", err)
-						continue
-					}
-
-					uid = channelCreated.UID
-					log.Printf("Channel created: %s\n", c.Name)
-				} else {
-					uid = ch.UID
-				}
-
-				feedMap := make(map[string]bool)
-
-				feeds, err := sub.FollowGetList(uid)
-				if err != nil {
-					log.Fatalf("An error occurred: %q\n", err)
-				}
-
-				for _, f := range feeds {
-					feedMap[f.URL] = true
-				}
-
-				for _, feed := range export.Feeds[uid] {
-
-					if _, e := feedMap[string(feed)]; !e {
-						_, err := sub.FollowURL(uid, string(feed))
-						if err != nil {
-							log.Printf("An error occurred: %q\n", err)
-							continue
-						}
-						log.Printf("Feed followed: %s\n", string(feed))
-					}
-				}
-			}
-
+			importJsonIntoMicrosub(sub, filename)
 		} else {
 			log.Fatalf("unsupported filetype %q", filetype)
 		}
@@ -574,6 +382,196 @@ func performCommands(sub microsub.Microsub, commands []string) {
 
 	if len(commands) == 1 && commands[0] == "version" {
 		fmt.Printf("ek %s\n", Version)
+	}
+}
+
+func exportOpmlFromMicrosub(sub microsub.Microsub) {
+	output := opml.OPML{}
+	output.Head.Title = "Microsub channels and feeds"
+	output.Head.DateCreated = time.Now().Format(time.RFC3339)
+	output.Version = "1.0"
+	channels, err := sub.ChannelsGetList()
+	if err != nil {
+		log.Fatalf("An error occurred: %s\n", err)
+	}
+	for _, c := range channels {
+		var feeds []opml.Outline
+		list, err := sub.FollowGetList(c.UID)
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
+		for _, f := range list {
+			feeds = append(feeds, opml.Outline{
+				Title:   f.Name,
+				Text:    f.Name,
+				Type:    f.Type,
+				URL:     f.URL,
+				HTMLURL: f.URL,
+				XMLURL:  f.URL,
+			})
+		}
+
+		output.Body.Outlines = append(output.Body.Outlines, opml.Outline{
+			Text:     c.Name,
+			Title:    c.Name,
+			Outlines: feeds,
+		})
+	}
+	xml, err := output.XML()
+	if err != nil {
+		log.Fatalf("An error occurred: %s\n", err)
+	}
+	os.Stdout.WriteString(xml)
+}
+
+func exportJsonFromMicrosub(sub microsub.Microsub) {
+	contents := Export{Version: "1.0", Generator: "ek version " + Version}
+	channels, err := sub.ChannelsGetList()
+	if err != nil {
+		log.Fatalf("An error occurred: %s\n", err)
+	}
+	for _, c := range channels {
+		contents.Channels = append(contents.Channels, ExportChannel{UID: c.UID, Name: c.Name})
+	}
+	contents.Feeds = make(map[string][]ExportFeed)
+	for _, c := range channels {
+		list, err := sub.FollowGetList(c.UID)
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
+		for _, f := range list {
+			contents.Feeds[c.UID] = append(contents.Feeds[c.UID], ExportFeed(f.URL))
+		}
+	}
+	err = json.NewEncoder(os.Stdout).Encode(&contents)
+	if err != nil {
+		log.Fatalf("An error occurred: %s\n", err)
+	}
+}
+
+func importJsonIntoMicrosub(sub microsub.Microsub, filename string) {
+	var export Export
+	f, err := os.Open(filename)
+	if err != nil {
+		log.Fatalf("can't open file %s: %s", filename, err)
+	}
+	defer f.Close()
+	err = json.NewDecoder(f).Decode(&export)
+	if err != nil {
+		log.Fatalf("error while reading %s: %s", filename, err)
+	}
+	channelMap := make(map[string]microsub.Channel)
+	channels, err := sub.ChannelsGetList()
+	if err != nil {
+		log.Fatalf("an error occurred: %s\n", err)
+	}
+	for _, c := range channels {
+		channelMap[c.Name] = c
+	}
+	for _, c := range export.Channels {
+		uid := ""
+
+		if ch, e := channelMap[c.Name]; !e {
+			channelCreated, err := sub.ChannelsCreate(c.Name)
+			if err != nil {
+				log.Printf("An error occurred: %q\n", err)
+				continue
+			}
+
+			uid = channelCreated.UID
+			log.Printf("Channel created: %s\n", c.Name)
+		} else {
+			uid = ch.UID
+		}
+
+		feedMap := make(map[string]bool)
+
+		feeds, err := sub.FollowGetList(uid)
+		if err != nil {
+			log.Fatalf("An error occurred: %q\n", err)
+		}
+
+		for _, f := range feeds {
+			feedMap[f.URL] = true
+		}
+
+		for _, feed := range export.Feeds[uid] {
+
+			if _, e := feedMap[string(feed)]; !e {
+				_, err := sub.FollowURL(uid, string(feed))
+				if err != nil {
+					log.Printf("An error occurred: %q\n", err)
+					continue
+				}
+				log.Printf("Feed followed: %s\n", string(feed))
+			}
+		}
+	}
+}
+
+func importOpmlIntoMicrosub(sub microsub.Microsub, filename string) {
+	channelMap := make(map[string]microsub.Channel)
+	channels, err := sub.ChannelsGetList()
+	if err != nil {
+		log.Fatalf("an error occurred: %s\n", err)
+	}
+	for _, c := range channels {
+		channelMap[c.Name] = c
+	}
+	xml, err := opml.NewOPMLFromFile(filename)
+	if err != nil {
+		log.Fatalf("An error occurred: %s\n", err)
+	}
+	for _, c := range xml.Body.Outlines {
+		if c.HTMLURL != "" {
+			log.Printf("First row item has url: %s\n", c.HTMLURL)
+			continue
+		}
+		if len(c.Outlines) == 0 {
+			continue
+		}
+
+		uid := ""
+
+		if ch, e := channelMap[c.Text]; !e {
+			channelCreated, err := sub.ChannelsCreate(c.Text)
+			if err != nil {
+				log.Printf("An error occurred: %q\n", err)
+				continue
+			}
+
+			uid = channelCreated.UID
+			log.Printf("Channel created: %s\n", c.Text)
+		} else {
+			uid = ch.UID
+		}
+
+		feedMap := make(map[string]bool)
+
+		feeds, err := sub.FollowGetList(uid)
+		if err != nil {
+			log.Fatalf("An error occurred: %q\n", err)
+		}
+
+		for _, f := range feeds {
+			feedMap[f.URL] = true
+		}
+
+		for _, f := range c.Outlines {
+			if f.HTMLURL == "" {
+				log.Println("Missing url on second row item")
+				continue
+			}
+
+			if _, e := feedMap[f.HTMLURL]; !e {
+				_, err := sub.FollowURL(uid, f.HTMLURL)
+				if err != nil {
+					log.Printf("An error occurred: %q\n", err)
+					continue
+				}
+				log.Printf("Feed followed: %s\n", f.HTMLURL)
+			}
+		}
 	}
 }
 
