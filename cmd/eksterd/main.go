@@ -60,6 +60,11 @@ func newPool(addr string) *redis.Pool {
 
 func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
 		authorization := r.Header.Get("Authorization")
 
 		var token auth.TokenResponse
