@@ -110,6 +110,7 @@ func setCachedTokenResponseValue(conn redis.Conn, key string, r *auth.TokenRespo
 		return fmt.Errorf("error while setting token: %v", err)
 	}
 	conn.Do("EXPIRE", key, uint64(10*time.Minute/time.Second))
+	return nil
 }
 
 // getCachedValue gets the cached value from Redis
