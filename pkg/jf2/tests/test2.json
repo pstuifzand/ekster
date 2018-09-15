@@ -1,0 +1,25 @@
+{
+  "type": [
+    "h-entry"
+  ],
+  "properties": {
+    "name": [
+      "name test"
+    ],
+    "photo": [
+      "https://peterstuifzand.nl/img/profile.jpg"
+    ],
+    "author": [
+      {
+        "type": [
+          "h-card"
+        ],
+        "properties": {
+          "name": [
+            "Peter"
+          ]
+        }
+      }
+    ]
+  }
+}
