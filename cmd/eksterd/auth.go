@@ -62,26 +62,6 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 	return authorized
 }
 
-// setCachedTokenResponseValue remembers the value of the auth token response in redis
-func setCachedTokenResponseValue(conn redis.Conn, key string, r *auth.TokenResponse) error {
-	_, err := conn.Do("HMSET", redis.Args{}.Add(key).AddFlat(r)...)
-	if err != nil {
-		return fmt.Errorf("error while setting token: %v", err)
-	}
-	conn.Do("EXPIRE", key, uint64(10*time.Minute/time.Second))
-}
-
-// getCachedValue gets the cached value from Redis
-func getCachedValue(conn redis.Conn, key string, r *auth.TokenResponse) (bool, error) {
-	values, err := redis.Values(conn.Do("HGETALL", key))
-	if err == nil && len(values) > 0 {
-		if err = redis.ScanStruct(values, r); err == nil {
-			return true, nil
-		}
-	}
-	return false, fmt.Errorf("error while getting value from backend: %v", err)
-}
-
 func (b *memoryBackend) checkAuthToken(header string, token *auth.TokenResponse) bool {
 	log.Println("Checking auth token")
 
@@ -118,4 +98,24 @@ func (b *memoryBackend) checkAuthToken(header string, token *auth.TokenResponse)
 
 	log.Println("Auth Token: Success")
 	return true
+}
+
+// setCachedTokenResponseValue remembers the value of the auth token response in redis
+func setCachedTokenResponseValue(conn redis.Conn, key string, r *auth.TokenResponse) error {
+	_, err := conn.Do("HMSET", redis.Args{}.Add(key).AddFlat(r)...)
+	if err != nil {
+		return fmt.Errorf("error while setting token: %v", err)
+	}
+	conn.Do("EXPIRE", key, uint64(10*time.Minute/time.Second))
+}
+
+// getCachedValue gets the cached value from Redis
+func getCachedValue(conn redis.Conn, key string, r *auth.TokenResponse) (bool, error) {
+	values, err := redis.Values(conn.Do("HGETALL", key))
+	if err == nil && len(values) > 0 {
+		if err = redis.ScanStruct(values, r); err == nil {
+			return true, nil
+		}
+	}
+	return false, fmt.Errorf("error while getting value from backend: %v", err)
 }
