@@ -69,6 +69,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	const OutputContentType = "application/json; charset=utf-8"
 	if r.Method == http.MethodGet {
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 		values := r.URL.Query()
@@ -80,7 +81,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			jw := json.NewEncoder(w)
-			w.Header().Add("Content-Type", "application/json")
+			w.Header().Add("Content-Type", OutputContentType)
 			err = jw.Encode(map[string][]microsub.Channel{
 				"channels": channels,
 			})
@@ -95,7 +96,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			jw := json.NewEncoder(w)
-			w.Header().Add("Content-Type", "application/json")
+			w.Header().Add("Content-Type", OutputContentType)
 			jw.SetIndent("", "    ")
 			jw.SetEscapeHTML(false)
 			err = jw.Encode(timeline)
@@ -111,7 +112,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			jw := json.NewEncoder(w)
 			jw.SetIndent("", "    ")
-			w.Header().Add("Content-Type", "application/json")
+			w.Header().Add("Content-Type", OutputContentType)
 			err = jw.Encode(timeline)
 			if err != nil {
 				http.Error(w, err.Error(), 500)
@@ -125,7 +126,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			jw := json.NewEncoder(w)
-			w.Header().Add("Content-Type", "application/json")
+			w.Header().Add("Content-Type", OutputContentType)
 			err = jw.Encode(map[string][]microsub.Feed{
 				"items": following,
 			})
@@ -157,7 +158,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, err.Error(), 500)
 					return
 				}
-				w.Header().Add("Content-Type", "application/json")
+				w.Header().Add("Content-Type", OutputContentType)
 				fmt.Fprintln(w, "[]")
 				h.Backend.(Debug).Debug()
 				return
@@ -170,7 +171,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, err.Error(), 500)
 					return
 				}
-				w.Header().Add("Content-Type", "application/json")
+				w.Header().Add("Content-Type", OutputContentType)
 				err = jw.Encode(channel)
 				if err != nil {
 					http.Error(w, err.Error(), 500)
@@ -182,7 +183,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, err.Error(), 500)
 					return
 				}
-				w.Header().Add("Content-Type", "application/json")
+				w.Header().Add("Content-Type", OutputContentType)
 				err = jw.Encode(channel)
 				if err != nil {
 					http.Error(w, err.Error(), 500)
@@ -199,7 +200,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			w.Header().Add("Content-Type", "application/json")
+			w.Header().Add("Content-Type", OutputContentType)
 			jw := json.NewEncoder(w)
 			err = jw.Encode(feed)
 			if err != nil {
@@ -214,7 +215,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			w.Header().Add("Content-Type", "application/json")
+			w.Header().Add("Content-Type", OutputContentType)
 			fmt.Fprintln(w, "[]")
 		} else if action == "search" {
 			query := values.Get("query")
@@ -224,7 +225,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			jw := json.NewEncoder(w)
-			w.Header().Add("Content-Type", "application/json")
+			w.Header().Add("Content-Type", OutputContentType)
 			err = jw.Encode(map[string][]microsub.Feed{
 				"results": feeds,
 			})
@@ -264,7 +265,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, fmt.Sprintf("unknown method in timeline %s\n", method), 500)
 				return
 			}
-			w.Header().Add("Content-Type", "application/json")
+			w.Header().Add("Content-Type", OutputContentType)
 			fmt.Fprintln(w, "[]")
 		} else {
 			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 500)
