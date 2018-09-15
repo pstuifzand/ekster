@@ -318,8 +318,8 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	}
 
 	if len(commands) == 2 && commands[0] == "preview" {
-		url := commands[1]
-		timeline, err := sub.PreviewURL(url)
+		u := commands[1]
+		timeline, err := sub.PreviewURL(u)
 
 		if err != nil {
 			log.Fatalf("An error occurred: %s\n", err)
@@ -342,8 +342,8 @@ func performCommands(sub microsub.Microsub, commands []string) {
 
 	if len(commands) == 3 && commands[0] == "follow" {
 		uid := commands[1]
-		url := commands[2]
-		_, err := sub.FollowURL(uid, url)
+		u := commands[2]
+		_, err := sub.FollowURL(uid, u)
 		if err != nil {
 			log.Fatalf("An error occurred: %s\n", err)
 		}
@@ -352,8 +352,8 @@ func performCommands(sub microsub.Microsub, commands []string) {
 
 	if len(commands) == 3 && commands[0] == "unfollow" {
 		uid := commands[1]
-		url := commands[2]
-		err := sub.UnfollowURL(uid, url)
+		u := commands[2]
+		err := sub.UnfollowURL(uid, u)
 		if err != nil {
 			log.Fatalf("An error occurred: %s\n", err)
 		}
