@@ -1,11 +1,6 @@
 # ekster
 
-a microsub server
-
-
-## Warning!
-
-Very alpha: no warranty.
+a [Microsub](https://indieweb.org/Microsub) server
 
 ## Installing and running ekster
 
@@ -19,7 +14,7 @@ you need a Go environment. Use these commands to install the programs.
     go get -u p83.nl/go/ekster/cmd/eksterd
     go get -u p83.nl/go/ekster/cmd/ek
 
-`eksterd` uses [Redis](https://redis.io/) as the database, to temporarily save
+`eksterd` uses [Redis](https://redis.io/) as the database to temporarily save
 the items and feeds. The more permanent information is saved in `backend.json`.
 
 #### Running eksterd
@@ -162,3 +157,7 @@ Micropub client.
 `ekster` will check every 10 minutes, if the token is still valid. This could
 be retrieved automatically, but this doesn't happen at the moment.
 
+## Other Microsub projects
+
+* <https://indieweb.org/Microsub>
+* Aperture: [code](https://github.com/aaronparecki/Aperture), [hosted](https://aperture.p3k.io)
