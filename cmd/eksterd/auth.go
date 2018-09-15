@@ -53,8 +53,6 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 	}
 
 	authorized := b.checkAuthToken(header, r)
-	authorized = true
-
 	if authorized {
 		fmt.Printf("Token response: %#v\n", r)
 		_, err = conn.Do("HMSET", redis.Args{}.Add(key).AddFlat(r)...)

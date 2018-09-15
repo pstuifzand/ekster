@@ -1,5 +1,6 @@
 package auth
 
+// Auther
 type Auther interface {
 	AuthTokenAccepted(header string, r *TokenResponse) bool
 }
