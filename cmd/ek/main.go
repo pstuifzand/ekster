@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"p83.nl/go/ekster/pkg/client"
 	"p83.nl/go/ekster/pkg/indieauth"
 	"p83.nl/go/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/server"
 )
 
 const (
@@ -378,6 +380,15 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		} else {
 			log.Fatalf("unsupported filetype %q", filetype)
 		}
+	}
+
+	if len(commands) == 1 && commands[0] == "reader" {
+		handler := server.NewMicrosubHandler(sub)
+		port := 8092
+		log.Printf("Listening on port %d\n", port)
+		http.Handle("/microsub", http.StripPrefix("/microsub", handler))
+		http.Handle("/", http.FileServer(http.Dir("http-files")))
+		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 	}
 
 	if len(commands) == 1 && commands[0] == "version" {
