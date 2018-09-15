@@ -43,12 +43,16 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 
 	var err error
 
-	areweauth, err := getCachedValue(conn, key, r)
-	if areweauth {
+	authorized, err := getCachedValue(conn, key, r)
+	if err != nil {
+		log.Println(err)
+	}
+
+	if authorized {
 		return true
 	}
 
-	authorized := b.checkAuthToken(header, r)
+	authorized = b.checkAuthToken(header, r)
 	if authorized {
 		fmt.Printf("Token response: %#v\n", r)
 		setCachedTokenResponseValue(err, conn, key, r)
