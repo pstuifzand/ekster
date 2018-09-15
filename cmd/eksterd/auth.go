@@ -67,14 +67,10 @@ func (b *memoryBackend) checkAuthToken(header string, token *auth.TokenResponse)
 
 	tokenEndpoint := b.TokenEndpoint
 
-	req, err := http.NewRequest("GET", tokenEndpoint, nil)
+	req, err := buildValidateAuthTokenRequest(tokenEndpoint, header)
 	if err != nil {
-		log.Println(err)
 		return false
 	}
-
-	req.Header.Add("Authorization", header)
-	req.Header.Add("Accept", "application/json")
 
 	client := http.Client{}
 	res, err := client.Do(req)
@@ -98,6 +94,13 @@ func (b *memoryBackend) checkAuthToken(header string, token *auth.TokenResponse)
 
 	log.Println("Auth Token: Success")
 	return true
+}
+
+func buildValidateAuthTokenRequest(tokenEndpoint string, header string) (*http.Request, error) {
+	req, err := http.NewRequest("GET", tokenEndpoint, nil)
+	req.Header.Add("Authorization", header)
+	req.Header.Add("Accept", "application/json")
+	return req, err
 }
 
 // setCachedTokenResponseValue remembers the value of the auth token response in redis
