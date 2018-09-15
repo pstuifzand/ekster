@@ -55,7 +55,7 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 	authorized = b.checkAuthToken(header, r)
 	if authorized {
 		fmt.Printf("Token response: %#v\n", r)
-		setCachedTokenResponseValue(err, conn, key, r)
+		setCachedTokenResponseValue(conn, key, r)
 		return true
 	}
 
@@ -63,8 +63,8 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 }
 
 // setCachedTokenResponseValue remembers the value of the auth token response in redis
-func setCachedTokenResponseValue(err error, conn redis.Conn, key string, r *auth.TokenResponse) {
-	_, err = conn.Do("HMSET", redis.Args{}.Add(key).AddFlat(r)...)
+func setCachedTokenResponseValue(conn redis.Conn, key string, r *auth.TokenResponse) {
+	_, err := conn.Do("HMSET", redis.Args{}.Add(key).AddFlat(r)...)
 	if err != nil {
 		log.Printf("Error while setting token: %v\n", err)
 	} else {
