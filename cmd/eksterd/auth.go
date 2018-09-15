@@ -35,13 +35,13 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 	log.Println("Cached checking Auth Token")
 
 	tokens := authHeaderRegex.FindStringSubmatch(header)
+
 	if len(tokens) != 2 {
 		log.Println("No token found in the header")
 		return false
 	}
-	key := fmt.Sprintf("token:%s", tokens[1])
 
-	var err error
+	key := fmt.Sprintf("token:%s", tokens[1])
 
 	authorized, err := getCachedValue(conn, key, r)
 	if err != nil {
