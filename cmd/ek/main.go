@@ -168,6 +168,8 @@ Commands:
 	export json                  export feeds as json
 	import json FILENAME         import json feeds
 
+	reader                       start http reader interface
+
 Global arguments:
 
 `)
