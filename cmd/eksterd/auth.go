@@ -43,13 +43,9 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 
 	var err error
 
-	values, err := redis.Values(conn.Do("HGETALL", key))
-	if err == nil && len(values) > 0 {
-		if err = redis.ScanStruct(values, r); err == nil {
-			return true
-		}
-	} else {
-		log.Printf("Error while HGETALL %v\n", err)
+	areweauth, err := getCachedValue(err, conn, key, r)
+	if areweauth {
+		return true
 	}
 
 	authorized := b.checkAuthToken(header, r)
@@ -73,6 +69,16 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 	}
 
 	return authorized
+}
+
+func getCachedValue(err error, conn redis.Conn, key string, r *auth.TokenResponse) (bool, error) {
+	values, err := redis.Values(conn.Do("HGETALL", key))
+	if err == nil && len(values) > 0 {
+		if err = redis.ScanStruct(values, r); err == nil {
+			return true, nil
+		}
+	}
+	return false, fmt.Errorf("error while getting value from backend: %v", err)
 }
 
 func (b *memoryBackend) checkAuthToken(header string, token *auth.TokenResponse) bool {
