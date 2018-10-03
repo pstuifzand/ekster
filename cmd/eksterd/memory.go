@@ -154,15 +154,17 @@ func createMemoryBackend() microsub.Microsub {
 	backend := memoryBackend{}
 	backend.lock.Lock()
 
-	backend.Channels = make(map[string]microsub.Channel)
 	backend.Feeds = make(map[string][]microsub.Feed)
 	channels := []microsub.Channel{
 		{UID: "notifications", Name: "Notifications"},
 		{UID: "home", Name: "Home"},
 	}
+
+	backend.Channels = make(map[string]microsub.Channel)
 	for _, c := range channels {
 		backend.Channels[c.UID] = c
 	}
+
 	backend.NextUid = 1000000
 	backend.Me = "https://example.com/"
 
