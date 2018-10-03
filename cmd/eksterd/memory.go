@@ -119,13 +119,12 @@ func (b *memoryBackend) refreshChannels() {
 	conn.Do("SETNX", "channel_sortorder_notifications", 1)
 
 	b.lock.RLock()
-	defer b.lock.RUnlock()
-
 	for uid, channel := range b.Channels {
 		log.Printf("loading channel %s - %s\n", uid, channel.Name)
 		conn.Do("SADD", "channels", uid)
 		conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
 	}
+	b.lock.RUnlock()
 }
 
 func (b *memoryBackend) save() {
