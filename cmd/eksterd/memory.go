@@ -123,8 +123,7 @@ func (b *memoryBackend) refreshChannels() {
 	b.lock.RLock()
 	for uid, channel := range b.Channels {
 		log.Printf("loading channel %s - %s\n", uid, channel.Name)
-		conn.Do("SADD", "channels", uid)
-		conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
+		updateChannelInRedis(conn, channel)
 	}
 	b.lock.RUnlock()
 }
@@ -222,6 +221,12 @@ func (b *memoryBackend) setChannel(channel microsub.Channel) {
 	b.NextUid++
 }
 
+func updateChannelInRedis(conn redis.Conn, channel microsub.Channel) {
+	uid := channel.UID
+	conn.Do("SADD", "channels", uid)
+	conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
+}
+
 // ChannelsCreate creates a channels
 func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 	defer b.save()
@@ -232,15 +237,9 @@ func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
-	updateChannelInRedis(channel, conn)
+	updateChannelInRedis(conn, channel)
 
 	return channel, nil
-}
-
-func updateChannelInRedis(channel microsub.Channel, conn redis.Conn) {
-	uid := channel.UID
-	conn.Do("SADD", "channels", uid)
-	conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
 }
 
 // ChannelsUpdate updates a channels
