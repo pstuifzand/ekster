@@ -267,6 +267,11 @@ func (b *memoryBackend) ChannelsUpdate(uid, name string) (microsub.Channel, erro
 	return microsub.Channel{}, fmt.Errorf("Channel %s does not exist", uid)
 }
 
+func removeChannelFromRedis(conn redis.Conn, uid string) {
+	conn.Do("SREM", "channels", uid)
+	conn.Do("DEL", "channel_sortorder_"+uid)
+}
+
 // ChannelsDelete deletes a channel
 func (b *memoryBackend) ChannelsDelete(uid string) error {
 	defer b.save()
@@ -274,8 +279,7 @@ func (b *memoryBackend) ChannelsDelete(uid string) error {
 	conn := pool.Get()
 	defer conn.Close()
 
-	conn.Do("SREM", "channels", uid)
-	conn.Do("DEL", "channel_sortorder_"+uid)
+	removeChannelFromRedis(conn, uid)
 
 	b.lock.Lock()
 	delete(b.Channels, uid)
