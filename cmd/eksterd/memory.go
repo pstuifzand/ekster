@@ -227,16 +227,18 @@ func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 	channel := b.createChannel(name)
 	b.setChannel(channel)
 
-	b.setChannel(channel)
-
 	conn := pool.Get()
 	defer conn.Close()
 
+	updateChannelInRedis(channel, conn)
+
+	return channel, nil
+}
+
+func updateChannelInRedis(channel microsub.Channel, conn redis.Conn) {
 	uid := channel.UID
 	conn.Do("SADD", "channels", uid)
 	conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
-
-	return channel, nil
 }
 
 // ChannelsUpdate updates a channels
