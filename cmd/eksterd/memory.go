@@ -108,12 +108,15 @@ func (b *memoryBackend) load() error {
 		return err
 	}
 
+	return nil
+}
+
+func (b *memoryBackend) refreshChannels() {
 	conn := pool.Get()
 	defer conn.Close()
 
-	conn.Do("SETNX", "channel_sortorder_notifications", 1)
-
 	conn.Do("DEL", "channels")
+	conn.Do("SETNX", "channel_sortorder_notifications", 1)
 
 	b.lock.RLock()
 	defer b.lock.RUnlock()
@@ -123,8 +126,6 @@ func (b *memoryBackend) load() error {
 		conn.Do("SADD", "channels", uid)
 		conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
 	}
-
-	return nil
 }
 
 func (b *memoryBackend) save() {
@@ -145,6 +146,7 @@ func loadMemoryBackend() microsub.Microsub {
 		log.Printf("Error while loadingbackend: %v\n", err)
 		return nil
 	}
+	backend.refreshChannels()
 
 	return backend
 }
