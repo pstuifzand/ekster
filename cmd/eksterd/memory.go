@@ -41,6 +41,8 @@ import (
 	"willnorris.com/go/microformats"
 )
 
+const DefaultPrio = 9999999
+
 type memoryBackend struct {
 	hubIncomingBackend
 
@@ -117,14 +119,14 @@ func (b *memoryBackend) refreshChannels() {
 
 	conn.Do("DEL", "channels")
 
-	conn.Do("SADD", "channels", "notifications")
-	conn.Do("SETNX", "channel_sortorder_notifications", 1)
+	updateChannelInRedis(conn, "notifications", 1)
 
 	b.lock.RLock()
 	for uid, channel := range b.Channels {
 		log.Printf("loading channel %s - %s\n", uid, channel.Name)
-		updateChannelInRedis(conn, channel)
+		updateChannelInRedis(conn, channel.UID, DefaultPrio)
 	}
+
 	b.lock.RUnlock()
 }
 
@@ -221,10 +223,9 @@ func (b *memoryBackend) setChannel(channel microsub.Channel) {
 	b.NextUid++
 }
 
-func updateChannelInRedis(conn redis.Conn, channel microsub.Channel) {
-	uid := channel.UID
+func updateChannelInRedis(conn redis.Conn, uid string, prio int) {
 	conn.Do("SADD", "channels", uid)
-	conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
+	conn.Do("SETNX", "channel_sortorder_"+uid, prio)
 }
 
 // ChannelsCreate creates a channels
@@ -237,7 +238,7 @@ func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
-	updateChannelInRedis(conn, channel)
+	updateChannelInRedis(conn, channel.UID, DefaultPrio)
 
 	return channel, nil
 }
