@@ -206,28 +206,6 @@ func (b *memoryBackend) ChannelsGetList() ([]microsub.Channel, error) {
 	return channels, nil
 }
 
-func (b *memoryBackend) createChannel(name string) microsub.Channel {
-	uid := fmt.Sprintf("%012d", b.NextUid)
-	channel := microsub.Channel{
-		UID:  uid,
-		Name: name,
-	}
-	return channel
-}
-
-func (b *memoryBackend) setChannel(channel microsub.Channel) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	b.Channels[channel.UID] = channel
-	b.Feeds[channel.UID] = []microsub.Feed{}
-	b.NextUid++
-}
-
-func updateChannelInRedis(conn redis.Conn, uid string, prio int) {
-	conn.Do("SADD", "channels", uid)
-	conn.Do("SETNX", "channel_sortorder_"+uid, prio)
-}
-
 // ChannelsCreate creates a channels
 func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 	defer b.save()
@@ -265,11 +243,6 @@ func (b *memoryBackend) ChannelsUpdate(uid, name string) (microsub.Channel, erro
 	}
 
 	return microsub.Channel{}, fmt.Errorf("Channel %s does not exist", uid)
-}
-
-func removeChannelFromRedis(conn redis.Conn, uid string) {
-	conn.Do("SREM", "channels", uid)
-	conn.Do("DEL", "channel_sortorder_"+uid)
 }
 
 // ChannelsDelete deletes a channel
@@ -853,4 +826,31 @@ func (b *memoryBackend) sendMessage(msg microsub.Message) {
 func (b *memoryBackend) AddEventListener(el microsub.EventListener) error {
 	b.listeners = append(b.listeners, el)
 	return nil
+}
+
+func (b *memoryBackend) createChannel(name string) microsub.Channel {
+	uid := fmt.Sprintf("%012d", b.NextUid)
+	channel := microsub.Channel{
+		UID:  uid,
+		Name: name,
+	}
+	return channel
+}
+
+func (b *memoryBackend) setChannel(channel microsub.Channel) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.Channels[channel.UID] = channel
+	b.Feeds[channel.UID] = []microsub.Feed{}
+	b.NextUid++
+}
+
+func updateChannelInRedis(conn redis.Conn, uid string, prio int) {
+	conn.Do("SADD", "channels", uid)
+	conn.Do("SETNX", "channel_sortorder_"+uid, prio)
+}
+
+func removeChannelFromRedis(conn redis.Conn, uid string) {
+	conn.Do("SREM", "channels", uid)
+	conn.Do("DEL", "channel_sortorder_"+uid)
 }
