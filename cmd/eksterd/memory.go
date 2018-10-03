@@ -203,25 +203,36 @@ func (b *memoryBackend) ChannelsGetList() ([]microsub.Channel, error) {
 	return channels, nil
 }
 
-// ChannelsCreate creates a channels
-func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
-	defer b.save()
-
-	conn := pool.Get()
-	defer conn.Close()
-
-	uid := fmt.Sprintf("%04d", b.NextUid)
+func (b *memoryBackend) createChannel(name string) microsub.Channel {
+	uid := fmt.Sprintf("%012d", b.NextUid)
 	channel := microsub.Channel{
 		UID:  uid,
 		Name: name,
 	}
+	return channel
+}
 
+func (b *memoryBackend) setChannel(channel microsub.Channel) {
 	b.lock.Lock()
+	defer b.lock.Unlock()
 	b.Channels[channel.UID] = channel
 	b.Feeds[channel.UID] = []microsub.Feed{}
 	b.NextUid++
-	b.lock.Unlock()
+}
 
+// ChannelsCreate creates a channels
+func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
+	defer b.save()
+
+	channel := b.createChannel(name)
+	b.setChannel(channel)
+
+	b.setChannel(channel)
+
+	conn := pool.Get()
+	defer conn.Close()
+
+	uid := channel.UID
 	conn.Do("SADD", "channels", uid)
 	conn.Do("SETNX", "channel_sortorder_"+uid, 99999)
 
