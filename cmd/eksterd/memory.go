@@ -116,6 +116,8 @@ func (b *memoryBackend) refreshChannels() {
 	defer conn.Close()
 
 	conn.Do("DEL", "channels")
+
+	conn.Do("SADD", "channels", "notifications")
 	conn.Do("SETNX", "channel_sortorder_notifications", 1)
 
 	b.lock.RLock()
