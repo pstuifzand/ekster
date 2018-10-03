@@ -169,10 +169,6 @@ func createMemoryBackend() microsub.Microsub {
 	backend.lock.Unlock()
 
 	backend.save()
-
-	log.Println(`Config file "backend.json" is created in the current directory.`)
-	log.Println(`Update "Me" variable to your website address "https://example.com/"`)
-	log.Println(`Update "TokenEndpoint" variable to the address of your token endpoint "https://example.com/token"`)
 	return &backend
 }
 
