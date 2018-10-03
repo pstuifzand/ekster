@@ -6,7 +6,12 @@ a [Microsub](https://indieweb.org/Microsub) server
 
 There are two methods for installing and running ekster.
 
-### Method 1: Install ekster (from source)
+### Method 1: From binaries
+
+Download the binaries from the [latest release](https://github.com/pstuifzand/ekster/releases/) on Github.
+
+
+### Method 2: Install ekster from source with Go
 
 ekster is build using [go](https://golang.org). To be able to install ekster
 you need a Go environment. Use these commands to install the programs.
@@ -38,7 +43,7 @@ Start eksterd and pass the redis and port arguments.
 You can now access `eksterd` on port `8090`. To really use it, you should proxy
 `eksterd` behind a HTTP reverse proxy on port 80, or 443.
 
-### Method 2: Using Docker / Docker Compose
+### Method 3: Using Docker / Docker Compose
 
 It's now also possible to use docker-compose to start an ekster server. Create an empty directory. 
 Download [docker-compose.yml](https://raw.githubusercontent.com/pstuifzand/ekster/master/docker-compose.yml) from Github 
