@@ -22,18 +22,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"net/url"
 	"os"
 	"time"
 
+	"github.com/gilliek/go-opml/opml"
 	"p83.nl/go/ekster/pkg/client"
 	"p83.nl/go/ekster/pkg/indieauth"
 	"p83.nl/go/ekster/pkg/microsub"
-	"p83.nl/go/ekster/pkg/server"
-
-	"github.com/GeertJohan/go.rice"
-	"github.com/gilliek/go-opml/opml"
 )
 
 const (
@@ -169,8 +165,6 @@ Commands:
 
 	export json                  export feeds as json
 	import json FILENAME         import json feeds
-
-	reader                       start http reader interface
 
 Global arguments:
 
@@ -386,28 +380,9 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		}
 	}
 
-	if len(commands) == 1 && commands[0] == "reader" {
-		handler := server.NewMicrosubHandler(sub)
-		port := 8092
-		log.Printf("Listening on port %d\n", port)
-		http.Handle("/microsub", http.StripPrefix("/microsub", handler))
-		box := rice.MustFindBox("http-files")
-		http.Handle("/css/", http.FileServer(box.HTTPBox()))
-		http.Handle("/js/", http.FileServer(box.HTTPBox()))
-		http.Handle("/", AlwaysIndex(http.FileServer(box.HTTPBox())))
-		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
-	}
-
 	if len(commands) == 1 && commands[0] == "version" {
 		fmt.Printf("ek %s\n", Version)
 	}
-}
-
-func AlwaysIndex(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = "/"
-		handler.ServeHTTP(w, r)
-	})
 }
 
 func exportOpmlFromMicrosub(sub microsub.Microsub) {
