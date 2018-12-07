@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -39,6 +40,14 @@ func GetEndpoints(me *url.URL) (Endpoints, error) {
 		return endpoints, err
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return endpoints, fmt.Errorf("error from endpoint while reading body %d", res.StatusCode)
+		}
+		return endpoints, fmt.Errorf("error from endpoint %d: %s", res.StatusCode, body)
+	}
 
 	var links linkheader.Links
 
