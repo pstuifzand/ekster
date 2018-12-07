@@ -169,16 +169,21 @@ func simplify(itemType string, item map[string][]interface{}, author map[string]
 	return feedItem
 }
 func simplifyCard(v []interface{}) (map[string]string, error) {
+	card := make(map[string]string)
+	card["type"] = "card"
+
 	if value, ok := v[0].(*microformats.Microformat); ok {
-		card := make(map[string]string)
-		card["type"] = "card"
 		for ik, vk := range value.Properties {
 			if p, ok := vk[0].(string); ok {
 				card[ik] = p
 			}
 		}
 		return card, nil
+	} else if value, ok := v[0].(string); ok {
+		card["url"] = value
+		return card, nil
 	}
+
 	return nil, fmt.Errorf("not convertable to a card %q", v)
 }
 
@@ -226,9 +231,9 @@ func SimplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
 
 		newItem := SimplifyMicroformat(item, nil)
 		delete(newItem, "children")
-		// if newItem["type"] == "entry" || newItem["type"] == "event" || newItem["type"] == "card" {
-		// 	items = append(items, newItem)
-		// }
+		if newItem["type"] == "entry" || newItem["type"] == "event" || newItem["type"] == "card" {
+			items = append(items, newItem)
+		}
 		// if c, e := newItem["children"]; e {
 		// 	if ar, ok := c.([]map[string]interface{}); ok {
 		// 		for _, item := range ar {
