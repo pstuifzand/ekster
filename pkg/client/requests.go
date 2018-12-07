@@ -127,6 +127,13 @@ func (c *Client) ChannelsGetList() ([]microsub.Channel, error) {
 		return []microsub.Channel{}, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return []microsub.Channel{}, fmt.Errorf("HTTP Status is not 200, but %d, error while reading body", res.StatusCode)
+		}
+		return []microsub.Channel{}, fmt.Errorf("HTTP Status is not 200, but %d: %s", res.StatusCode, body)
+	}
 
 	type channelsResponse struct {
 		Channels []microsub.Channel `json:"channels"`
@@ -149,6 +156,13 @@ func (c *Client) TimelineGet(before, after, channel string) (microsub.Timeline, 
 		return microsub.Timeline{}, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return microsub.Timeline{}, fmt.Errorf("HTTP Status is not 200, but %d, error while reading body", res.StatusCode)
+		}
+		return microsub.Timeline{}, fmt.Errorf("HTTP Status is not 200, but %d: %s", res.StatusCode, body)
+	}
 	dec := json.NewDecoder(res.Body)
 	var timeline microsub.Timeline
 	err = dec.Decode(&timeline)
@@ -166,8 +180,16 @@ func (c *Client) PreviewURL(url string) (microsub.Timeline, error) {
 		return microsub.Timeline{}, err
 	}
 	defer res.Body.Close()
-	dec := json.NewDecoder(res.Body)
+
 	var timeline microsub.Timeline
+	if res.StatusCode != 200 {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return timeline, fmt.Errorf("HTTP Status is not 200, but %d, error while reading body", res.StatusCode)
+		}
+		return timeline, fmt.Errorf("HTTP Status is not 200, but %d: %s", res.StatusCode, body)
+	}
+	dec := json.NewDecoder(res.Body)
 	err = dec.Decode(&timeline)
 	if err != nil {
 		return microsub.Timeline{}, err
@@ -183,6 +205,13 @@ func (c *Client) FollowGetList(channel string) ([]microsub.Feed, error) {
 		return []microsub.Feed{}, nil
 	}
 	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return []microsub.Feed{}, fmt.Errorf("HTTP Status is not 200, but %d, error while reading body", res.StatusCode)
+		}
+		return []microsub.Feed{}, fmt.Errorf("HTTP Status is not 200, but %d: %s", res.StatusCode, body)
+	}
 	dec := json.NewDecoder(res.Body)
 	type followResponse struct {
 		Items []microsub.Feed `json:"items"`
