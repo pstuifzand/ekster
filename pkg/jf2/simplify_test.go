@@ -94,62 +94,6 @@ import (
 // 	}
 // }
 
-func TestMapToAuthor(t *testing.T) {
-	cardmap := make(map[string]string)
-
-	cardmap["name"] = "Peter"
-	cardmap["url"] = "https://p83.nl/"
-	cardmap["photo"] = "https://peterstuifzand.nl/img/profile.jpg"
-
-	card := MapToAuthor(cardmap)
-
-	if card.Type != "card" {
-		t.Error("mapped author type is not card")
-	}
-	if card.Name != cardmap["name"] {
-		t.Errorf("%q is not equal to %q", card.Name, "Peter")
-	}
-	if card.URL != cardmap["url"] {
-		t.Errorf("%q is not equal to %q", card.URL, cardmap["url"])
-	}
-	if card.Photo != cardmap["photo"] {
-		t.Errorf("%q is not equal to %q", card.Photo, cardmap["photo"])
-	}
-}
-
-func TestMapToItem(t *testing.T) {
-	itemmap := make(map[string]interface{})
-	itemmap["type"] = "entry"
-	itemmap["name"] = "Title"
-	c := make(map[string]interface{})
-	c["text"] = "Simple content"
-	c["html"] = "<p>Simple content</p>"
-	itemmap["content"] = c
-	itemmap["like-of"] = []string{
-		"https://p83.nl/",
-		"https://p83.nl/test.html",
-	}
-	item := MapToItem(itemmap)
-	if item.Type != "entry" {
-		t.Errorf("Expected Type entry, was %q", item.Type)
-	}
-	if item.Name != "Title" {
-		t.Errorf("Expected Name == %q, was actually %q", "Title", item.Name)
-	}
-	if item.Content.Text != "Simple content" {
-		t.Errorf("Expected Content.Text == %q, was actually %q", "Simple content", item.Content.Text)
-	}
-	if item.Content.HTML != "<p>Simple content</p>" {
-		t.Errorf("Expected Content.HTML == %q, was actually %q", "<p>Simple content</p>", item.Content.HTML)
-	}
-	// if val := item.LikeOf[0]; val != "https://p83.nl/" {
-	// 	t.Errorf("Expected LikeOf[0] == %q, was actually %q", "https://p83.nl/", val)
-	// }
-	// if val := item.LikeOf[1]; val != "https://p83.nl/test.html" {
-	// 	t.Errorf("Expected LikeOf[1] == %q, was actually %q", "https://p83.nl/test.html", val)
-	// }
-}
-
 func TestConvertItem0(t *testing.T) {
 	var item microsub.Item
 	var mdItem microformats.Microformat

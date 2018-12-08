@@ -92,8 +92,8 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			item = jf2.MapToItem(jf2.SimplifyMicroformat(&mfItem, nil))
-			ok = true
+			author := microsub.Card{}
+			item, ok = jf2.SimplifyMicroformatItem(&mfItem, author)
 		} else if r.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
 			content := r.FormValue("content")
 			name := r.FormValue("name")

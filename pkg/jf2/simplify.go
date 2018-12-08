@@ -18,411 +18,239 @@
 package jf2
 
 import (
-	"fmt"
 	"log"
-	"reflect"
-	"strings"
-	"time"
 
 	"p83.nl/go/ekster/pkg/microsub"
 
 	"willnorris.com/go/microformats"
 )
 
-func ConvertItemProps(item interface{}, props map[string][]interface{}) {
-	sv := reflect.ValueOf(item).Elem()
-	st := reflect.TypeOf(item).Elem()
+func simplifyRefItem(k string, v []interface{}) (string, bool, microsub.Item) {
+	item := microsub.Item{}
 
-	for i := 0; i < st.NumField(); i++ {
-		ft := st.Field(i)
-		fv := sv.Field(i)
-
-		if value, ok := ft.Tag.Lookup("mf2"); ok {
-			if value == "" {
-				continue
+	for _, x := range v {
+		switch t := x.(type) {
+		case *microformats.Microformat:
+			item, ok := SimplifyMicroformatItem(t, microsub.Card{})
+			if ok {
+				return item.URL, true, item
 			}
-			if s, e := props[value]; e {
-				if len(s) > 0 {
-					if str, ok := s[0].(string); ft.Type.Kind() == reflect.String && ok {
-						fv.SetString(str)
-					} else if ft.Type.Kind() == reflect.Slice {
-						for _, v := range s {
-							fv.Set(reflect.Append(fv, reflect.ValueOf(v)))
-						}
-					} else if card, ok := s[0].(map[string]interface{}); ok {
-						var hcard microsub.Card
-						if t, ok := card["type"].([]interface{}); ok {
-							hcard.Type = t[0].(string)[2:]
-						}
-						if properties, ok := card["properties"].(map[string]interface{}); ok {
-							ps := make(map[string][]interface{})
-							for k, v := range properties {
-								ps[k] = v.([]interface{})
-							}
-							ConvertItemProps(&hcard, ps)
-						}
-						fv.Set(reflect.ValueOf(&hcard))
-					}
-				}
-			}
+			return "", false, item
+		case string:
+			return t, false, item
+		default:
+			log.Printf("simplifyRefItem(%s, %+v): unsupported type %T", k, v, t)
 		}
 	}
+
+	return "", false, item
 }
 
-func ConvertItem(item interface{}, md *microformats.Microformat) {
-	sv := reflect.ValueOf(item).Elem()
+func simplifyContent(k string, v []interface{}) *microsub.Content {
+	if len(v) == 0 {
+		return nil
+	}
 
-	sv.FieldByName("Type").SetString(md.Type[0][2:])
-
-	ConvertItemProps(item, md.Properties)
+	var content microsub.Content
+	switch t := v[0].(type) {
+	case map[string]interface{}:
+		if text, e := t["value"]; e {
+			content.Text = text.(string)
+		}
+		if text, e := t["html"]; e {
+			content.HTML = text.(string)
+		}
+	default:
+		log.Printf("simplifyContent(%s, %+v): unsupported type %T", k, v, t)
+		return nil
+	}
+	return &content
 }
 
-func simplify(itemType string, item map[string][]interface{}, author map[string]string) map[string]interface{} {
-	feedItem := make(map[string]interface{})
+func itemPtr(item *microsub.Item, key string) *[]string {
+	if key == "bookmark-of" {
+		return &item.BookmarkOf
+	} else if key == "repost-of" {
+		return &item.RepostOf
+	} else if key == "like-of" {
+		return &item.LikeOf
+	} else if key == "in-reply-to" {
+		return &item.InReplyTo
+	} else if key == "photo" {
+		return &item.Photo
+	} else if key == "category" {
+		return &item.Category
+	}
+	return nil
+}
+
+func simplifyToItem(itemType string, item map[string][]interface{}) microsub.Item {
+	var feedItem microsub.Item
+
+	feedItem.Type = itemType
+	feedItem.Refs = make(map[string]microsub.Item)
 
 	for k, v := range item {
-		if k == "bookmark-of" || k == "like-of" || k == "repost-of" || k == "in-reply-to" {
-			if value, ok := v[0].(*microformats.Microformat); ok {
-				if value.Type[0] == "h-cite" {
-					refs := make(map[string]interface{})
-					u := value.Properties["url"][0].(string)
-					refs[u] = SimplifyMicroformat(value, nil)
-					feedItem["refs"] = refs
-					feedItem[k] = u
-				} else {
-					feedItem[k] = value.Value
+		switch k {
+		case "bookmark-of", "like-of", "repost-of", "in-reply-to":
+			u, withItem, refItem := simplifyRefItem(k, v)
+
+			resultPtr := itemPtr(&feedItem, k)
+			if resultPtr != nil {
+				*resultPtr = append(*resultPtr, u)
+				if withItem {
+					feedItem.Refs[u] = refItem
 				}
-			} else {
-				feedItem[k] = v
 			}
-		} else if k == "summary" {
-			if content, ok := v[0].(map[string]interface{}); ok {
-				if text, e := content["value"]; e {
-					feedItem[k] = text
-				}
-			} else if summary, ok := v[0].(string); ok {
-				feedItem[k] = summary
-			}
-		} else if k == "content" {
-			if content, ok := v[0].(map[string]interface{}); ok {
-				if text, e := content["value"]; e {
-					delete(content, "value")
-					content["text"] = text
-				}
-				feedItem[k] = content
-			}
-		} else if k == "photo" {
-			if itemType == "card" {
+		case "content":
+			content := simplifyContent(k, v)
+			feedItem.Content = content
+		case "author":
+			author, _ := simplifyCard(v[0])
+			feedItem.Author = &author
+		case "checkin":
+			author, _ := simplifyCard(v[0])
+			feedItem.Checkin = &author
+		case "name", "published", "updated", "url", "uid", "latitude", "longitude":
+			resultPtr := getScalarPtr(&feedItem, k)
+			if resultPtr != nil {
 				if len(v) >= 1 {
-					if value, ok := v[0].(string); ok {
-						feedItem[k] = value
-					}
-				}
-			} else {
-				feedItem[k] = v
-			}
-		} else if k == "video" {
-			feedItem[k] = v
-		} else if k == "featured" {
-			feedItem[k] = v
-		} else if k == "checkin" || k == "author" {
-			if value, ok := v[0].(string); ok {
-				feedItem[k] = value
-			}
-			card, err := simplifyCard(v)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			feedItem[k] = card
-		} else if value, ok := v[0].(*microformats.Microformat); ok {
-			mType := value.Type[0][2:]
-			m := simplify(mType, value.Properties, author)
-			m["type"] = mType
-			feedItem[k] = m
-		} else if value, ok := v[0].(string); ok {
-			feedItem[k] = value
-		} else if value, ok := v[0].(map[string]interface{}); ok {
-			feedItem[k] = value
-		} else if value, ok := v[0].([]interface{}); ok {
-			feedItem[k] = value
-		}
-	}
-
-	// Remove "name" when it's equals to "content[text]"
-	if name, e := feedItem["name"]; e {
-		if content, e2 := feedItem["content"]; e2 {
-			if contentMap, ok := content.(map[string]interface{}); ok {
-				if text, e3 := contentMap["text"]; e3 {
-					if strings.TrimSpace(name.(string)) == strings.TrimSpace(text.(string)) {
-						delete(feedItem, "name")
-					}
+					*resultPtr = v[0].(string)
 				}
 			}
+		case "category":
+			resultPtr := itemPtr(&feedItem, k)
+			if resultPtr != nil {
+				for _, c := range v {
+					*resultPtr = append(*resultPtr, c.(string))
+				}
+			}
+		default:
+			log.Printf("simplifyToItem: not supported: %s => %v\n", k, v)
 		}
-	}
-
-	if _, e := feedItem["author"]; !e {
-		feedItem["author"] = author
 	}
 
 	return feedItem
 }
-func simplifyCard(v []interface{}) (map[string]string, error) {
-	card := make(map[string]string)
-	card["type"] = "card"
 
-	if value, ok := v[0].(*microformats.Microformat); ok {
-		for ik, vk := range value.Properties {
-			if p, ok := vk[0].(string); ok {
-				card[ik] = p
-			}
-		}
-		return card, nil
-	} else if value, ok := v[0].(string); ok {
-		card["url"] = value
-		return card, nil
+func getScalarPtr(item *microsub.Item, k string) *string {
+	switch k {
+	case "published":
+		return &item.Published
+	case "updated":
+		return &item.Updated
+	case "name":
+		return &item.Name
+	case "uid":
+		return &item.UID
+	case "url":
+		return &item.URL
+	case "latitude":
+		return &item.Latitude
+	case "longitude":
+		return &item.Longitude
 	}
-
-	return nil, fmt.Errorf("not convertable to a card %q", v)
+	return nil
 }
 
-func SimplifyMicroformat(item *microformats.Microformat, author map[string]string) map[string]interface{} {
-	itemType := item.Type[0][2:]
-	newItem := simplify(itemType, item.Properties, author)
-	newItem["type"] = itemType
+func simplifyCard(v interface{}) (microsub.Card, bool) {
+	author := microsub.Card{}
+	author.Type = "card"
 
-	children := []map[string]interface{}{}
-
-	if len(item.Children) > 0 {
-		for _, c := range item.Children {
-			child := SimplifyMicroformat(c, author)
-			if c, e := child["children"]; e {
-				if ar, ok := c.([]map[string]interface{}); ok {
-					children = append(children, ar...)
-				}
-				delete(child, "children")
-			}
-			children = append(children, child)
-		}
-
-		newItem["children"] = children
+	switch t := v.(type) {
+	case *microformats.Microformat:
+		return simplifyCardFromMicroformat(author, t)
+	case string:
+		return simplifyCardFromString(author, t)
 	}
 
-	return newItem
+	return author, false
 }
 
-func SimplifyMicroformatData(md *microformats.Data) []map[string]interface{} {
-	var items []map[string]interface{}
+func simplifyCardFromString(card microsub.Card, value string) (microsub.Card, bool) {
+	card.URL = value
+	return card, false
+}
+
+func simplifyCardFromMicroformat(card microsub.Card, microformat *microformats.Microformat) (microsub.Card, bool) {
+	for ik, vk := range microformat.Properties {
+		if p, ok := vk[0].(string); ok {
+			switch ik {
+			case "name":
+				card.Name = p
+			case "url":
+				card.URL = p
+			case "photo":
+				card.Photo = p
+			case "locality":
+				card.Locality = p
+			case "region":
+				card.Region = p
+			case "country-name":
+				card.CountryName = p
+			case "longitude":
+				card.Longitude = p
+			case "latitude":
+				card.Latitude = p
+			default:
+				log.Printf("In simplifyCard: unknown property %q with value %q\n", ik, p)
+			}
+		}
+	}
+
+	return card, true
+}
+
+func SimplifyMicroformatItem(mdItem *microformats.Microformat, author microsub.Card) (microsub.Item, bool) {
+	item := microsub.Item{}
+
+	itemType := mdItem.Type[0][2:]
+	if itemType != "entry" && itemType != "event" && itemType != "cite" {
+		return item, false
+	}
+
+	return simplifyToItem(itemType, mdItem.Properties), true
+}
+
+func hasType(item *microformats.Microformat, itemType string) bool {
+	return len(item.Type) >= 1 && item.Type[0] == itemType
+}
+
+func SimplifyMicroformatDataItems(md *microformats.Data) []microsub.Item {
+	var items []microsub.Item
 
 	for _, item := range md.Items {
-		if len(item.Type) >= 1 && item.Type[0] == "h-feed" {
-			var feedAuthor map[string]string
+		if hasType(item, "h-feed") {
+			var feedAuthor microsub.Card
 
 			if author, e := item.Properties["author"]; e && len(author) > 0 {
-				feedAuthor, _ = simplifyCard(author)
+				feedAuthor, _ = simplifyCard(author[0])
 			}
+
 			for _, childItem := range item.Children {
-				newItem := SimplifyMicroformat(childItem, feedAuthor)
-				items = append(items, newItem)
+				if newItem, ok := SimplifyMicroformatItem(childItem, feedAuthor); ok {
+					items = append(items, newItem)
+				}
 			}
+
 			return items
 		}
 
-		newItem := SimplifyMicroformat(item, nil)
-		delete(newItem, "children")
-		if newItem["type"] == "entry" || newItem["type"] == "event" || newItem["type"] == "card" {
+		if newItem, ok := SimplifyMicroformatItem(item, microsub.Card{}); ok {
 			items = append(items, newItem)
 		}
-		// if c, e := newItem["children"]; e {
-		// 	if ar, ok := c.([]map[string]interface{}); ok {
-		// 		for _, item := range ar {
-		// 			if item["type"] == "entry" || item["type"] == "event" || item["type"] == "card" {
-		// 				items = append(items, item)
-		// 			}
-		// 		}
-		// 	}
-		// 	delete(newItem, "children")
-		// }
 	}
 	return items
 }
 
-func fetchValue(key string, values map[string]string) string {
-	if value, e := values[key]; e {
-		return value
-	}
-	return ""
-}
+func SimplifyMicroformatDataAuthor(md *microformats.Data) (microsub.Card, bool) {
+	card := microsub.Card{}
 
-func MapToAuthor(result map[string]string) *microsub.Card {
-	item := &microsub.Card{}
-	item.Type = "card"
-	item.Name = fetchValue("name", result)
-	item.URL = fetchValue("url", result)
-	item.Photo = fetchValue("photo", result)
-	item.Longitude = fetchValue("longitude", result)
-	item.Latitude = fetchValue("latitude", result)
-	item.CountryName = fetchValue("country-name", result)
-	item.Locality = fetchValue("locality", result)
-	return item
-}
-
-func MapToItem(result map[string]interface{}) microsub.Item {
-	item := microsub.Item{}
-
-	item.Type = "entry"
-
-	if itemType, e := result["type"]; e {
-		item.Type = itemType.(string)
-	}
-
-	if name, e := result["name"]; e {
-		item.Name = name.(string)
-	}
-
-	if url, e := result["url"]; e {
-		item.URL = url.(string)
-	}
-
-	if uid, e := result["uid"]; e {
-		item.UID = uid.(string)
-	}
-
-	if authorValue, e := result["author"]; e {
-		if author, ok := authorValue.(map[string]string); ok {
-			item.Author = MapToAuthor(author)
+	for _, item := range md.Items {
+		if hasType(item, "h-card") {
+			return simplifyCard(item)
 		}
 	}
 
-	if checkinValue, e := result["checkin"]; e {
-		if checkin, ok := checkinValue.(map[string]string); ok {
-			item.Checkin = MapToAuthor(checkin)
-		}
-	}
-
-	if refsValue, e := result["refs"]; e {
-		if refs, ok := refsValue.(map[string]interface{}); ok {
-			item.Refs = make(map[string]microsub.Item)
-
-			for key, ref := range refs {
-				refItem := MapToItem(ref.(map[string]interface{}))
-				refItem.Type = "entry"
-				item.Refs[key] = refItem
-			}
-		}
-	}
-
-	if content, e := result["content"]; e {
-		itemContent := &microsub.Content{}
-		set := false
-		if c, ok := content.(map[string]interface{}); ok {
-			if html, e2 := c["html"]; e2 {
-				itemContent.HTML = html.(string)
-				set = true
-			}
-			if text, e2 := c["text"]; e2 {
-				itemContent.Text = text.(string)
-				set = true
-			}
-		}
-		if set {
-			item.Content = itemContent
-		}
-	}
-
-	// TODO: Check how to improve this
-
-	if value, e := result["like-of"]; e {
-		if likeOf, ok := value.(string); ok {
-			item.LikeOf = append(item.LikeOf, likeOf)
-		} else if likeOfs, ok := value.([]interface{}); ok {
-			for _, v := range likeOfs {
-				if u, ok := v.(string); ok {
-					item.LikeOf = append(item.LikeOf, u)
-				}
-			}
-		}
-	}
-
-	if value, e := result["repost-of"]; e {
-		if repost, ok := value.(string); ok {
-			item.RepostOf = append(item.RepostOf, repost)
-		} else if repost, ok := value.([]interface{}); ok {
-			for _, v := range repost {
-				if u, ok := v.(string); ok {
-					item.RepostOf = append(item.RepostOf, u)
-				}
-			}
-		}
-	}
-
-	if value, e := result["bookmark-of"]; e {
-		if bookmark, ok := value.(string); ok {
-			item.BookmarkOf = append(item.BookmarkOf, bookmark)
-		} else if bookmarks, ok := value.([]interface{}); ok {
-			for _, v := range bookmarks {
-				if u, ok := v.(string); ok {
-					item.BookmarkOf = append(item.BookmarkOf, u)
-				}
-			}
-		}
-	}
-
-	if value, e := result["in-reply-to"]; e {
-		if replyTo, ok := value.(string); ok {
-			item.InReplyTo = append(item.InReplyTo, replyTo)
-		} else if valueArray, ok := value.([]interface{}); ok {
-			for _, v := range valueArray {
-				if replyTo, ok := v.(string); ok {
-					item.InReplyTo = append(item.InReplyTo, replyTo)
-				} else if cite, ok := v.(map[string]interface{}); ok {
-					item.InReplyTo = append(item.InReplyTo, cite["url"].(string))
-				}
-			}
-		}
-	}
-
-	if value, e := result["photo"]; e {
-		for _, v := range value.([]interface{}) {
-			item.Photo = append(item.Photo, v.(string))
-		}
-	}
-
-	if value, e := result["category"]; e {
-		if cats, ok := value.([]string); ok {
-			for _, v := range cats {
-				item.Category = append(item.Category, v)
-			}
-		} else if cats, ok := value.([]interface{}); ok {
-			for _, v := range cats {
-				if cat, ok := v.(string); ok {
-					item.Category = append(item.Category, cat)
-				} else if cat, ok := v.(map[string]interface{}); ok {
-					item.Category = append(item.Category, cat["value"].(string))
-				}
-			}
-		} else if cat, ok := value.(string); ok {
-			item.Category = append(item.Category, cat)
-		}
-	}
-
-	if published, e := result["published"]; e {
-		item.Published = published.(string)
-	} else {
-		item.Published = time.Now().Format(time.RFC3339)
-	}
-
-	if updated, e := result["updated"]; e {
-		item.Updated = updated.(string)
-	}
-
-	if id, e := result["_id"]; e {
-		item.ID = id.(string)
-	}
-	if read, e := result["_is_read"]; e {
-		item.Read = read.(bool)
-	}
-
-	return item
+	return card, false
 }

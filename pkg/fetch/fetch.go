@@ -49,57 +49,28 @@ func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (
 
 	u, _ := url.Parse(fetchURL)
 
-	var card interface{}
-
 	if strings.HasPrefix(contentType, "text/html") {
 		data := microformats.Parse(body, u)
-		results := jf2.SimplifyMicroformatData(data)
-		found := -1
-		for i, r := range results {
-			if r["type"] == "card" {
-				found = i
-				break
-			}
-		}
-
-		if found >= 0 {
-			card = results[found]
-
-			if as, ok := card.(string); ok {
-				if strings.HasPrefix(as, "http") {
-					resp, err := fetcher.Fetch(fetchURL)
-					if err != nil {
-						return feed, err
-					}
-					defer resp.Body.Close()
-					u, _ := url.Parse(fetchURL)
-
-					md := microformats.Parse(resp.Body, u)
-					author := jf2.SimplifyMicroformatData(md)
-					for _, a := range author {
-						if a["type"] == "card" {
-							card = a
-							break
-						}
-					}
+		author, ok := jf2.SimplifyMicroformatDataAuthor(data)
+		if !ok {
+			if strings.HasPrefix(author.URL, "http") {
+				resp, err := fetcher.Fetch(fetchURL)
+				if err != nil {
+					return feed, err
 				}
-			}
+				defer resp.Body.Close()
+				u, _ := url.Parse(fetchURL)
 
-			// use object
+				md := microformats.Parse(resp.Body, u)
+
+				author, ok = jf2.SimplifyMicroformatDataAuthor(md)
+			}
 		}
 
 		feed.Type = "feed"
 		feed.URL = fetchURL
-		if cardMap, ok := card.(map[string]interface{}); ok {
-			if name, ok := cardMap["name"].(string); ok {
-				feed.Name = name
-			}
-			if name, ok := cardMap["photo"].(string); ok {
-				feed.Photo = name
-			} else if name, ok := cardMap["photo"].([]interface{}); ok {
-				feed.Photo = name[0].(string)
-			}
-		}
+		feed.Name = author.Name
+		feed.Photo = author.Photo
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
 		var jfeed jsonfeed.Feed
 		dec := json.NewDecoder(body)
@@ -164,73 +135,20 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 
 	if strings.HasPrefix(contentType, "text/html") {
 		data := microformats.Parse(body, u)
-		results := jf2.SimplifyMicroformatData(data)
 
-		found := -1
-		for {
-			for i, r := range results {
-				if r["type"] == "card" {
-					found = i
-					break
-				}
-			}
-			if found >= 0 {
-				card := results[found]
-				results = append(results[:found], results[found+1:]...)
-				for i := range results {
-					if results[i]["type"] == "entry" && results[i]["author"] == card["url"] {
-						author := make(map[string]string)
-						author["type"] = "card"
-						for k, v := range card {
-							if val, ok := v.(string); ok {
-								author[k] = val
-							}
-						}
-						results[i]["author"] = author
-					}
-				}
-				found = -1
-				continue
-			}
-			break
-		}
-
-		for i, r := range results {
-			if as, ok := r["author"].(string); ok {
-				if r["type"] == "entry" && strings.HasPrefix(as, "http") {
-					resp, err := fetcher.Fetch(fetchURL)
-					if err != nil {
-						return items, err
-					}
-					defer resp.Body.Close()
-					u, _ := url.Parse(fetchURL)
-
-					md := microformats.Parse(resp.Body, u)
-					author := jf2.SimplifyMicroformatData(md)
-					for _, a := range author {
-						if a["type"] == "card" {
-							results[i]["author"] = a
-							break
-						}
-					}
-				}
-			}
-		}
+		results := jf2.SimplifyMicroformatDataItems(data)
 
 		// Filter items with "published" date
 		for _, r := range results {
-			if uid, e := r["uid"]; e {
-				r["_id"] = hex.EncodeToString([]byte(uid.(string)))
-			} else if uid, e := r["url"]; e {
-				r["_id"] = hex.EncodeToString([]byte(uid.(string)))
+			if r.UID != "" {
+				r.ID = hex.EncodeToString([]byte(r.UID))
+			} else if r.URL != "" {
+				r.ID = hex.EncodeToString([]byte(r.URL))
 			} else {
 				continue
-				// r["_id"] = "" // generate random value
 			}
 
-			// mapToItem adds published
-			item := jf2.MapToItem(r)
-			items = append(items, item)
+			items = append(items, r)
 		}
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
 		var feed jsonfeed.Feed

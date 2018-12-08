@@ -826,7 +826,7 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 
 func (b *memoryBackend) sendMessage(msg microsub.Message) {
 	for _, l := range b.listeners {
-		l.WriteMessage(microsub.Event{msg})
+		l.WriteMessage(microsub.Event{Msg: msg})
 	}
 }
 

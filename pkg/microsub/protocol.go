@@ -38,7 +38,7 @@ type Channel struct {
 }
 
 type Card struct {
-	Filled      bool   `json:"-,omitempty"`
+	// Filled      bool   `json:"filled,omitempty"`
 	Type        string `json:"type,omitempty"`
 	Name        string `json:"name,omitempty" mf2:"name"`
 	URL         string `json:"url,omitempty" mf2:"url"`
