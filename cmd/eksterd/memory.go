@@ -641,7 +641,10 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 
 			if matchItem(item, re) {
 				log.Printf("Included %#v\n", item)
-				b.channelAddItem(conn, channelKey, item)
+				err := b.channelAddItem(conn, channelKey, item)
+				if err != nil {
+					continue
+				}
 				updatedChannels = append(updatedChannels, channelKey)
 			}
 		}
@@ -649,7 +652,11 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 
 	// Update all channels that have added items, because of the include matching
 	for _, value := range updatedChannels {
-		b.updateChannelUnreadCount(conn, value)
+		err := b.updateChannelUnreadCount(conn, value)
+		if err != nil {
+			log.Printf("error while updating unread count for %s: %s", value, err)
+			continue
+		}
 	}
 
 	// Check for the exclude regex
