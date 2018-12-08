@@ -116,7 +116,7 @@ func loadEndpoints(c *client.Client, me *url.URL, filename string) error {
 	}
 
 	if endpoints.MicrosubEndpoint == "" {
-		return fmt.Errorf("Microsub Endpoint is missing")
+		return fmt.Errorf("microsub endpoint is missing")
 	}
 
 	u, err := url.Parse(endpoints.MicrosubEndpoint)

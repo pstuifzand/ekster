@@ -106,7 +106,7 @@ func newMainHandler(backend *memoryBackend) (*mainHandler, error) {
 
 	templateDir := os.Getenv("EKSTER_TEMPLATES")
 	if templateDir == "" {
-		return nil, fmt.Errorf("Missing env var EKSTER_TEMPLATES")
+		return nil, fmt.Errorf("missing env var EKSTER_TEMPLATES")
 	}
 
 	templateDir = strings.TrimRight(templateDir, "/")

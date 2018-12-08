@@ -242,7 +242,7 @@ func (b *memoryBackend) ChannelsUpdate(uid, name string) (microsub.Channel, erro
 		return c, nil
 	}
 
-	return microsub.Channel{}, fmt.Errorf("Channel %s does not exist", uid)
+	return microsub.Channel{}, fmt.Errorf("channel %s does not exist", uid)
 }
 
 // ChannelsDelete deletes a channel
@@ -568,14 +568,14 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) error {
 	args := redis.Args{}.Add(channelKey).AddFlat(itemUIDs)
 
 	if _, err := conn.Do("SADD", args...); err != nil {
-		return fmt.Errorf("Marking read for channel %s has failed: %s", channel, err)
+		return fmt.Errorf("marking read for channel %s has failed: %s", channel, err)
 	}
 
 	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
 	args = redis.Args{}.Add(zchannelKey).AddFlat(itemUIDs)
 
 	if _, err := conn.Do("ZREM", args...); err != nil {
-		return fmt.Errorf("Marking read for channel %s has failed: %s", channel, err)
+		return fmt.Errorf("marking read for channel %s has failed: %s", channel, err)
 	}
 
 	err := b.updateChannelUnreadCount(conn, channel)
