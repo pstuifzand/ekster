@@ -113,8 +113,11 @@ func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body i
 		return err
 	}
 
-	log.Printf("updating feed %d - %s %s\n", feedID, u, channel)
-	h.backend.ProcessContent(channel, u, contentType, body)
+	log.Printf("Updating feed %d - %s %s\n", feedID, u, channel)
+	err = h.backend.ProcessContent(channel, u, contentType, body)
+	if err != nil {
+		log.Printf("Error while updating content for channel %s: %s", channel, err)
+	}
 
 	return err
 }
