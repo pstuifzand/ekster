@@ -324,13 +324,14 @@ func (c *Client) Search(query string) ([]microsub.Feed, error) {
 func (c *Client) MarkRead(channel string, uids []string) error {
 	args := make(map[string]string)
 	args["channel"] = channel
+	args["method"] = "mark_read"
 
 	data := url.Values{}
 	for _, uid := range uids {
 		data.Add("entry[]", uid)
 	}
 
-	res, err := c.microsubPostFormRequest("mark_read", args, data)
+	res, err := c.microsubPostFormRequest("timeline", args, data)
 	if err != nil {
 		return err
 	}

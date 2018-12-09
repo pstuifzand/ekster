@@ -210,9 +210,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			respondJSON(w, []string{})
 		} else {
-			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 500)
+			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 400)
 		}
-
 		return
 	}
 	return

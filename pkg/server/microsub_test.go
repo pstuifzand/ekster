@@ -133,7 +133,14 @@ func TestServer_Search(t *testing.T) {
 	}
 }
 
-func TestServer_UnknownAction(t *testing.T) {
+func TestServer_MarkRead(t *testing.T) {
+	server, c := createServerClient()
+	defer server.Close()
+	err := c.MarkRead("0001", []string{"test"})
+	assert.NoError(t, err)
+}
+
+func TestServer_GetUnknownAction(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
 
@@ -143,6 +150,20 @@ func TestServer_UnknownAction(t *testing.T) {
 	u.RawQuery = q.Encode()
 
 	resp, err := http.Get(u.String())
+	if assert.NoError(t, err) {
+		assert.Equal(t, 400, resp.StatusCode)
+	}
+}
+func TestServer_PostUnknownAction(t *testing.T) {
+	server, c := createServerClient()
+	defer server.Close()
+
+	u := c.MicrosubEndpoint
+	q := u.Query()
+	q.Add("action", "missing")
+	u.RawQuery = q.Encode()
+
+	resp, err := http.Post(u.String(), "application/json", nil)
 	if assert.NoError(t, err) {
 		assert.Equal(t, 400, resp.StatusCode)
 	}
