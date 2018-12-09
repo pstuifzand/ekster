@@ -112,7 +112,7 @@ func NewApp(options AppOptions) *App {
 	app.backend = loadMemoryBackend()
 	app.backend.AuthEnabled = options.AuthEnabled
 
-	app.hubBackend = &hubIncomingBackend{app.backend}
+	app.hubBackend = &hubIncomingBackend{app.backend, options.BaseURL}
 
 	http.Handle("/micropub", &micropubHandler{
 		Backend: app.backend,

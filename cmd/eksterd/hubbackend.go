@@ -48,6 +48,7 @@ type HubBackend interface {
 
 type hubIncomingBackend struct {
 	backend *memoryBackend
+	baseURL string
 }
 
 func (h *hubIncomingBackend) GetSecret(id int64) string {
@@ -85,7 +86,7 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 		log.Printf("WebSub Hub URL found for topic=%s hub=%s\n", topic, hubURL)
 	}
 
-	callbackURL := fmt.Sprintf("%s/incoming/%d", os.Getenv("EKSTER_BASEURL"), id)
+	callbackURL := fmt.Sprintf("%s/incoming/%d", h.baseURL, id)
 
 	if err == nil && hubURL != "" {
 		args := redis.Args{}.Add(fmt.Sprintf("feed:%d", id), "hub", hubURL, "callback", callbackURL)
