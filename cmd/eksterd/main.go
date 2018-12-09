@@ -40,6 +40,7 @@ var (
 	pool        *redis.Pool
 	port        int
 	authEnabled bool
+	headless    bool
 	redisServer = flag.String("redis", "redis:6379", "")
 )
 
@@ -48,6 +49,7 @@ func init() {
 
 	flag.IntVar(&port, "port", 80, "port for serving api")
 	flag.BoolVar(&authEnabled, "auth", true, "use auth")
+	flag.BoolVar(&headless, "headless", false, "disable frontend")
 }
 
 func newPool(addr string) *redis.Pool {
@@ -140,11 +142,14 @@ func main() {
 	http.Handle("/incoming/", &incomingHandler{
 		Backend: &hubBackend,
 	})
-	handler, err := newMainHandler(backend.(*memoryBackend))
-	if err != nil {
-		log.Fatal(err)
+
+	if !headless {
+		handler, err := newMainHandler(backend.(*memoryBackend))
+		if err != nil {
+			log.Fatal(err)
+		}
+		http.Handle("/", handler)
 	}
-	http.Handle("/", handler)
 
 	backend.(*memoryBackend).run()
 	hubBackend.run()
