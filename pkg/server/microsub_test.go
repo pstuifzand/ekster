@@ -1,6 +1,7 @@
 package server
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
@@ -129,5 +130,20 @@ func TestServer_Search(t *testing.T) {
 		assert.Equal(t, "Example", feeds[0].Name)
 		assert.Equal(t, "test.jpg", feeds[0].Photo)
 		assert.Equal(t, "test", feeds[0].Description)
+	}
+}
+
+func TestServer_UnknownAction(t *testing.T) {
+	server, c := createServerClient()
+	defer server.Close()
+
+	u := c.MicrosubEndpoint
+	q := u.Query()
+	q.Add("action", "missing")
+	u.RawQuery = q.Encode()
+
+	resp, err := http.Get(u.String())
+	if assert.NoError(t, err) {
+		assert.Equal(t, 400, resp.StatusCode)
 	}
 }
