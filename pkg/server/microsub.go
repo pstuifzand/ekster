@@ -38,6 +38,17 @@ type microsubHandler struct {
 	backend microsub.Microsub
 }
 
+func respondJSON(w http.ResponseWriter, value interface{}) {
+	jw := json.NewEncoder(w)
+	jw.SetIndent("", "    ")
+	jw.SetEscapeHTML(false)
+	w.Header().Add("Content-Type", OutputContentType)
+	err := jw.Encode(value)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+}
+
 func NewMicrosubHandler(backend microsub.Microsub) http.Handler {
 	return &microsubHandler{backend}
 }
@@ -65,44 +76,23 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			jw := json.NewEncoder(w)
-			w.Header().Add("Content-Type", OutputContentType)
-			err = jw.Encode(map[string][]microsub.Channel{
+			respondJSON(w, map[string][]microsub.Channel{
 				"channels": channels,
 			})
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
 		} else if action == "timeline" {
 			timeline, err := h.backend.TimelineGet(values.Get("before"), values.Get("after"), values.Get("channel"))
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			jw := json.NewEncoder(w)
-			w.Header().Add("Content-Type", OutputContentType)
-			jw.SetIndent("", "    ")
-			jw.SetEscapeHTML(false)
-			err = jw.Encode(timeline)
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
+			respondJSON(w, timeline)
 		} else if action == "preview" {
 			timeline, err := h.backend.PreviewURL(values.Get("url"))
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			jw := json.NewEncoder(w)
-			jw.SetIndent("", "    ")
-			w.Header().Add("Content-Type", OutputContentType)
-			err = jw.Encode(timeline)
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
+			respondJSON(w, timeline)
 		} else if action == "follow" {
 			channel := values.Get("channel")
 			following, err := h.backend.FollowGetList(channel)
@@ -110,15 +100,9 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			jw := json.NewEncoder(w)
-			w.Header().Add("Content-Type", OutputContentType)
-			err = jw.Encode(map[string][]microsub.Feed{
+			respondJSON(w, map[string][]microsub.Feed{
 				"items": following,
 			})
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
 		} else if action == "events" {
 			conn, _, _ := w.(http.Hijacker).Hijack()
 			cons := newConsumer(conn)
@@ -143,36 +127,24 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, err.Error(), 500)
 					return
 				}
-				w.Header().Add("Content-Type", OutputContentType)
-				fmt.Fprintln(w, "[]")
+				respondJSON(w, []string{})
 				return
 			}
 
-			jw := json.NewEncoder(w)
 			if uid == "" {
 				channel, err := h.backend.ChannelsCreate(name)
 				if err != nil {
 					http.Error(w, err.Error(), 500)
 					return
 				}
-				w.Header().Add("Content-Type", OutputContentType)
-				err = jw.Encode(channel)
-				if err != nil {
-					http.Error(w, err.Error(), 500)
-					return
-				}
+				respondJSON(w, channel)
 			} else {
 				channel, err := h.backend.ChannelsUpdate(uid, name)
 				if err != nil {
 					http.Error(w, err.Error(), 500)
 					return
 				}
-				w.Header().Add("Content-Type", OutputContentType)
-				err = jw.Encode(channel)
-				if err != nil {
-					http.Error(w, err.Error(), 500)
-					return
-				}
+				respondJSON(w, channel)
 			}
 		} else if action == "follow" {
 			uid := values.Get("channel")
@@ -183,13 +155,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			w.Header().Add("Content-Type", OutputContentType)
-			jw := json.NewEncoder(w)
-			err = jw.Encode(feed)
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
+			respondJSON(w, feed)
 		} else if action == "unfollow" {
 			uid := values.Get("channel")
 			url := values.Get("url")
@@ -198,8 +164,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			w.Header().Add("Content-Type", OutputContentType)
-			fmt.Fprintln(w, "[]")
+			respondJSON(w, []string{})
 		} else if action == "search" {
 			query := values.Get("query")
 			feeds, err := h.backend.Search(query)
@@ -207,15 +172,9 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			jw := json.NewEncoder(w)
-			w.Header().Add("Content-Type", OutputContentType)
-			err = jw.Encode(map[string][]microsub.Feed{
+			respondJSON(w, map[string][]microsub.Feed{
 				"results": feeds,
 			})
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
 		} else if action == "timeline" || r.PostForm.Get("action") == "timeline" {
 			method := values.Get("method")
 
@@ -248,8 +207,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, fmt.Sprintf("unknown method in timeline %s\n", method), 500)
 				return
 			}
-			w.Header().Add("Content-Type", OutputContentType)
-			fmt.Fprintln(w, "[]")
+
+			respondJSON(w, []string{})
 		} else {
 			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 500)
 		}
