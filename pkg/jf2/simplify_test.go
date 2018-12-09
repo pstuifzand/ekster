@@ -22,6 +22,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"p83.nl/go/ekster/pkg/microsub"
 	"willnorris.com/go/microformats"
 )
@@ -154,5 +155,30 @@ func TestConvertItem2(t *testing.T) {
 	}
 	if item.Author.Name != "Peter" {
 		t.Errorf("Expected Author.Name == %q, was %q", "Peter", item.Author.Name)
+	}
+}
+
+func TestConvert992(t *testing.T) {
+	var mdItem microformats.Data
+	f, err := os.Open("tests/992.json")
+	if err != nil {
+		t.Fatalf("error while opening 992.json: %s", err)
+	}
+	err = json.NewDecoder(f).Decode(&mdItem)
+	if assert.NoError(t, err) {
+		items := SimplifyMicroformatDataItems(&mdItem)
+		assert.Len(t, items, 1)
+		item := items[0]
+		assert.Equal(t, "https://p83.nl/posts/992", item.URL)
+		assert.Equal(t, "https://p83.nl/posts/992", item.UID)
+		assert.Equal(t, "2018-12-09T14:14:13Z", item.Published)
+		assert.Equal(t, "https://twitter.com/InDeepGeek/status/1071363145485168640", item.LikeOf[0])
+		assert.Equal(t, "entry", item.Type)
+		assert.Equal(t, "", item.Name)
+		assert.Equal(t, "test", item.Content.Text)
+		assert.Equal(t, "<p>test</p>", item.Content.HTML)
+
+		author := item.Author
+		assert.Equal(t, "card", author.Type)
 	}
 }

@@ -19,6 +19,7 @@ package jf2
 
 import (
 	"log"
+	"strings"
 
 	"p83.nl/go/ekster/pkg/microsub"
 
@@ -127,6 +128,13 @@ func simplifyToItem(itemType string, item map[string][]interface{}) microsub.Ite
 			}
 		default:
 			log.Printf("simplifyToItem: not supported: %s => %v\n", k, v)
+		}
+	}
+
+	// Remove "name" when it's equals to "content[text]"
+	if feedItem.Content != nil {
+		if strings.TrimSpace(feedItem.Name) == strings.TrimSpace(feedItem.Content.Text) {
+			feedItem.Name = ""
 		}
 	}
 
