@@ -475,7 +475,8 @@ func getPossibleURLs(query string) []string {
 func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 	urls := getPossibleURLs(query)
 
-	var feeds []microsub.Feed
+	// needs to be like this, because we get a null result otherwise in the json output
+	feeds := []microsub.Feed{}
 
 	for _, u := range urls {
 		log.Println(u)
