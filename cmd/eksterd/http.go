@@ -39,6 +39,7 @@ import (
 
 type mainHandler struct {
 	Backend     *memoryBackend
+	BaseURL     string
 	TemplateDir string
 }
 
@@ -101,13 +102,10 @@ type authRequest struct {
 	AccessToken string `redis:"access_token"`
 }
 
-func newMainHandler(backend *memoryBackend) (*mainHandler, error) {
+func newMainHandler(backend *memoryBackend, baseURL, templateDir string) (*mainHandler, error) {
 	h := &mainHandler{Backend: backend}
 
-	templateDir := os.Getenv("EKSTER_TEMPLATES")
-	if templateDir == "" {
-		return nil, fmt.Errorf("missing env var EKSTER_TEMPLATES")
-	}
+	h.BaseURL = baseURL
 
 	templateDir = strings.TrimRight(templateDir, "/")
 	h.TemplateDir = templateDir
@@ -211,7 +209,7 @@ func isLoggedIn(backend *memoryBackend, sess *session) bool {
 		return false
 	}
 
-	if !authEnabled {
+	if !backend.AuthEnabled {
 		return true
 	}
 
@@ -297,7 +295,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page indexPage
 			page.Session = sess
-			page.Baseurl = strings.TrimRight(os.Getenv("EKSTER_BASEURL"), "/")
+			page.Baseurl = strings.TrimRight(h.BaseURL, "/")
 
 			err = h.renderTemplate(w, "index.html", page)
 			if err != nil {
@@ -517,7 +515,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.Println(authURL)
 
 			state := util.RandStringBytes(16)
-			redirectURI := fmt.Sprintf("%s/session/callback", os.Getenv("EKSTER_BASEURL"))
+			redirectURI := fmt.Sprintf("%s/session/callback", h.BaseURL)
 
 			sess, err := loadSession(sessionVar, conn)
 

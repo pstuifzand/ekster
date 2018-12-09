@@ -28,7 +28,6 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"p83.nl/go/ekster/pkg/auth"
 
-	"p83.nl/go/ekster/pkg/microsub"
 	"p83.nl/go/ekster/pkg/server"
 )
 
@@ -36,20 +35,21 @@ const (
 	ClientID string = "https://p83.nl/microsub-client"
 )
 
+type AppOptions struct {
+	Port        int
+	AuthEnabled bool
+	Headless    bool
+	RedisServer string
+	BaseURL     string
+	TemplateDir string
+}
+
 var (
-	pool        *redis.Pool
-	port        int
-	authEnabled bool
-	headless    bool
-	redisServer = flag.String("redis", "redis:6379", "")
+	pool *redis.Pool
 )
 
 func init() {
 	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
-
-	flag.IntVar(&port, "port", 80, "port for serving api")
-	flag.BoolVar(&authEnabled, "auth", true, "use auth")
-	flag.BoolVar(&headless, "headless", false, "disable frontend")
 }
 
 func newPool(addr string) *redis.Pool {
@@ -87,18 +87,93 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 	})
 }
 
+type App struct {
+	options    AppOptions
+	backend    *memoryBackend
+	hubBackend *hubIncomingBackend
+}
+
+func (app *App) Run() {
+	app.backend.run()
+	app.hubBackend.run()
+
+	log.Printf("Listening on port %d\n", app.options.Port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", app.options.Port), nil))
+
+}
+
+func NewApp(options AppOptions) *App {
+	app := &App{
+		options: options,
+	}
+
+	var backend *memoryBackend
+
+	app.backend = loadMemoryBackend()
+	app.backend.AuthEnabled = options.AuthEnabled
+
+	app.hubBackend = &hubIncomingBackend{app.backend}
+
+	http.Handle("/micropub", &micropubHandler{
+		Backend: app.backend,
+	})
+
+	handler := server.NewMicrosubHandler(app.backend)
+	if options.AuthEnabled {
+		handler = WithAuth(handler, app.backend)
+	}
+
+	http.Handle("/microsub", handler)
+
+	http.Handle("/incoming/", &incomingHandler{
+		Backend: app.hubBackend,
+	})
+
+	if !options.Headless {
+		handler, err := newMainHandler(backend, options.BaseURL, options.TemplateDir)
+		if err != nil {
+			log.Fatal(err)
+		}
+		http.Handle("/", handler)
+	}
+
+	return app
+}
+
 func main() {
 	log.Println("eksterd - microsub server")
+
+	var options AppOptions
+
+	flag.IntVar(&options.Port, "port", 80, "port for serving api")
+	flag.BoolVar(&options.AuthEnabled, "auth", true, "use auth")
+	flag.BoolVar(&options.Headless, "headless", false, "disable frontend")
+	flag.StringVar(&options.RedisServer, "redis", "redis:6379", "redis server")
+	flag.StringVar(&options.BaseURL, "baseurl", "", "http server baseurl")
+	flag.StringVar(&options.TemplateDir, "templates", "./templates", "template directory")
+
 	flag.Parse()
 
-	if authEnabled {
+	if options.AuthEnabled {
 		log.Println("Using auth")
 	} else {
 		log.Println("Authentication disabled")
 	}
 
-	if _, e := os.LookupEnv("EKSTER_BASEURL"); !e {
-		log.Fatal("EKSTER_BASEURL environment variable not found, please set with external url: https://example.com")
+	if options.BaseURL == "" {
+		if envVar, e := os.LookupEnv("EKSTER_BASEURL"); e {
+			options.BaseURL = envVar
+		} else {
+			log.Fatal("EKSTER_BASEURL environment variable not found, please set with external url, -baseurl url option")
+		}
+	}
+
+	if options.TemplateDir == "" {
+		if envVar, e := os.LookupEnv("EKSTER_TEMPLATES"); e {
+			options.TemplateDir = envVar
+		} else {
+			log.Fatal("EKSTER_TEMPLATES environment variable not found, use env var or -templates dir option")
+		}
 	}
 
 	createBackend := false
@@ -110,13 +185,10 @@ func main() {
 		}
 	}
 
-	pool = newPool(*redisServer)
-
-	var backend microsub.Microsub
-
 	if createBackend {
-		backend = createMemoryBackend()
+		createMemoryBackend()
 
+		// TODO(peter): automatically gather this information from login or otherwise
 		log.Println(`Config file "backend.json" is created in the current directory.`)
 		log.Println(`Update "Me" variable to your website address "https://example.com/"`)
 		log.Println(`Update "TokenEndpoint" variable to the address of your token endpoint "https://example.com/token"`)
@@ -124,36 +196,7 @@ func main() {
 		return
 	}
 
-	backend = loadMemoryBackend()
+	pool = newPool(options.RedisServer)
 
-	hubBackend := hubIncomingBackend{backend.(*memoryBackend)}
-
-	http.Handle("/micropub", &micropubHandler{
-		Backend: backend.(*memoryBackend),
-	})
-
-	handler := server.NewMicrosubHandler(backend)
-	if authEnabled {
-		handler = WithAuth(handler, backend.(*memoryBackend))
-	}
-
-	http.Handle("/microsub", handler)
-
-	http.Handle("/incoming/", &incomingHandler{
-		Backend: &hubBackend,
-	})
-
-	if !headless {
-		handler, err := newMainHandler(backend.(*memoryBackend))
-		if err != nil {
-			log.Fatal(err)
-		}
-		http.Handle("/", handler)
-	}
-
-	backend.(*memoryBackend).run()
-	hubBackend.run()
-
-	log.Printf("Listening on port %d\n", port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
+	NewApp(options).Run()
 }

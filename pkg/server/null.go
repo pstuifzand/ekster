@@ -15,7 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-package main
+package server
 
 import (
 	"p83.nl/go/ekster/pkg/microsub"
@@ -25,11 +25,15 @@ import (
 type NullBackend struct {
 }
 
+func (b *NullBackend) AddEventListener(el microsub.EventListener) error {
+	panic("implement me")
+}
+
 // ChannelsGetList gets no channels
 func (b *NullBackend) ChannelsGetList() ([]microsub.Channel, error) {
 	return []microsub.Channel{
-		microsub.Channel{UID: "0001", Name: "notifications", Unread: 0},
-		microsub.Channel{UID: "0000", Name: "default", Unread: 0},
+		{UID: "0001", Name: "notifications", Unread: 0},
+		{UID: "0000", Name: "default", Unread: 0},
 	}, nil
 }
 
@@ -63,7 +67,9 @@ func (b *NullBackend) TimelineGet(before, after, channel string) (microsub.Timel
 }
 
 func (b *NullBackend) FollowGetList(uid string) ([]microsub.Feed, error) {
-	return []microsub.Feed{}, nil
+	return []microsub.Feed{
+		{Name: "test", Type: "feed", URL: "https://example.com/"},
+	}, nil
 }
 
 func (b *NullBackend) FollowURL(uid string, url string) (microsub.Feed, error) {
@@ -75,7 +81,9 @@ func (b *NullBackend) UnfollowURL(uid string, url string) error {
 }
 
 func (b *NullBackend) Search(query string) ([]microsub.Feed, error) {
-	return []microsub.Feed{}, nil
+	return []microsub.Feed{
+		{"feed", "https://example.com/", "Example", "test.jpg", "test", microsub.Card{}},
+	}, nil
 }
 
 func (b *NullBackend) PreviewURL(url string) (microsub.Timeline, error) {

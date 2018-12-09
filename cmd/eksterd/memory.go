@@ -54,6 +54,7 @@ type memoryBackend struct {
 
 	Me            string
 	TokenEndpoint string
+	AuthEnabled   bool
 
 	ticker *time.Ticker
 	quit   chan struct{}
@@ -141,7 +142,7 @@ func (b *memoryBackend) save() {
 	jw.Encode(b)
 }
 
-func loadMemoryBackend() microsub.Microsub {
+func loadMemoryBackend() *memoryBackend {
 	backend := &memoryBackend{}
 	err := backend.load()
 	if err != nil {
@@ -153,7 +154,7 @@ func loadMemoryBackend() microsub.Microsub {
 	return backend
 }
 
-func createMemoryBackend() microsub.Microsub {
+func createMemoryBackend() {
 	backend := memoryBackend{}
 	backend.lock.Lock()
 
@@ -174,7 +175,6 @@ func createMemoryBackend() microsub.Microsub {
 	backend.lock.Unlock()
 
 	backend.save()
-	return &backend
 }
 
 // ChannelsGetList gets channels
