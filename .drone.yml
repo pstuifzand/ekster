@@ -1,15 +1,17 @@
 pipeline:
-    build:
-        image: golang
-        commands:
-            - go get p83.nl/go/ekster/...
-            - go build p83.nl/go/ekster/cmd/eksterd
+#    build:
+#        image: golang
+#        commands:
+#            - go get p83.nl/go/ekster/...
+#            - go build p83.nl/go/ekster/cmd/eksterd
 
     publish:
         image: plugins/docker
         repo: registry.stuifzandapp.com/microsub-server
         registry: registry.stuifzandapp.com
         secrets: [ docker_username, docker_password ]
+        settings:
+            dockerfile: ./Dockerfile.alpine
 
     deploy:
         image: appleboy/drone-ssh
