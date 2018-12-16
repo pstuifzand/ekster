@@ -107,8 +107,6 @@ func NewApp(options AppOptions) *App {
 		options: options,
 	}
 
-	var backend *memoryBackend
-
 	app.backend = loadMemoryBackend()
 	app.backend.AuthEnabled = options.AuthEnabled
 
@@ -130,7 +128,7 @@ func NewApp(options AppOptions) *App {
 	})
 
 	if !options.Headless {
-		handler, err := newMainHandler(backend, options.BaseURL, options.TemplateDir)
+		handler, err := newMainHandler(app.backend, options.BaseURL, options.TemplateDir)
 		if err != nil {
 			log.Fatal(err)
 		}
