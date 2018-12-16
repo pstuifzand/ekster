@@ -10,8 +10,6 @@ pipeline:
         repo: registry.stuifzandapp.com/microsub-server
         registry: registry.stuifzandapp.com
         secrets: [ docker_username, docker_password ]
-        settings:
-            dockerfile: ./Dockerfile.alpine
 
     deploy:
         image: appleboy/drone-ssh

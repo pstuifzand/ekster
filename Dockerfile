@@ -1,8 +1,16 @@
-FROM ubuntu
-RUN apt-get -y update && apt-get install -y ca-certificates
-RUN ["mkdir", "/usr/share/eksterd"]
-ADD ./eksterd /usr/local/bin
-ADD ./templates /usr/share/eksterd
+# build stage
+FROM golang:1.10.2-alpine3.7 AS build-env
+RUN apk --no-cache add git
+RUN go get p83.nl/go/ekster/...
+
+# final stage
+FROM alpine
+RUN apk --no-cache add ca-certificates
+RUN ["mkdir", "-p", "/opt/micropub"]
+WORKDIR /opt/micropub
 EXPOSE 80
-ENV EKSTER_TEMPLATES "/usr/share/eksterd"
-ENTRYPOINT ["/usr/local/bin/eksterd"]
+COPY --from=build-env /go/bin/eksterd /app/
+RUN ["mkdir", "/app/templates"]
+COPY --from=build-env /go/src/p83.nl/go/ekster/templates /app/templates
+ENTRYPOINT ["/app/eksterd"]
+
