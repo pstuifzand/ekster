@@ -88,6 +88,9 @@ func itemPtr(item *microsub.Item, key string) *[]string {
 func simplifyToItem(itemType string, item map[string][]interface{}) microsub.Item {
 	var feedItem microsub.Item
 
+	if itemType == "cite" {
+		itemType = "entry"
+	}
 	feedItem.Type = itemType
 	feedItem.Refs = make(map[string]microsub.Item)
 
