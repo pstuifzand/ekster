@@ -96,8 +96,7 @@ func simplifyToItem(itemType string, item map[string][]interface{}) microsub.Ite
 		case "bookmark-of", "like-of", "repost-of", "in-reply-to":
 			u, withItem, refItem := simplifyRefItem(k, v)
 
-			resultPtr := itemPtr(&feedItem, k)
-			if resultPtr != nil {
+			if resultPtr := itemPtr(&feedItem, k); resultPtr != nil {
 				*resultPtr = append(*resultPtr, u)
 				if withItem {
 					feedItem.Refs[u] = refItem
@@ -113,17 +112,23 @@ func simplifyToItem(itemType string, item map[string][]interface{}) microsub.Ite
 			author, _ := simplifyCard(v[0])
 			feedItem.Checkin = &author
 		case "name", "published", "updated", "url", "uid", "latitude", "longitude":
-			resultPtr := getScalarPtr(&feedItem, k)
-			if resultPtr != nil {
+			if resultPtr := getScalarPtr(&feedItem, k); resultPtr != nil {
 				if len(v) >= 1 {
 					*resultPtr = v[0].(string)
 				}
 			}
 		case "category":
-			resultPtr := itemPtr(&feedItem, k)
-			if resultPtr != nil {
+			if resultPtr := itemPtr(&feedItem, k); resultPtr != nil {
 				for _, c := range v {
-					*resultPtr = append(*resultPtr, c.(string))
+					switch t := c.(type) {
+					case microformats.Microformat:
+						// TODO: perhaps use name
+						if t.Value != "" {
+							*resultPtr = append(*resultPtr, t.Value)
+						}
+					case string:
+						*resultPtr = append(*resultPtr, t)
+					}
 				}
 			}
 		default:

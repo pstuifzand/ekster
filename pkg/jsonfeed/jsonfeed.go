@@ -17,6 +17,11 @@
 */
 package jsonfeed
 
+import (
+	"encoding/json"
+	"io"
+)
+
 type Attachment struct {
 	URL               string `json:"url"`
 	MimeType          string `json:"mime_type"`
@@ -62,4 +67,12 @@ type Feed struct {
 	Author      Author `json:"author,omitempty"`
 	Items       []Item `json:"items"`
 	Hubs        []Hub  `json:"hubs"`
+}
+
+// Parse parses a jsonfeed
+func Parse(body io.Reader) (Feed, error) {
+	var feed Feed
+	dec := json.NewDecoder(body)
+	err := dec.Decode(&feed)
+	return feed, err
 }

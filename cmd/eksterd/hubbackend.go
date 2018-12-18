@@ -22,7 +22,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -51,6 +50,17 @@ type hubIncomingBackend struct {
 	baseURL string
 }
 
+type Feed struct {
+	ID            int64  `redis:"id"`
+	Channel       string `redis:"channel"`
+	URL           string `redis:"url"`
+	Callback      string `redis:"callback"`
+	Hub           string `redis:"hub"`
+	Secret        string `redis:"secret"`
+	LeaseSeconds  int64  `redis:"lease_seconds"`
+	ResubscribeAt int64  `redis:"resubscribe_at"`
+}
+
 func (h *hubIncomingBackend) GetSecret(id int64) string {
 	conn := pool.Get()
 	defer conn.Close()
@@ -66,7 +76,6 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 	defer conn.Close()
 
 	// TODO(peter): check if topic already is registered
-
 	id, err := redis.Int64(conn.Do("INCR", "feed:next_id"))
 	if err != nil {
 		return 0, err
@@ -80,11 +89,12 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 	client := &http.Client{}
 
 	hubURL, err := websub.GetHubURL(client, topic)
-	if hubURL == "" {
+	if err != nil {
 		log.Printf("WebSub Hub URL not found for topic=%s\n", topic)
-	} else {
-		log.Printf("WebSub Hub URL found for topic=%s hub=%s\n", topic, hubURL)
+		return 0, err
 	}
+
+	log.Printf("WebSub Hub URL found for topic=%s hub=%s\n", topic, hubURL)
 
 	callbackURL := fmt.Sprintf("%s/incoming/%d", h.baseURL, id)
 
@@ -135,17 +145,6 @@ func (h *hubIncomingBackend) FeedSetLeaseSeconds(feedID int64, leaseSeconds int6
 	}
 
 	return nil
-}
-
-type Feed struct {
-	ID            int64  `redis:"id"`
-	Channel       string `redis:"channel"`
-	URL           string `redis:"url"`
-	Callback      string `redis:"callback"`
-	Hub           string `redis:"hub"`
-	Secret        string `redis:"secret"`
-	LeaseSeconds  int64  `redis:"lease_seconds"`
-	ResubscribeAt int64  `redis:"resubscribe_at"`
 }
 
 func (h *hubIncomingBackend) GetFeeds() []Feed {
@@ -209,10 +208,13 @@ func (h *hubIncomingBackend) run() error {
 					log.Printf("Looking at %s\n", feed.URL)
 					if feed.ResubscribeAt == 0 || time.Now().After(time.Unix(feed.ResubscribeAt, 0)) {
 						if feed.Callback == "" {
-							feed.Callback = fmt.Sprintf("%s/incoming/%d", os.Getenv("EKSTER_BASEURL"), feed.ID)
+							feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
 						}
 						log.Printf("Send resubscribe for %s\n", feed.URL)
-						h.Subscribe(&feed)
+						err := h.Subscribe(&feed)
+						if err != nil {
+							log.Printf("Error while subscribing: %s", err)
+						}
 					}
 				}
 			case <-quit:

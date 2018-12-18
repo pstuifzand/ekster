@@ -72,9 +72,7 @@ func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (
 		feed.Name = author.Name
 		feed.Photo = author.Photo
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
-		var jfeed jsonfeed.Feed
-		dec := json.NewDecoder(body)
-		err := dec.Decode(&jfeed)
+		jfeed, err := jsonfeed.Parse(body)
 		if err != nil {
 			log.Printf("Error while parsing json feed: %s\n", err)
 			return feed, err
