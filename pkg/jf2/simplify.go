@@ -111,13 +111,21 @@ func simplifyToItem(itemType string, item map[string][]interface{}) microsub.Ite
 		case "author":
 			author, _ := simplifyCard(v[0])
 			feedItem.Author = &author
-		case "checkin":
+		case "checkin", "location":
 			author, _ := simplifyCard(v[0])
 			feedItem.Checkin = &author
 		case "name", "published", "updated", "url", "uid", "latitude", "longitude":
 			if resultPtr := getScalarPtr(&feedItem, k); resultPtr != nil {
 				if len(v) >= 1 {
 					*resultPtr = v[0].(string)
+				}
+			}
+		case "photo":
+			if resultPtr := itemPtr(&feedItem, k); resultPtr != nil {
+				for _, c := range v {
+					if photo, ok := c.(string); ok {
+						*resultPtr = append(*resultPtr, photo)
+					}
 				}
 			}
 		case "category":
