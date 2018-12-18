@@ -181,8 +181,12 @@ func (h *hubIncomingBackend) GetFeeds() []Feed {
 			}
 		}
 
-		log.Printf("Websub feed: %#v\n", feed)
+		// Skip feeds without a Hub
+		if feed.Hub == "" {
+			continue
+		}
 
+		log.Printf("Websub feed: %#v\n", feed)
 		feeds = append(feeds, feed)
 	}
 
@@ -210,7 +214,7 @@ func (h *hubIncomingBackend) run() error {
 						if feed.Callback == "" {
 							feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
 						}
-						log.Printf("Send resubscribe for %s\n", feed.URL)
+						log.Printf("Send resubscribe for %q on %q\n", feed.URL, feed.Hub)
 						err := h.Subscribe(&feed)
 						if err != nil {
 							log.Printf("Error while subscribing: %s", err)
