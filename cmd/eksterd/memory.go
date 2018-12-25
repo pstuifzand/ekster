@@ -313,9 +313,9 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Tim
 		return microsub.Timeline{Items: []microsub.Item{}}, err
 	}
 
-	timelineBackend := GetTimeline("sorted-set", channel)
+	timelineBackend := b.getTimeline(channel)
 
-	return timelineBackend.GetItems(before, after)
+	return timelineBackend.Items(before, after)
 }
 
 func (b *memoryBackend) FollowGetList(uid string) ([]microsub.Feed, error) {
@@ -635,54 +635,8 @@ func matchItemText(item microsub.Item, re *regexp.Regexp) bool {
 }
 
 func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
-	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
-
-	if item.Published == "" {
-		item.Published = time.Now().Format(time.RFC3339)
-	}
-
-	data, err := json.Marshal(item)
-	if err != nil {
-		log.Printf("error while creating item for redis: %v\n", err)
-		return err
-	}
-
-	forRedis := redisItem{
-		ID:        item.ID,
-		Published: item.Published,
-		Read:      item.Read,
-		Data:      data,
-	}
-
-	itemKey := fmt.Sprintf("item:%s", item.ID)
-	_, err = redis.String(conn.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
-	if err != nil {
-		return fmt.Errorf("error while writing item for redis: %v", err)
-	}
-
-	readChannelKey := fmt.Sprintf("channel:%s:read", channel)
-	isRead, err := redis.Bool(conn.Do("SISMEMBER", readChannelKey, itemKey))
-	if err != nil {
-		return err
-	}
-
-	if isRead {
-		return nil
-	}
-
-	score, err := time.Parse(time.RFC3339, item.Published)
-	if err != nil {
-		return fmt.Errorf("error can't parse %s as time", item.Published)
-	}
-
-	_, err = redis.Int64(conn.Do("ZADD", zchannelKey, score.Unix()*1.0, itemKey))
-	if err != nil {
-		return fmt.Errorf("error while zadding item %s to channel %s for redis: %v", itemKey, zchannelKey, err)
-	}
-
-	b.sendMessage(microsub.Message("item added " + item.ID))
-
-	return nil
+	timelineBackend := b.getTimeline(channel)
+	return timelineBackend.AddItem(item)
 }
 
 func (b *memoryBackend) updateChannelUnreadCount(conn redis.Conn, channel string) error {
@@ -691,10 +645,10 @@ func (b *memoryBackend) updateChannelUnreadCount(conn redis.Conn, channel string
 	b.lock.RUnlock()
 
 	if exists {
-		zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
-		unread, err := redis.Int(conn.Do("ZCARD", zchannelKey))
+		timeline := b.getTimeline(channel)
+		unread, err := timeline.Count()
 		if err != nil {
-			return fmt.Errorf("error: while updating channel unread count for %s: %s", channel, err)
+			return err
 		}
 		defer b.save()
 		c.Unread = unread
