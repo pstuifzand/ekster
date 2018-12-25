@@ -15,8 +15,8 @@ type TimelineBackend interface {
 	AddItem(item microsub.Item) error
 	Count() (int, error)
 
-	MarkRead(uid string) error
-	MarkUnread(uid string) error
+	MarkRead(uids []string) error
+	MarkUnread(uids []string) error
 }
 
 type redisSortedSetTimeline struct {
@@ -192,11 +192,35 @@ func (timeline *redisSortedSetTimeline) Count() (int, error) {
 	return unread, nil
 }
 
-func (timeline *redisSortedSetTimeline) MarkRead(uid string) error {
-	panic("implement me")
+func (timeline *redisSortedSetTimeline) MarkRead(uids []string) error {
+	conn := pool.Get()
+	defer conn.Close()
+
+	channel := timeline.channel
+
+	itemUIDs := []string{}
+	for _, uid := range uids {
+		itemUIDs = append(itemUIDs, "item:"+uid)
+	}
+
+	channelKey := fmt.Sprintf("channel:%s:read", channel)
+	args := redis.Args{}.Add(channelKey).AddFlat(itemUIDs)
+
+	if _, err := conn.Do("SADD", args...); err != nil {
+		return fmt.Errorf("marking read for channel %s has failed: %s", channel, err)
+	}
+
+	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
+	args = redis.Args{}.Add(zchannelKey).AddFlat(itemUIDs)
+
+	if _, err := conn.Do("ZREM", args...); err != nil {
+		return fmt.Errorf("marking read for channel %s has failed: %s", channel, err)
+	}
+
+	return nil
 }
 
-func (timeline *redisSortedSetTimeline) MarkUnread(uid string) error {
+func (timeline *redisSortedSetTimeline) MarkUnread(uids []string) error {
 	panic("implement me")
 }
 
@@ -215,10 +239,10 @@ func (*redisStreamTimeline) Count() (int, error) {
 	return 0, nil
 }
 
-func (*redisStreamTimeline) MarkRead(uid string) error {
+func (*redisStreamTimeline) MarkRead(uids []string) error {
 	panic("implement me")
 }
 
-func (*redisStreamTimeline) MarkUnread(uid string) error {
+func (*redisStreamTimeline) MarkUnread(uids []string) error {
 	panic("implement me")
 }

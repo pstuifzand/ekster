@@ -485,34 +485,17 @@ func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error)
 }
 
 func (b *memoryBackend) MarkRead(channel string, uids []string) error {
-	conn := pool.Get()
-	defer conn.Close()
+	timeline := b.getTimeline(channel)
+	err := timeline.MarkRead(uids)
 
-	itemUIDs := []string{}
-	for _, uid := range uids {
-		itemUIDs = append(itemUIDs, "item:"+uid)
-	}
-
-	channelKey := fmt.Sprintf("channel:%s:read", channel)
-	args := redis.Args{}.Add(channelKey).AddFlat(itemUIDs)
-
-	if _, err := conn.Do("SADD", args...); err != nil {
-		return fmt.Errorf("marking read for channel %s has failed: %s", channel, err)
-	}
-
-	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
-	args = redis.Args{}.Add(zchannelKey).AddFlat(itemUIDs)
-
-	if _, err := conn.Do("ZREM", args...); err != nil {
-		return fmt.Errorf("marking read for channel %s has failed: %s", channel, err)
-	}
-
-	err := b.updateChannelUnreadCount(conn, channel)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Marking read success for %s %v\n", channel, itemUIDs)
+	err = b.updateChannelUnreadCount(channel)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -528,13 +511,13 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 
 	for _, item := range items {
 		item.Read = false
-		err = b.channelAddItemWithMatcher(conn, channel, item)
+		err = b.channelAddItemWithMatcher(channel, item)
 		if err != nil {
 			log.Printf("ERROR: %s\n", err)
 		}
 	}
 
-	err = b.updateChannelUnreadCount(conn, channel)
+	err = b.updateChannelUnreadCount(channel)
 	if err != nil {
 		return err
 	}
@@ -548,7 +531,7 @@ func (b *memoryBackend) Fetch3(channel, fetchURL string) (*http.Response, error)
 	return Fetch2(fetchURL)
 }
 
-func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel string, item microsub.Item) error {
+func (b *memoryBackend) channelAddItemWithMatcher(channel string, item microsub.Item) error {
 	// an item is posted
 	// check for all channels as channel
 	// if regex matches item
@@ -570,7 +553,7 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 
 			if matchItem(item, re) {
 				log.Printf("Included %#v\n", item)
-				err := b.channelAddItem(conn, channelKey, item)
+				err := b.channelAddItem(channelKey, item)
 				if err != nil {
 					continue
 				}
@@ -581,7 +564,7 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 
 	// Update all channels that have added items, because of the include matching
 	for _, value := range updatedChannels {
-		err := b.updateChannelUnreadCount(conn, value)
+		err := b.updateChannelUnreadCount(value)
 		if err != nil {
 			log.Printf("error while updating unread count for %s: %s", value, err)
 			continue
@@ -605,7 +588,7 @@ func (b *memoryBackend) channelAddItemWithMatcher(conn redis.Conn, channel strin
 		}
 	}
 
-	return b.channelAddItem(conn, channel, item)
+	return b.channelAddItem(channel, item)
 }
 
 func matchItem(item microsub.Item, re *regexp.Regexp) bool {
@@ -634,12 +617,12 @@ func matchItemText(item microsub.Item, re *regexp.Regexp) bool {
 	return re.MatchString(item.Name)
 }
 
-func (b *memoryBackend) channelAddItem(conn redis.Conn, channel string, item microsub.Item) error {
+func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) error {
 	timelineBackend := b.getTimeline(channel)
 	return timelineBackend.AddItem(item)
 }
 
-func (b *memoryBackend) updateChannelUnreadCount(conn redis.Conn, channel string) error {
+func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
 	b.lock.RLock()
 	c, exists := b.Channels[channel]
 	b.lock.RUnlock()

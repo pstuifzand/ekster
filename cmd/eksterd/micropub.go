@@ -111,8 +111,8 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			item.Read = false
 			id, _ := redis.Int(conn.Do("INCR", "source:"+sourceID+"next_id"))
 			item.ID = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("source:%s:%d", sourceID, id))))
-			h.Backend.channelAddItemWithMatcher(conn, channel, item)
-			err = h.Backend.updateChannelUnreadCount(conn, channel)
+			err = h.Backend.channelAddItemWithMatcher(channel, item)
+			err = h.Backend.updateChannelUnreadCount(channel)
 			if err != nil {
 				log.Printf("error: while updating channel unread count for %s: %s\n", channel, err)
 			}
@@ -121,7 +121,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		enc := json.NewEncoder(w)
-		enc.Encode(map[string]string{
+		err = enc.Encode(map[string]string{
 			"ok": "1",
 		})
 
