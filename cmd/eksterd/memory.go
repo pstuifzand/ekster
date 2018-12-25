@@ -78,6 +78,12 @@ type redisItem struct {
 	Data      []byte
 }
 
+func (ri *redisItem) Item() microsub.Item {
+	var item microsub.Item
+	_ = json.Unmarshal(ri.Data, &item)
+	return item
+}
+
 type fetch2 struct{}
 
 func (f *fetch2) Fetch(url string) (*http.Response, error) {
@@ -288,11 +294,19 @@ func (b *memoryBackend) run() {
 					for _, feedURL := range feeds[uid] {
 						resp, err := b.Fetch3(uid, feedURL)
 						if err != nil {
+							_ = b.channelAddItem("notifications", microsub.Item{
+								Type: "entry",
+								Name: fmt.Sprintf("Error while Fetch3 of %s: %v", feedURL, err),
+								Content: &microsub.Content{
+									Text: "error while fetching feed",
+								},
+								UID: time.Now().String(),
+							})
 							log.Printf("Error while Fetch3 of %s: %v\n", feedURL, err)
 							continue
 						}
-						defer resp.Body.Close()
-						b.ProcessContent(uid, feedURL, resp.Header.Get("Content-Type"), resp.Body)
+						_ = b.ProcessContent(uid, feedURL, resp.Header.Get("Content-Type"), resp.Body)
+						_ = resp.Body.Close()
 					}
 				}
 
@@ -330,6 +344,14 @@ func (b *memoryBackend) FollowURL(uid string, url string) (microsub.Feed, error)
 
 	resp, err := b.Fetch3(uid, feed.URL)
 	if err != nil {
+		_ = b.channelAddItem("notifications", microsub.Item{
+			Type: "entry",
+			Name: fmt.Sprintf("Error while Fetch3 of %s: %v", feed.URL, err),
+			Content: &microsub.Content{
+				Text: "error while fetching feed",
+			},
+			UID: time.Now().String(),
+		})
 		return feed, err
 	}
 	defer resp.Body.Close()
@@ -338,9 +360,9 @@ func (b *memoryBackend) FollowURL(uid string, url string) (microsub.Feed, error)
 	b.Feeds[uid] = append(b.Feeds[uid], feed)
 	b.lock.Unlock()
 
-	b.ProcessContent(uid, feed.URL, resp.Header.Get("Content-Type"), resp.Body)
+	_ = b.ProcessContent(uid, feed.URL, resp.Header.Get("Content-Type"), resp.Body)
 
-	b.CreateFeed(url, uid)
+	_, _ = b.CreateFeed(url, uid)
 
 	return feed, nil
 }
