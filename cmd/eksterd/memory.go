@@ -305,89 +305,17 @@ func (b *memoryBackend) run() {
 }
 
 func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Timeline, error) {
-	conn := pool.Get()
-	defer conn.Close()
-
-	items := []microsub.Item{}
-
 	log.Printf("TimelineGet %s\n", channel)
-	feeds, err := b.FollowGetList(channel)
+
+	// Check if feed exists
+	_, err := b.FollowGetList(channel)
 	if err != nil {
-		return microsub.Timeline{Items: items}, err
-	}
-	log.Println(feeds)
-
-	zchannelKey := fmt.Sprintf("zchannel:%s:posts", channel)
-
-	afterScore := "-inf"
-	if len(after) != 0 {
-		afterScore = "(" + after
-	}
-	beforeScore := "+inf"
-	if len(before) != 0 {
-		beforeScore = "(" + before
+		return microsub.Timeline{Items: []microsub.Item{}}, err
 	}
 
-	var itemJSONs [][]byte
+	timelineBackend := GetTimeline("sorted-set", channel)
 
-	itemScores, err := redis.Strings(
-		conn.Do(
-			"ZRANGEBYSCORE",
-			zchannelKey,
-			afterScore,
-			beforeScore,
-			"LIMIT",
-			0,
-			20,
-			"WITHSCORES",
-		),
-	)
-
-	if err != nil {
-		return microsub.Timeline{
-			Paging: microsub.Pagination{},
-			Items:  items,
-		}, err
-	}
-
-	if len(itemScores) >= 2 {
-		before = itemScores[1]
-		after = itemScores[len(itemScores)-1]
-	} else {
-		before = ""
-		after = ""
-	}
-
-	for i := 0; i < len(itemScores); i += 2 {
-		itemID := itemScores[i]
-		itemJSON, err := redis.Bytes(conn.Do("HGET", itemID, "Data"))
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		itemJSONs = append(itemJSONs, itemJSON)
-	}
-
-	for _, obj := range itemJSONs {
-		item := microsub.Item{}
-		err := json.Unmarshal(obj, &item)
-		if err != nil {
-			// FIXME: what should we do if one of the items doen't unmarshal?
-			log.Println(err)
-			continue
-		}
-		item.Read = false
-		items = append(items, item)
-	}
-	paging := microsub.Pagination{
-		After:  after,
-		Before: before,
-	}
-
-	return microsub.Timeline{
-		Paging: paging,
-		Items:  items,
-	}, nil
+	return timelineBackend.GetItems(before, after)
 }
 
 func (b *memoryBackend) FollowGetList(uid string) ([]microsub.Feed, error) {
