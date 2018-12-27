@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"linkheader"
 
@@ -151,17 +152,42 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 	reqValues.Add("client_id", clientID)
 	reqValues.Add("me", me.String())
 
-	res, err := http.PostForm(endpoints.TokenEndpoint, reqValues)
+	req, err := http.NewRequest(http.MethodPost, endpoints.TokenEndpoint, strings.NewReader(reqValues.Encode()))
 	if err != nil {
 		return tokenResponse, err
 	}
 
-	defer res.Body.Close()
-
-	dec := json.NewDecoder(res.Body)
-	err = dec.Decode(&tokenResponse)
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return tokenResponse, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		return TokenResponse{}, fmt.Errorf("status code %d, instead of 200", res.StatusCode)
+	}
+
+	if strings.HasPrefix(res.Header.Get("content-type"), "application/json") {
+		dec := json.NewDecoder(res.Body)
+		err = dec.Decode(&tokenResponse)
+		if err != nil {
+			return tokenResponse, fmt.Errorf("error while parsing response body with content-type %s as json: %s", res.Header.Get("content-type"), err)
+		}
+	} else if strings.HasPrefix(res.Header.Get("content-type"), "application/x-www-form-urlencoded") {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return tokenResponse, fmt.Errorf("error while reading response body with content-type %s: %s", res.Header.Get("content-type"), err)
+		}
+
+		values, err := url.ParseQuery(string(body))
+		if err != nil {
+			return tokenResponse, fmt.Errorf("error while parsing response body with content-type %s as application/x-www-form-urlencoded: %s", res.Header.Get("content-type"), err)
+		}
+
+		tokenResponse.Me = values.Get("me")
+		tokenResponse.AccessToken = values.Get("token")
+		tokenResponse.TokenType = values.Get("token_type")
+		tokenResponse.Scope = values.Get("scope")
 	}
 
 	return tokenResponse, nil
