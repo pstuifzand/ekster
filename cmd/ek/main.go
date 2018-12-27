@@ -34,7 +34,7 @@ import (
 
 const (
 	// Version is the version of the command
-	Version = "0.8.3"
+	Version = "0.8.4"
 )
 
 var (
