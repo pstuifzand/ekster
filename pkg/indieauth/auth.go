@@ -25,10 +25,12 @@ type Endpoints struct {
 }
 
 type TokenResponse struct {
-	Me          string `json:"me"`
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	Scope       string `json:"scope"`
+	Me               string `json:"me"`
+	AccessToken      string `json:"access_token"`
+	TokenType        string `json:"token_type"`
+	Scope            string `json:"scope"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
 }
 
 func GetEndpoints(me *url.URL) (Endpoints, error) {
@@ -156,6 +158,8 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 	if err != nil {
 		return tokenResponse, err
 	}
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("Accept", "application/json")
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -173,6 +177,9 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 		if err != nil {
 			return tokenResponse, fmt.Errorf("error while parsing response body with content-type %s as json: %s", res.Header.Get("content-type"), err)
 		}
+		if tokenResponse.Me == "" && tokenResponse.Error != "" {
+			return tokenResponse, fmt.Errorf("received error from endpoint: %s, %s", tokenResponse.Error, tokenResponse.ErrorDescription)
+		}
 	} else if strings.HasPrefix(res.Header.Get("content-type"), "application/x-www-form-urlencoded") {
 		body, err := ioutil.ReadAll(res.Body)
 		if err != nil {
@@ -181,9 +188,14 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 
 		values, err := url.ParseQuery(string(body))
 		if err != nil {
-			return tokenResponse, fmt.Errorf("error while parsing response body with content-type %s as application/x-www-form-urlencoded: %s", res.Header.Get("content-type"), err)
+			return tokenResponse, fmt.Errorf("error while parsing response body with content-type %s as application/x-www-form-urlencoded: %s\nbody was: %q\n", res.Header.Get("content-type"), err, body)
 		}
 
+		if values.Get("me") == "" {
+			if errTxt := values.Get("error"); errTxt != "" {
+				return tokenResponse, fmt.Errorf("received error from endpoint: %s, %s", errTxt, values.Get("error_description"))
+			}
+		}
 		tokenResponse.Me = values.Get("me")
 		tokenResponse.AccessToken = values.Get("token")
 		tokenResponse.TokenType = values.Get("token_type")
