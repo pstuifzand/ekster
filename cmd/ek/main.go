@@ -140,7 +140,7 @@ Usage:
 
 Commands:
 
-	connect URL                  login to Indieauth url
+	connect URL                  login to Indieauth URL, e.g. your website
 
 	channels                     list channels
 	channels NAME                create channel with NAME
