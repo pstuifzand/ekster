@@ -157,8 +157,7 @@ func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) error {
 
 	data, err := json.Marshal(item)
 	if err != nil {
-		log.Printf("error while creating item for redis: %v\n", err)
-		return err
+		return fmt.Errorf("couldn't marshall item for redis: %s", err)
 	}
 
 	forRedis := redisItem{
@@ -171,7 +170,7 @@ func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) error {
 	itemKey := fmt.Sprintf("item:%s", item.ID)
 	_, err = redis.String(conn.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
 	if err != nil {
-		return fmt.Errorf("error while writing item for redis: %v", err)
+		return fmt.Errorf("writing failed for item to redis: %v", err)
 	}
 
 	readChannelKey := fmt.Sprintf("channel:%s:read", channel)
@@ -186,12 +185,12 @@ func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) error {
 
 	score, err := time.Parse(time.RFC3339, item.Published)
 	if err != nil {
-		return fmt.Errorf("error can't parse %s as time", item.Published)
+		return fmt.Errorf("can't parse %s as time", item.Published)
 	}
 
 	_, err = redis.Int64(conn.Do("ZADD", zchannelKey, score.Unix()*1.0, itemKey))
 	if err != nil {
-		return fmt.Errorf("error while zadding item %s to channel %s for redis: %v", itemKey, zchannelKey, err)
+		return fmt.Errorf("zadding failed item %s to channel %s for redis: %v", itemKey, zchannelKey, err)
 	}
 
 	// FIXME: send message to events...
