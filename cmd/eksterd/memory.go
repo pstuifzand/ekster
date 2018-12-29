@@ -695,7 +695,7 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	client := http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("error while fetching %s: %s", u, err)
+		return nil, fmt.Errorf("fetch failed: %s", u, err)
 	}
 	defer resp.Body.Close()
 

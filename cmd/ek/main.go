@@ -341,7 +341,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		u := commands[2]
 		_, err := sub.FollowURL(uid, u)
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			log.Fatalf("ERROR: %s", err)
 		}
 		// NOTE(peter): should we show the returned feed here?
 	}
@@ -488,7 +488,7 @@ func importJsonIntoMicrosub(sub microsub.Microsub, filename string) {
 
 		feeds, err := sub.FollowGetList(uid)
 		if err != nil {
-			log.Fatalf("An error occurred: %q\n", err)
+			log.Fatalf("An error occurred: %s\n", err)
 		}
 
 		for _, f := range feeds {
@@ -500,7 +500,7 @@ func importJsonIntoMicrosub(sub microsub.Microsub, filename string) {
 			if _, e := feedMap[string(feed)]; !e {
 				_, err := sub.FollowURL(uid, string(feed))
 				if err != nil {
-					log.Printf("An error occurred: %q\n", err)
+					log.Printf("An error occurred: %s\n", err)
 					continue
 				}
 				log.Printf("Feed followed: %s\n", string(feed))
