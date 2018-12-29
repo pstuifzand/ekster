@@ -71,6 +71,7 @@ type Item struct {
 	RepostOf   []string        `json:"repost-of,omitempty" mf2:"repost-of"`
 	InReplyTo  []string        `json:"in-reply-to,omitempty" mf2:"in-reply-to"`
 	Content    *Content        `json:"content,omitempty" mf2:"content"`
+	Summary    string          `json:"summary,omitempty" mf2:"summary"`
 	Latitude   string          `json:"latitude,omitempty" mf2:"latitude"`
 	Longitude  string          `json:"longitude,omitempty" mf2:"longitude"`
 	Checkin    *Card           `json:"checkin,omitempty" mf2:"checkin"`
