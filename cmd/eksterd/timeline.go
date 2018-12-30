@@ -34,7 +34,7 @@ type redisStreamTimeline struct {
 func (b *memoryBackend) getTimeline(channel string) TimelineBackend {
 	// TODO: fetch timeline type from channel
 	timelineType := "sorted-set"
-	if channel == "notifications" {
+	if channel == "notifications" || channel == "tweets" {
 		timelineType = "stream"
 	}
 	if timelineType == "sorted-set" {
