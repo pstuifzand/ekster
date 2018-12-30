@@ -325,9 +325,11 @@ func (timeline *redisStreamTimeline) Count() (int, error) {
 }
 
 func (timeline *redisStreamTimeline) MarkRead(uids []string) error {
-	panic("implement me")
+	// panic("implement me")
+	return nil
 }
 
 func (timeline *redisStreamTimeline) MarkUnread(uids []string) error {
-	panic("implement me")
+	// panic("implement me")
+	return nil
 }
