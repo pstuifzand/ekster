@@ -85,7 +85,7 @@ func itemPtr(item *microsub.Item, key string) *[]string {
 	return nil
 }
 
-func simplifyToItem(itemType string, item map[string][]interface{}) microsub.Item {
+func simplifyToItem(itemType string, item map[string][]interface{}, author microsub.Card) microsub.Item {
 	var feedItem microsub.Item
 
 	if itemType == "cite" {
@@ -93,6 +93,8 @@ func simplifyToItem(itemType string, item map[string][]interface{}) microsub.Ite
 	}
 	feedItem.Type = itemType
 	feedItem.Refs = make(map[string]microsub.Item)
+
+	hasAuthor := false
 
 	for k, v := range item {
 		switch k {
@@ -111,6 +113,7 @@ func simplifyToItem(itemType string, item map[string][]interface{}) microsub.Ite
 		case "author":
 			author, _ := simplifyCard(v[0])
 			feedItem.Author = &author
+			hasAuthor = true
 		case "checkin", "location":
 			author, _ := simplifyCard(v[0])
 			feedItem.Checkin = &author
@@ -154,6 +157,10 @@ func simplifyToItem(itemType string, item map[string][]interface{}) microsub.Ite
 		if strings.TrimSpace(feedItem.Name) == strings.TrimSpace(feedItem.Content.Text) {
 			feedItem.Name = ""
 		}
+	}
+
+	if !hasAuthor {
+		feedItem.Author = &author
 	}
 
 	return feedItem
@@ -235,7 +242,7 @@ func SimplifyMicroformatItem(mdItem *microformats.Microformat, author microsub.C
 		return item, false
 	}
 
-	return simplifyToItem(itemType, mdItem.Properties), true
+	return simplifyToItem(itemType, mdItem.Properties, author), true
 }
 
 func hasType(item *microformats.Microformat, itemType string) bool {
