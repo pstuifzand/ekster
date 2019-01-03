@@ -244,7 +244,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		}
 
 		for _, ch := range channels {
-			fmt.Printf("%-20s %s\n", ch.UID, ch.Name)
+			fmt.Printf("%-20s %-30s %s\n", ch.UID, ch.Name, ch.Unread)
 		}
 	}
 

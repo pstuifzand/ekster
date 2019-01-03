@@ -206,7 +206,7 @@ func (b *memoryBackend) ChannelsGetList() ([]microsub.Channel, error) {
 		}
 	}
 	util.StablePartition(channels, 0, len(channels), func(i int) bool {
-		return channels[i].Unread > 0
+		return channels[i].Unread.HasUnread()
 	})
 
 	return channels, nil
@@ -656,7 +656,7 @@ func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
 			return err
 		}
 		defer b.save()
-		c.Unread = unread
+		c.Unread = microsub.Unread{Type: microsub.UNREAD_COUNT, UnreadCount: unread}
 
 		b.lock.Lock()
 		b.Channels[channel] = c

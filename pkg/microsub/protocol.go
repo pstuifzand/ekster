@@ -19,6 +19,11 @@
 // Package microsub describes the protocol methods of the Microsub protocol
 package microsub
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 /*
 	channels
 	search
@@ -29,12 +34,23 @@ package microsub
 	block / unblock
 */
 
+const (
+	UNREAD_BOOL = 1 << iota
+	UNREAD_COUNT
+)
+
+type Unread struct {
+	Type        int
+	Unread      bool
+	UnreadCount int
+}
+
 // Channel contains information about a channel.
 type Channel struct {
 	// UID is a unique id for the channel
 	UID    string `json:"uid"`
 	Name   string `json:"name"`
-	Unread int    `json:"unread"`
+	Unread Unread `json:"unread"`
 }
 
 type Card struct {
@@ -131,4 +147,48 @@ type Microsub interface {
 	PreviewURL(url string) (Timeline, error)
 
 	AddEventListener(el EventListener) error
+}
+
+func (unread *Unread) MarshalJSON() ([]byte, error) {
+	return nil, nil
+}
+
+func (unread *Unread) UnmarshalJSON(bytes []byte) error {
+	var b bool
+	err := json.Unmarshal(bytes, &b)
+	if err == nil {
+		unread.Type = UNREAD_BOOL
+		unread.Unread = b
+		return nil
+	}
+
+	var count int
+	err = json.Unmarshal(bytes, &count)
+	if err == nil {
+		unread.Type = UNREAD_COUNT
+		unread.UnreadCount = count
+		return nil
+	}
+
+	return fmt.Errorf("can't unmarshal as bool or int")
+}
+
+func (unread Unread) String() string {
+	switch unread.Type {
+	case UNREAD_BOOL:
+		return fmt.Sprint(unread.Unread)
+	case UNREAD_COUNT:
+		return fmt.Sprint(unread.UnreadCount)
+	}
+	return ""
+}
+
+func (unread *Unread) HasUnread() bool {
+	switch unread.Type {
+	case UNREAD_BOOL:
+		return unread.Unread
+	case UNREAD_COUNT:
+		return unread.UnreadCount > 0
+	}
+	return false
 }
