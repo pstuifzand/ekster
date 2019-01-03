@@ -656,7 +656,7 @@ func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
 			return err
 		}
 		defer b.save()
-		c.Unread = microsub.Unread{Type: microsub.UNREAD_COUNT, UnreadCount: unread}
+		c.Unread = microsub.Unread{Type: microsub.UnreadCount, UnreadCount: unread}
 
 		b.lock.Lock()
 		b.Channels[channel] = c

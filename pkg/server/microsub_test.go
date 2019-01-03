@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"p83.nl/go/ekster/pkg/client"
+	"p83.nl/go/ekster/pkg/microsub"
 )
 
 func createServerClient() (*httptest.Server, *client.Client) {
@@ -39,11 +40,11 @@ func TestServer_ChannelsGetList(t *testing.T) {
 
 		assert.Equal(t, "notifications", channels[0].Name)
 		assert.Equal(t, "0001", channels[0].UID)
-		assert.Equal(t, 0, channels[0].Unread)
+		assert.Equal(t, microsub.Unread{Type: microsub.UnreadBool}, channels[0].Unread)
 
 		assert.Equal(t, "default", channels[1].Name)
 		assert.Equal(t, "0000", channels[1].UID)
-		assert.Equal(t, 0, channels[1].Unread)
+		assert.Equal(t, microsub.Unread{Type: microsub.UnreadBool}, channels[0].Unread)
 	}
 }
 

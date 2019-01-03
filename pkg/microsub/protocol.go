@@ -35,8 +35,8 @@ import (
 */
 
 const (
-	UNREAD_BOOL = 1 << iota
-	UNREAD_COUNT
+	UnreadBool  = 0
+	UnreadCount = 1
 )
 
 type Unread struct {
@@ -50,7 +50,7 @@ type Channel struct {
 	// UID is a unique id for the channel
 	UID    string `json:"uid"`
 	Name   string `json:"name"`
-	Unread Unread `json:"unread"`
+	Unread Unread `json:"unread,omitempty"`
 }
 
 type Card struct {
@@ -149,15 +149,21 @@ type Microsub interface {
 	AddEventListener(el EventListener) error
 }
 
-func (unread *Unread) MarshalJSON() ([]byte, error) {
-	return nil, nil
+func (unread Unread) MarshalJSON() ([]byte, error) {
+	switch unread.Type {
+	case UnreadBool:
+		return json.Marshal(unread.Unread)
+	case UnreadCount:
+		return json.Marshal(unread.UnreadCount)
+	}
+	return json.Marshal(nil)
 }
 
 func (unread *Unread) UnmarshalJSON(bytes []byte) error {
 	var b bool
 	err := json.Unmarshal(bytes, &b)
 	if err == nil {
-		unread.Type = UNREAD_BOOL
+		unread.Type = UnreadBool
 		unread.Unread = b
 		return nil
 	}
@@ -165,7 +171,7 @@ func (unread *Unread) UnmarshalJSON(bytes []byte) error {
 	var count int
 	err = json.Unmarshal(bytes, &count)
 	if err == nil {
-		unread.Type = UNREAD_COUNT
+		unread.Type = UnreadCount
 		unread.UnreadCount = count
 		return nil
 	}
@@ -175,9 +181,9 @@ func (unread *Unread) UnmarshalJSON(bytes []byte) error {
 
 func (unread Unread) String() string {
 	switch unread.Type {
-	case UNREAD_BOOL:
+	case UnreadBool:
 		return fmt.Sprint(unread.Unread)
-	case UNREAD_COUNT:
+	case UnreadCount:
 		return fmt.Sprint(unread.UnreadCount)
 	}
 	return ""
@@ -185,9 +191,9 @@ func (unread Unread) String() string {
 
 func (unread *Unread) HasUnread() bool {
 	switch unread.Type {
-	case UNREAD_BOOL:
+	case UnreadBool:
 		return unread.Unread
-	case UNREAD_COUNT:
+	case UnreadCount:
 		return unread.UnreadCount > 0
 	}
 	return false

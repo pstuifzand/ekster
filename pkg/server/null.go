@@ -32,8 +32,8 @@ func (b *NullBackend) AddEventListener(el microsub.EventListener) error {
 // ChannelsGetList gets no channels
 func (b *NullBackend) ChannelsGetList() ([]microsub.Channel, error) {
 	return []microsub.Channel{
-		{UID: "0001", Name: "notifications", Unread: microsub.Unread{Type: microsub.UNREAD_BOOL, Unread: false}},
-		{UID: "0000", Name: "default", Unread: microsub.Unread{Type: microsub.UNREAD_COUNT, UnreadCount: 0}},
+		{UID: "0001", Name: "notifications", Unread: microsub.Unread{Type: microsub.UnreadBool, Unread: false}},
+		{UID: "0000", Name: "default", Unread: microsub.Unread{Type: microsub.UnreadCount, UnreadCount: 0}},
 	}, nil
 }
 
