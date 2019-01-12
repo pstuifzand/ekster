@@ -18,6 +18,7 @@ pipeline:
     notify:
         image: plugins/webhook
         settings:
+            debug: true
             urls:
                 from_secret: success_webhook
         when:
@@ -26,6 +27,7 @@ pipeline:
     notify_failure:
         image: plugins/webhook
         settings:
+            debug: true
             urls:
                 from_secret: failure_webhook
         when: 
