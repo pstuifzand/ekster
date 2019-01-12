@@ -19,8 +19,9 @@ pipeline:
         image: plugins/webhook
         settings:
             debug: true
-            urls:
-                from_secret: success_webhook
+        secrets:
+            - source: success_webhook
+              target: urls
         when:
             status: [success]
 
@@ -28,7 +29,8 @@ pipeline:
         image: plugins/webhook
         settings:
             debug: true
-            urls:
-                from_secret: failure_webhook
+        secrets:
+            - source: failure_webhook
+              target: urls
         when: 
             status: [failure]
