@@ -21,7 +21,7 @@ pipeline:
             debug: true
         secrets:
             - source: success_webhook
-              target: urls
+              target: plugin_urls
         when:
             status: [success]
 
@@ -31,6 +31,6 @@ pipeline:
             debug: true
         secrets:
             - source: failure_webhook
-              target: urls
+              target: plugin_urls
         when: 
             status: [failure]
