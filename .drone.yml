@@ -1,10 +1,4 @@
 pipeline:
-#    build:
-#        image: golang
-#        commands:
-#            - go get p83.nl/go/ekster/...
-#            - go build p83.nl/go/ekster/cmd/eksterd
-
     publish:
         image: plugins/docker
         repo: registry.stuifzandapp.com/microsub-server
@@ -20,3 +14,19 @@ pipeline:
             - cd /home/microsub/microsub
             - docker-compose pull web
             - docker-compose up -d
+
+    notify:
+        image: plugins/webhook
+        settings:
+            urls:
+                from_secret: success_webhook
+        when:
+            status: [success]
+
+    notify_failure:
+        image: plugins/webhook
+        settings:
+            urls:
+                from_secret: failure_webhook
+        when: 
+            status: [failure]
