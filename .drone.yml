@@ -20,17 +20,5 @@ pipeline:
         settings:
             debug: true
         secrets:
-            - source: success_webhook
+            - source: result_webhook
               target: plugin_urls
-        when:
-            status: [success]
-
-    notify_failure:
-        image: plugins/webhook
-        settings:
-            debug: true
-        secrets:
-            - source: failure_webhook
-              target: plugin_urls
-        when: 
-            status: [failure]
