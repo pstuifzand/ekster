@@ -195,6 +195,8 @@ func simplifyCard(v interface{}) (microsub.Card, bool) {
 		return simplifyCardFromMicroformat(author, t)
 	case string:
 		return simplifyCardFromString(author, t)
+	default:
+		log.Printf("simplifyCard: different type %T\n", t)
 	}
 
 	return author, false
