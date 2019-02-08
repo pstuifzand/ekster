@@ -195,6 +195,8 @@ func simplifyCard(v interface{}) (microsub.Card, bool) {
 		return simplifyCardFromMicroformat(author, t)
 	case string:
 		return simplifyCardFromString(author, t)
+	case map[string]interface{}:
+		return simplifyCardFromProperties(author, t)
 	default:
 		log.Printf("simplifyCard: different type %T\n", t)
 	}
@@ -205,6 +207,37 @@ func simplifyCard(v interface{}) (microsub.Card, bool) {
 func simplifyCardFromString(card microsub.Card, value string) (microsub.Card, bool) {
 	card.URL = value
 	return card, false
+}
+
+func simplifyCardFromProperties(card microsub.Card, properties map[string]interface{}) (microsub.Card, bool) {
+	for ik, vk := range properties {
+		if arr, ok := vk.([]interface{}); ok {
+			if p, ok := arr[0].(string); ok {
+				switch ik {
+				case "name":
+					card.Name = p
+				case "url":
+					card.URL = p
+				case "photo":
+					card.Photo = p
+				case "locality":
+					card.Locality = p
+				case "region":
+					card.Region = p
+				case "country-name":
+					card.CountryName = p
+				case "longitude":
+					card.Longitude = p
+				case "latitude":
+					card.Latitude = p
+				default:
+					log.Printf("In simplifyCard: unknown property %q with value %q\n", ik, p)
+				}
+			}
+		}
+	}
+
+	return card, true
 }
 
 func simplifyCardFromMicroformat(card microsub.Card, microformat *microformats.Microformat) (microsub.Card, bool) {
