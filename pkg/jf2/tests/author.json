@@ -1,0 +1,37 @@
+{
+  "items": [
+    {
+      "type": [
+        "h-entry"
+      ],
+      "properties": {
+        "author": [
+          {
+            "type": [
+              "h-card"
+            ],
+            "properties": {
+              "name": [
+                "Peter Stuifzand"
+              ],
+              "url": [
+                "https://p83.nl"
+              ],
+              "photo": [
+                "https://peterstuifzand.nl/img/profile.jpg"
+              ]
+            }
+          }
+        ],
+        "name": [
+          "Testing NODE RED"
+        ],
+        "content": [
+          {
+            "value": "Hello world"
+          }
+        ]
+      }
+    }
+  ]
+}

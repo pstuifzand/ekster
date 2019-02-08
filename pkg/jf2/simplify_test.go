@@ -182,3 +182,20 @@ func TestConvert992(t *testing.T) {
 		assert.Equal(t, "card", author.Type)
 	}
 }
+
+func TestConvertAuthor(t *testing.T) {
+	var mdItem microformats.Data
+	f, err := os.Open("tests/author.json")
+	if err != nil {
+		t.Fatalf("error while opening author.json: %s", err)
+	}
+	err = json.NewDecoder(f).Decode(&mdItem)
+	if assert.NoError(t, err) {
+		items := SimplifyMicroformatDataItems(&mdItem)
+		assert.Len(t, items, 1)
+		item := items[0]
+		assert.Equal(t, "Testing NODE RED", item.Name)
+		assert.Equal(t, "Hello world", item.Content.Text)
+		assert.Equal(t, "Peter Stuifzand", item.Author.Name)
+	}
+}
