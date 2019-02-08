@@ -209,7 +209,7 @@ func simplifyCardFromString(card microsub.Card, value string) (microsub.Card, bo
 	return card, false
 }
 
-func simplifyCardFromProperties(card microsub.Card, properties map[string]interface{}) (microsub.Card, bool) {
+func simplifyCardFromProperties2(card *microsub.Card, properties map[string]interface{}) {
 	for ik, vk := range properties {
 		if arr, ok := vk.([]interface{}); ok {
 			if p, ok := arr[0].(string); ok {
@@ -233,6 +233,25 @@ func simplifyCardFromProperties(card microsub.Card, properties map[string]interf
 				default:
 					log.Printf("In simplifyCard: unknown property %q with value %q\n", ik, p)
 				}
+			}
+		}
+	}
+}
+
+func simplifyCardFromProperties(card microsub.Card, hcard map[string]interface{}) (microsub.Card, bool) {
+	for ik, vk := range hcard {
+		if arr, ok := vk.([]interface{}); ok {
+			switch ik {
+			case "type":
+				if p, ok := arr[0].(string); ok {
+					card.Type = p[2:]
+				}
+			case "properties":
+				if p, ok := arr[0].(map[string]interface{}); ok {
+					simplifyCardFromProperties2(&card, p)
+				}
+			default:
+				log.Printf("In simplifyCardFromProperties: unknown property %q with value %q\n", ik, arr[0])
 			}
 		}
 	}
