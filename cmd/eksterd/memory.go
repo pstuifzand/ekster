@@ -287,24 +287,31 @@ func (b *memoryBackend) run() {
 			case <-b.ticker.C:
 				feeds := b.getFeeds()
 
+				count := 0
+
 				for uid := range feeds {
 					for _, feedURL := range feeds[uid] {
 						resp, err := b.Fetch3(uid, feedURL)
 						if err != nil {
 							_ = b.channelAddItem("notifications", microsub.Item{
 								Type: "entry",
-								Name: fmt.Sprintf("Error while Fetch3 of %s: %v", feedURL, err),
+								Name: "Error while fetching feed",
 								Content: &microsub.Content{
-									Text: "error while fetching feed",
+									Text: fmt.Sprintf("Error while updating feed %s: %v", feedURL, err),
 								},
 								UID: time.Now().String(),
 							})
+							count++
 							log.Printf("Error while Fetch3 of %s: %v\n", feedURL, err)
 							continue
 						}
 						_ = b.ProcessContent(uid, feedURL, resp.Header.Get("Content-Type"), resp.Body)
 						_ = resp.Body.Close()
 					}
+				}
+
+				if count > 0 {
+					_ = b.updateChannelUnreadCount("notifications")
 				}
 
 			case <-b.quit:
@@ -343,12 +350,13 @@ func (b *memoryBackend) FollowURL(uid string, url string) (microsub.Feed, error)
 	if err != nil {
 		_ = b.channelAddItem("notifications", microsub.Item{
 			Type: "entry",
-			Name: fmt.Sprintf("Error while Fetch3 of %s: %v", feed.URL, err),
+			Name: "Error while fetching feed",
 			Content: &microsub.Content{
-				Text: "error while fetching feed",
+				Text: fmt.Sprintf("Error while Fetch3 of %s: %v", feed.URL, err),
 			},
 			UID: time.Now().String(),
 		})
+		_ = b.updateChannelUnreadCount("notifications")
 		return feed, err
 	}
 	defer resp.Body.Close()
