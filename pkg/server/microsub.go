@@ -140,7 +140,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				respondJSON(w, channel)
-			} else {
+			} else if name != "" {
 				channel, err := h.backend.ChannelsUpdate(uid, name)
 				if err != nil {
 					http.Error(w, err.Error(), 500)

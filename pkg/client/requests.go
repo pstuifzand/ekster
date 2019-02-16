@@ -244,7 +244,7 @@ func (c *Client) ChannelsCreate(name string) (microsub.Channel, error) {
 func (c *Client) ChannelsUpdate(uid, name string) (microsub.Channel, error) {
 	args := make(map[string]string)
 	args["name"] = name
-	args["uid"] = uid
+	args["channel"] = uid
 	res, err := c.microsubPostRequest("channels", args)
 	if err != nil {
 		return microsub.Channel{}, err
