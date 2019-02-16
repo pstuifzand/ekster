@@ -232,9 +232,6 @@ func (b *memoryBackend) ChannelsUpdate(uid, name string) (microsub.Channel, erro
 	defer b.save()
 
 	b.lock.RLock()
-	defer b.lock.RUnlock()
-
-	b.lock.RLock()
 	c, e := b.Channels[uid]
 	b.lock.RUnlock()
 
