@@ -20,6 +20,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 
@@ -55,9 +56,10 @@ func NewMicrosubHandler(backend microsub.Microsub) http.Handler {
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
-	// log.Printf("%s %s\n", r.Method, r.URL)
-	// log.Println(r.URL.Query())
-	// log.Println(r.PostForm)
+
+	log.Printf("Incoming request: %s %s\n", r.Method, r.URL)
+	log.Println(r.URL.Query())
+	log.Println(r.PostForm)
 
 	if r.Method == http.MethodOptions {
 		w.Header().Add("Access-Control-Allow-Origin", "*")
