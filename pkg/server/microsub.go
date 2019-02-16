@@ -117,7 +117,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else if r.Method == http.MethodPost {
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 
-		values := r.URL.Query()
+		values := r.Form
 		action := values.Get("action")
 		if action == "channels" {
 			name := values.Get("name")
