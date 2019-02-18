@@ -35,6 +35,7 @@ import (
 	"p83.nl/go/ekster/pkg/auth"
 	"p83.nl/go/ekster/pkg/fetch"
 	"p83.nl/go/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/server"
 	"p83.nl/go/ekster/pkg/util"
 
 	"github.com/gomodule/redigo/redis"
@@ -59,7 +60,7 @@ type memoryBackend struct {
 	ticker *time.Ticker
 	quit   chan struct{}
 
-	listeners []microsub.EventListener
+	broker *server.Broker
 }
 
 type channelSetting struct {
@@ -646,7 +647,12 @@ func matchItemText(item microsub.Item, re *regexp.Regexp) bool {
 
 func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) error {
 	timelineBackend := b.getTimeline(channel)
-	return timelineBackend.AddItem(item)
+	err := timelineBackend.AddItem(item)
+
+	// Sent message to Server-Sent-Events
+	b.broker.Notifier <- server.Message{Event: "new item", Object: item}
+
+	return err
 }
 
 func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
@@ -715,17 +721,6 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 
 	cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
 	return cachedResp, err
-}
-
-func (b *memoryBackend) sendMessage(msg microsub.Message) {
-	for _, l := range b.listeners {
-		l.WriteMessage(microsub.Event{Msg: msg})
-	}
-}
-
-func (b *memoryBackend) AddEventListener(el microsub.EventListener) error {
-	b.listeners = append(b.listeners, el)
-	return nil
 }
 
 func (b *memoryBackend) createChannel(name string) microsub.Channel {

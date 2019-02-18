@@ -37,6 +37,7 @@ const (
 
 type microsubHandler struct {
 	backend microsub.Microsub
+	Broker  *Broker
 }
 
 func respondJSON(w http.ResponseWriter, value interface{}) {
@@ -50,8 +51,9 @@ func respondJSON(w http.ResponseWriter, value interface{}) {
 	}
 }
 
-func NewMicrosubHandler(backend microsub.Microsub) http.Handler {
-	return &microsubHandler{backend}
+func NewMicrosubHandler(backend microsub.Microsub) (http.Handler, *Broker) {
+	broker := NewServer()
+	return &microsubHandler{backend, broker}, broker
 }
 
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -106,9 +108,56 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"items": following,
 			})
 		} else if action == "events" {
-			conn, _, _ := w.(http.Hijacker).Hijack()
-			cons := newConsumer(conn)
-			h.backend.AddEventListener(cons)
+			// Make sure that the writer supports flushing.
+			//
+			flusher, ok := w.(http.Flusher)
+
+			if !ok {
+				http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+				return
+			}
+
+			// Set the headers related to event streaming.
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+
+			// Each connection registers its own message channel with the Broker's connections registry
+			messageChan := make(MessageChan)
+
+			// Signal the broker that we have a new connection
+			h.Broker.newClients <- messageChan
+
+			// Remove this client from the map of connected clients
+			// when this handler exits.
+			defer func() {
+				h.Broker.closingClients <- messageChan
+			}()
+
+			// Listen to connection close and un-register messageChan
+			notify := w.(http.CloseNotifier).CloseNotify()
+
+			go func() {
+				<-notify
+				h.Broker.closingClients <- messageChan
+			}()
+
+			// block waiting or messages broadcast on this connection's messageChan
+			for {
+				// Write to the ResponseWriter, Server Sent Events compatible
+				message := <-messageChan
+				output, err := json.Marshal(message.Object)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				fmt.Fprintf(w, "event: %s\n", message.Event)
+				fmt.Fprintf(w, "data: %s\n\n", output)
+
+				// Flush the data immediately instead of buffering it for later.
+				flusher.Flush()
+			}
 		} else {
 			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 400)
 			return

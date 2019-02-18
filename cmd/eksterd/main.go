@@ -116,10 +116,12 @@ func NewApp(options AppOptions) *App {
 		Backend: app.backend,
 	})
 
-	handler := server.NewMicrosubHandler(app.backend)
+	handler, broker := server.NewMicrosubHandler(app.backend)
 	if options.AuthEnabled {
 		handler = WithAuth(handler, app.backend)
 	}
+
+	app.backend.broker = broker
 
 	http.Handle("/microsub", handler)
 

@@ -145,8 +145,6 @@ type Microsub interface {
 
 	Search(query string) ([]Feed, error)
 	PreviewURL(url string) (Timeline, error)
-
-	AddEventListener(el EventListener) error
 }
 
 func (unread Unread) MarshalJSON() ([]byte, error) {
