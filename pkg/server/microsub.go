@@ -123,7 +123,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Connection", "keep-alive")
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 
-			w.WriteHeader(200)
+			fmt.Fprintf(w, "event: welcome\r\n")
+			fmt.Fprintf(w, "data: {\"key\":\"hello world\"}\r\n\r\n")
 
 			flusher.Flush()
 
