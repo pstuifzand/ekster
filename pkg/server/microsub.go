@@ -123,6 +123,10 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Connection", "keep-alive")
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 
+			w.WriteHeader(200)
+
+			flusher.Flush()
+
 			// Each connection registers its own message channel with the Broker's connections registry
 			messageChan := make(MessageChan)
 
