@@ -70,14 +70,13 @@
                         <div class="field">
                             <div class="control">
                                 <div class="select">
-                                    <label class="label" for="type">Tracking Regex</label>
+                                    <label class="label" for="type">Channel Type</label>
                                     <select name="type" id="type">
                                         <option value="null" {{if eq (.CurrentSetting.ChannelType) "null" }}selected{{end}}>Null</option>
                                         <option value="sorted-set" {{if eq (.CurrentSetting.ChannelType) "sorted-set" }}selected{{end}}>Sorted Set</option>
                                         <option value="stream" {{if eq (.CurrentSetting.ChannelType) "stream" }}selected{{end}}>Streams</option>
                                     </select>
                                 </div>
-                                <input type="text" class="input" name="include_regex" value="{{ .CurrentSetting.IncludeRegex }}" placeholder="enter regex to track items" />
                             </div>
                         </div>
                         <div class="field">
