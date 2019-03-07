@@ -68,6 +68,7 @@ type memoryBackend struct {
 type channelSetting struct {
 	ExcludeRegex string
 	IncludeRegex string
+	ChannelType  string
 }
 
 // Debug interface for easy of use in other packages

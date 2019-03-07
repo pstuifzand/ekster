@@ -68,14 +68,27 @@
                             </div>
                         </div>
                         <div class="field">
+                            <div class="control">
+                                <div class="select">
+                                    <label class="label" for="type">Tracking Regex</label>
+                                    <select name="type" id="type">
+                                        <option value="null">Null</option>
+                                        <option value="sorted-set">Sorted Set</option>
+                                        <option value="stream">Streams</option>
+                                    </select>
+                                </div>
+                                <input type="text" class="input" name="include_regex" value="{{ .CurrentSetting.IncludeRegex }}" placeholder="enter regex to track items" />
+                            </div>
+                        </div>
+                        <div class="field">
                             <button type="submit" class="button is-primary">Save</button>
                         </div>
                     </form>
                 </div>
-                
+
                 <div class="column">
-                    <h3 class="title is-4">Channels</h3>
-                
+                    <h3 class="title is-4">Feeds</h3>
+
                     <div class="channel">
                         {{ range .Feeds }}
                             <div class="feed box">
