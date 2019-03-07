@@ -22,7 +22,14 @@ func (b *memoryBackend) getTimeline(channel string) TimelineBackend {
 	timelineType := "sorted-set"
 	if channel == "notifications" {
 		timelineType = "stream"
+	} else {
+		if setting, ok := b.Settings[channel]; ok {
+			if setting.ChannelType != "" {
+				timelineType = setting.ChannelType
+			}
+		}
 	}
+
 	if timelineType == "sorted-set" {
 		timeline := &redisSortedSetTimeline{channel}
 		err := timeline.Init()
