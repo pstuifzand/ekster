@@ -12,7 +12,6 @@ repos:
 - repo: https://github.com/dnephin/pre-commit-golang
   rev: master
   hooks:
-    - id: go-vet
     - id: go-fmt
     - id: go-lint
     - id: go-unit-tests
