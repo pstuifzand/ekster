@@ -339,6 +339,8 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Tim
 
 	timelineBackend := b.getTimeline(channel)
 
+	_ = b.updateChannelUnreadCount(channel)
+
 	return timelineBackend.Items(before, after)
 }
 
