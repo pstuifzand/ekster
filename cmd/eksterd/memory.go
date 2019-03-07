@@ -1,19 +1,20 @@
 /*
-   Microsub server
-   Copyright (C) 2018  Peter Stuifzand
+Package main runs the microsub server
 
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
+Copyright (C) 2018  Peter Stuifzand
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-   You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 package main
 
@@ -42,6 +43,7 @@ import (
 	"willnorris.com/go/microformats"
 )
 
+// DefaultPrio is the priority value for new channels
 const DefaultPrio = 9999999
 
 type memoryBackend struct {
@@ -51,10 +53,10 @@ type memoryBackend struct {
 	Channels map[string]microsub.Channel
 	Feeds    map[string][]microsub.Feed
 	Settings map[string]channelSetting
-	NextUid  int
+	NextUID  int
 
-	Me            string
-	TokenEndpoint string
+	Me            string // FIXME: should be removed
+	TokenEndpoint string // FIXME: should be removed
 	AuthEnabled   bool
 
 	ticker *time.Ticker
@@ -68,6 +70,7 @@ type channelSetting struct {
 	IncludeRegex string
 }
 
+// Debug interface for easy of use in other packages
 type Debug interface {
 	Debug()
 }
@@ -176,7 +179,8 @@ func createMemoryBackend() {
 		backend.Channels[c.UID] = c
 	}
 
-	backend.NextUid = 1000000
+	backend.NextUID = 1000000
+	// FIXME: can't be used in Backend
 	backend.Me = "https://example.com/"
 
 	backend.lock.Unlock()
@@ -443,24 +447,24 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 		}
 		defer resp.Body.Close()
 
-		fetchUrl, err := url.Parse(u)
-		md := microformats.Parse(resp.Body, fetchUrl)
+		fetchURL, err := url.Parse(u)
+		md := microformats.Parse(resp.Body, fetchURL)
 		if err != nil {
 			log.Printf("Error while fetching %s: %v\n", u, err)
 			continue
 		}
 
-		feedResp, err := Fetch2(fetchUrl.String())
+		feedResp, err := Fetch2(fetchURL.String())
 		if err != nil {
-			log.Printf("Error in fetch of %s - %v\n", fetchUrl, err)
+			log.Printf("Error in fetch of %s - %v\n", fetchURL, err)
 			continue
 		}
 		defer feedResp.Body.Close()
 
 		// TODO: Combine FeedHeader and FeedItems so we can use it here
-		parsedFeed, err := fetch.FeedHeader(&fetch2{}, fetchUrl.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
+		parsedFeed, err := fetch.FeedHeader(&fetch2{}, fetchURL.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
 		if err != nil {
-			log.Printf("Error in parse of %s - %v\n", fetchUrl, err)
+			log.Printf("Error in parse of %s - %v\n", fetchURL, err)
 			continue
 		}
 
@@ -706,7 +710,7 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	client := http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetch failed: %s", u, err)
+		return nil, fmt.Errorf("fetch failed: %s: %s", u, err)
 	}
 	defer resp.Body.Close()
 
@@ -724,10 +728,11 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 }
 
 func (b *memoryBackend) createChannel(name string) microsub.Channel {
-	uid := fmt.Sprintf("%012d", b.NextUid)
+	uid := fmt.Sprintf("%012d", b.NextUID)
 	channel := microsub.Channel{
-		UID:  uid,
-		Name: name,
+		UID:    uid,
+		Name:   name,
+		Unread: microsub.Unread{microsub.UnreadCount, false, 0},
 	}
 	return channel
 }
@@ -737,7 +742,7 @@ func (b *memoryBackend) setChannel(channel microsub.Channel) {
 	defer b.lock.Unlock()
 	b.Channels[channel.UID] = channel
 	b.Feeds[channel.UID] = []microsub.Feed{}
-	b.NextUid++
+	b.NextUID++
 }
 
 func updateChannelInRedis(conn redis.Conn, uid string, prio int) {

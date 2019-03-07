@@ -25,10 +25,6 @@ import (
 type NullBackend struct {
 }
 
-func (b *NullBackend) AddEventListener(el microsub.EventListener) error {
-	panic("implement me")
-}
-
 // ChannelsGetList gets no channels
 func (b *NullBackend) ChannelsGetList() ([]microsub.Channel, error) {
 	return []microsub.Channel{
@@ -66,26 +62,31 @@ func (b *NullBackend) TimelineGet(before, after, channel string) (microsub.Timel
 	}, nil
 }
 
+// FollowGetList implements the follow list command
 func (b *NullBackend) FollowGetList(uid string) ([]microsub.Feed, error) {
 	return []microsub.Feed{
 		{Name: "test", Type: "feed", URL: "https://example.com/"},
 	}, nil
 }
 
+// FollowURL follows a new url
 func (b *NullBackend) FollowURL(uid string, url string) (microsub.Feed, error) {
 	return microsub.Feed{Type: "feed", URL: url}, nil
 }
 
+// UnfollowURL unfollows a url
 func (b *NullBackend) UnfollowURL(uid string, url string) error {
 	return nil
 }
 
+// Search search for a query and return an example list of feeds
 func (b *NullBackend) Search(query string) ([]microsub.Feed, error) {
 	return []microsub.Feed{
 		{"feed", "https://example.com/", "Example", "test.jpg", "test", microsub.Card{}},
 	}, nil
 }
 
+// PreviewURL shows an empty feed
 func (b *NullBackend) PreviewURL(url string) (microsub.Timeline, error) {
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
@@ -93,6 +94,7 @@ func (b *NullBackend) PreviewURL(url string) (microsub.Timeline, error) {
 	}, nil
 }
 
+// MarkRead marks no items as read
 func (b *NullBackend) MarkRead(channel string, uids []string) error {
 	return nil
 }

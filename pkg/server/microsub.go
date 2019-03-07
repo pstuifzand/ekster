@@ -1,19 +1,6 @@
 /*
-   ekster - microsub server
-   Copyright (C) 2018  Peter Stuifzand
-
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+Package server contains the microsub server itself. It implements http.Handler.
+It follows the spec at https://indieweb.org/Microsub-spec.
 */
 package server
 
@@ -31,6 +18,7 @@ var (
 	entryRegex = regexp.MustCompile("^entry\\[\\d+\\]$")
 )
 
+// Constants used for the responses
 const (
 	OutputContentType = "application/json; charset=utf-8"
 )
@@ -51,11 +39,14 @@ func respondJSON(w http.ResponseWriter, value interface{}) {
 	}
 }
 
+// NewMicrosubHandler is the main entry point for the microsub server
+// It returns a handler for HTTP and a broker that will send events.
 func NewMicrosubHandler(backend microsub.Microsub) (http.Handler, *Broker) {
 	broker := NewServer()
 	return &microsubHandler{backend, broker}, broker
 }
 
+// Methods required by http.Handler
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 

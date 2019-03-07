@@ -14,7 +14,7 @@ import (
 func createServerClient() (*httptest.Server, *client.Client) {
 	backend := &NullBackend{}
 
-	handler := NewMicrosubHandler(backend)
+	handler, _ := NewMicrosubHandler(backend)
 
 	server := httptest.NewServer(handler)
 

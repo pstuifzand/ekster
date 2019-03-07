@@ -13,6 +13,7 @@ import (
 	"p83.nl/go/ekster/pkg/microsub"
 )
 
+// Client is a HTTP client for Microsub
 type Client struct {
 	Me               *url.URL
 	MicrosubEndpoint *url.URL
@@ -120,6 +121,7 @@ func (c *Client) microsubPostFormRequest(action string, args map[string]string, 
 	return res, err
 }
 
+// ChannelsGetList gets the channels from a Microsub server
 func (c *Client) ChannelsGetList() ([]microsub.Channel, error) {
 	args := make(map[string]string)
 	res, err := c.microsubGetRequest("channels", args)
@@ -146,6 +148,7 @@ func (c *Client) ChannelsGetList() ([]microsub.Channel, error) {
 	return channels.Channels, err
 }
 
+// TimelineGet gets a timeline from a Microsub server
 func (c *Client) TimelineGet(before, after, channel string) (microsub.Timeline, error) {
 	args := make(map[string]string)
 	args["after"] = after
@@ -172,6 +175,7 @@ func (c *Client) TimelineGet(before, after, channel string) (microsub.Timeline, 
 	return timeline, nil
 }
 
+// PreviewURL gets a Timeline for a url from a Microsub server
 func (c *Client) PreviewURL(url string) (microsub.Timeline, error) {
 	args := make(map[string]string)
 	args["url"] = url
@@ -337,8 +341,4 @@ func (c *Client) MarkRead(channel string, uids []string) error {
 	}
 	res.Body.Close()
 	return nil
-}
-
-func (c *Client) AddEventListener(el microsub.EventListener) error {
-	panic("implement me")
 }

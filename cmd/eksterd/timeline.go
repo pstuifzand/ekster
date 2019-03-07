@@ -291,8 +291,10 @@ func (timeline *redisStreamTimeline) Items(before, after string) (microsub.Timel
 	}
 
 	return microsub.Timeline{
-		Items:  items,
-		Paging: microsub.Pagination{},
+		Items: items,
+		Paging: microsub.Pagination{
+			After: items[len(items)-1].ID,
+		},
 	}, nil
 }
 
