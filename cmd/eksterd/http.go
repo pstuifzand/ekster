@@ -626,42 +626,25 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/settings/channel" {
 			defer h.Backend.save()
 			uid := r.FormValue("uid")
-			// name := r.FormValue("name")
+
 			excludeRegex := r.FormValue("exclude_regex")
-
-			if setting, e := h.Backend.Settings[uid]; e {
-				setting.ExcludeRegex = excludeRegex
-				h.Backend.Settings[uid] = setting
-			} else {
-				setting = channelSetting{
-					ExcludeRegex: excludeRegex,
-				}
-				h.Backend.Settings[uid] = setting
-			}
-
 			includeRegex := r.FormValue("include_regex")
-
-			if setting, e := h.Backend.Settings[uid]; e {
-				setting.IncludeRegex = includeRegex
-				h.Backend.Settings[uid] = setting
-			} else {
-				setting = channelSetting{
-					IncludeRegex: includeRegex,
-				}
-				h.Backend.Settings[uid] = setting
-			}
-
 			channelType := r.FormValue("type")
 
 			if setting, e := h.Backend.Settings[uid]; e {
+				setting.ExcludeRegex = excludeRegex
+				setting.IncludeRegex = includeRegex
 				setting.ChannelType = channelType
 				h.Backend.Settings[uid] = setting
 			} else {
 				setting = channelSetting{
-					ChannelType: channelType,
+					ExcludeRegex: excludeRegex,
+					IncludeRegex: includeRegex,
+					ChannelType:  channelType,
 				}
 				h.Backend.Settings[uid] = setting
 			}
+
 			h.Backend.Debug()
 
 			http.Redirect(w, r, "/settings", 302)
