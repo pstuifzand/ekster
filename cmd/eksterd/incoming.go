@@ -61,8 +61,8 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		verify := values.Get("hub.challenge")
-		_, err := fmt.Fprint(w, verify)
-		http.Error(w, fmt.Sprintf("could not write verification challenge: %v", err), 400)
+
+		_, _ = fmt.Fprint(w, verify)
 
 		return
 	}
