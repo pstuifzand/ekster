@@ -15,15 +15,17 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-package jf2
+package jf2_test
 
 import (
 	"encoding/json"
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"p83.nl/go/ekster/pkg/jf2"
 	"p83.nl/go/ekster/pkg/microsub"
+
+	"github.com/stretchr/testify/assert"
 	"willnorris.com/go/microformats"
 )
 
@@ -103,7 +105,7 @@ func TestConvertItem0(t *testing.T) {
 		t.Fatalf("error while opening test0.json: %s", err)
 	}
 	json.NewDecoder(f).Decode(&mdItem)
-	ConvertItem(&item, &mdItem)
+	jf2.ConvertItem(&item, &mdItem)
 
 	if item.Type != "entry" {
 		t.Errorf("Expected Type entry, was %q", item.Type)
@@ -121,7 +123,7 @@ func TestConvertItem1(t *testing.T) {
 		t.Fatalf("error while opening test1.json: %s", err)
 	}
 	json.NewDecoder(f).Decode(&mdItem)
-	ConvertItem(&item, &mdItem)
+	jf2.ConvertItem(&item, &mdItem)
 
 	if item.Type != "entry" {
 		t.Errorf("Expected Type entry, was %q", item.Type)
@@ -142,7 +144,7 @@ func TestConvertItem2(t *testing.T) {
 		t.Fatalf("error while opening test2.json: %s", err)
 	}
 	json.NewDecoder(f).Decode(&mdItem)
-	ConvertItem(&item, &mdItem)
+	jf2.ConvertItem(&item, &mdItem)
 
 	if item.Type != "entry" {
 		t.Errorf("Expected Type entry, was %q", item.Type)
@@ -166,7 +168,7 @@ func TestConvert992(t *testing.T) {
 	}
 	err = json.NewDecoder(f).Decode(&mdItem)
 	if assert.NoError(t, err) {
-		items := SimplifyMicroformatDataItems(&mdItem)
+		items := jf2.SimplifyMicroformatDataItems(&mdItem)
 		assert.Len(t, items, 1)
 		item := items[0]
 		assert.Equal(t, "https://p83.nl/posts/992", item.URL)
@@ -191,7 +193,7 @@ func TestConvertAuthor(t *testing.T) {
 	}
 	err = json.NewDecoder(f).Decode(&mdItem)
 	if assert.NoError(t, err) {
-		items := SimplifyMicroformatDataItems(&mdItem)
+		items := jf2.SimplifyMicroformatDataItems(&mdItem)
 		assert.Len(t, items, 1)
 		item := items[0]
 		assert.Equal(t, "Testing NODE RED", item.Name)
