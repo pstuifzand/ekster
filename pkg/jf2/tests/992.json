@@ -1,0 +1,287 @@
+{
+  "items": [
+    {
+      "type": [
+        "h-entry"
+      ],
+      "properties": {
+        "author": [
+          {
+            "type": [
+              "h-card"
+            ],
+            "properties": {
+              "photo": [
+                "https://media-proxy.p83.nl/48/https://peterstuifzand.nl/img/profile.jpg",
+                "https://peterstuifzand.nl/img/profile.jpg"
+              ],
+              "url": [
+                "https://p83.nl/"
+              ]
+            }
+          },
+          {
+            "type": [
+              "h-card"
+            ],
+            "properties": {
+              "url": [
+                "https://p83.nl/"
+              ]
+            }
+          }
+        ],
+        "name": [
+          "test"
+        ],
+        "content": [
+          {
+            "value": "test",
+            "html": "<p>test</p>"
+          }
+        ],
+        "like-of": [
+          "https://twitter.com/InDeepGeek/status/1071363145485168640"
+        ],
+        "published": [
+          "2018-12-09T14:14:13Z"
+        ],
+        "uid": [
+          "https://p83.nl/posts/992"
+        ],
+        "url": [
+          "https://p83.nl/posts/992"
+        ]
+      }
+    },
+    {
+      "type": [
+        "h-card"
+      ],
+      "properties": {
+        "email": [
+          "mailto:peter@p83.nl"
+        ],
+        "name": [
+          "Peter Stuifzand"
+        ],
+        "note": [
+          "This website was created by Peter Stuifzand.\n    Currently I'm testing micropub, microsub and working on Indieweb things."
+        ],
+        "photo": [
+          "https://peterstuifzand.nl/img/profile.jpg"
+        ],
+        "uid": [
+          "https://p83.nl/"
+        ],
+        "url": [
+          "https://p83.nl/"
+        ]
+      }
+    }
+  ],
+  "rels": {
+    "alternate": [
+      "https://p83.nl/rss",
+      "https://granary.io/url?url=https://p83.nl/\u0026input=html\u0026output=atom\u0026hub=https://hub.stuifzandapp.com/"
+    ],
+    "authorization_endpoint": [
+      "https://p83.nl/auth"
+    ],
+    "hub": [
+      "https://hub.stuifzandapp.com/"
+    ],
+    "me": [
+      "https://micro.blog/pstuifzand",
+      "https://p83.nl/",
+      "https://peterstuifzand.nl",
+      "https://twitter.com/pstuifzand",
+      "https://github.com/pstuifzand",
+      "https://bunq.me/pstuifzand",
+      "https://paypal.me/peterstuifzand",
+      "https://instagram.com/pstuifzand",
+      "https://untappd.com/user/pstuifzand",
+      "https://keybase.io/pstuifzand",
+      "mailto:peter@p83.nl"
+    ],
+    "media-endpoint": [
+      "https://p83.nl/media"
+    ],
+    "micropub": [
+      "https://p83.nl/micropub"
+    ],
+    "microsub": [
+      "https://microsub.stuifzandapp.com/microsub"
+    ],
+    "self": [
+      "https://p83.nl/"
+    ],
+    "shortlink": [
+      "https://p83.nl/p/992"
+    ],
+    "stylesheet": [
+      "https://p83.nl/public/style.css",
+      "https://api.mapbox.com/mapbox-gl-js/v0.44.1/mapbox-gl.css",
+      "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.12.0/build/styles/default.min.css",
+      "https://p83.nl/public/css/monokai.css",
+      "https://netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css",
+      "https://fonts.googleapis.com/css?family=Share:700"
+    ],
+    "token_endpoint": [
+      "https://p83.nl/authtoken"
+    ],
+    "webmention": [
+      "https://p83.nl/webmention",
+      "https://p83.nl/webmention"
+    ]
+  },
+  "rel-urls": {
+    "https://api.mapbox.com/mapbox-gl-js/v0.44.1/mapbox-gl.css": {
+      "rels": [
+        "stylesheet"
+      ]
+    },
+    "https://bunq.me/pstuifzand": {
+      "rels": [
+        "me"
+      ],
+      "text": "Bunq"
+    },
+    "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.12.0/build/styles/default.min.css": {
+      "rels": [
+        "stylesheet"
+      ]
+    },
+    "https://fonts.googleapis.com/css?family=Share:700": {
+      "rels": [
+        "stylesheet"
+      ]
+    },
+    "https://github.com/pstuifzand": {
+      "rels": [
+        "me"
+      ],
+      "text": "Github"
+    },
+    "https://granary.io/url?url=https://p83.nl/\u0026input=html\u0026output=atom\u0026hub=https://hub.stuifzandapp.com/": {
+      "rels": [
+        "alternate"
+      ],
+      "type": "application/atom+xml"
+    },
+    "https://hub.stuifzandapp.com/": {
+      "rels": [
+        "hub"
+      ]
+    },
+    "https://instagram.com/pstuifzand": {
+      "rels": [
+        "me"
+      ],
+      "text": "Instagram"
+    },
+    "https://keybase.io/pstuifzand": {
+      "rels": [
+        "me"
+      ],
+      "text": "Keybase"
+    },
+    "https://micro.blog/pstuifzand": {
+      "rels": [
+        "me"
+      ]
+    },
+    "https://microsub.stuifzandapp.com/microsub": {
+      "rels": [
+        "microsub"
+      ]
+    },
+    "https://netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css": {
+      "rels": [
+        "stylesheet"
+      ]
+    },
+    "https://p83.nl/": {
+      "rels": [
+        "me"
+      ],
+      "text": "This website"
+    },
+    "https://p83.nl/auth": {
+      "rels": [
+        "authorization_endpoint"
+      ]
+    },
+    "https://p83.nl/authtoken": {
+      "rels": [
+        "token_endpoint"
+      ]
+    },
+    "https://p83.nl/media": {
+      "rels": [
+        "media-endpoint"
+      ]
+    },
+    "https://p83.nl/micropub": {
+      "rels": [
+        "micropub"
+      ]
+    },
+    "https://p83.nl/p/992": {
+      "rels": [
+        "shortlink"
+      ]
+    },
+    "https://p83.nl/public/css/monokai.css": {
+      "rels": [
+        "stylesheet"
+      ]
+    },
+    "https://p83.nl/public/style.css": {
+      "rels": [
+        "stylesheet"
+      ]
+    },
+    "https://p83.nl/rss": {
+      "rels": [
+        "alternate"
+      ],
+      "type": "application/rss+xml"
+    },
+    "https://p83.nl/webmention": {
+      "rels": [
+        "webmention"
+      ]
+    },
+    "https://paypal.me/peterstuifzand": {
+      "rels": [
+        "me"
+      ],
+      "text": "PayPal"
+    },
+    "https://peterstuifzand.nl": {
+      "rels": [
+        "me"
+      ],
+      "text": "Homepage"
+    },
+    "https://twitter.com/pstuifzand": {
+      "rels": [
+        "me"
+      ],
+      "text": "Twitter"
+    },
+    "https://untappd.com/user/pstuifzand": {
+      "rels": [
+        "me"
+      ],
+      "text": "Untappd"
+    },
+    "mailto:peter@p83.nl": {
+      "rels": [
+        "me"
+      ],
+      "text": "peter@p83.nl"
+    }
+  }
+}
