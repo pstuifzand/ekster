@@ -17,10 +17,12 @@ import (
 	"p83.nl/go/ekster/pkg/server"
 )
 
+// Constants
 const (
 	ClientID string = "https://p83.nl/microsub-client"
 )
 
+// AppOptions are options for the app
 type AppOptions struct {
 	Port        int
 	AuthEnabled bool
@@ -46,6 +48,7 @@ func newPool(addr string) *redis.Pool {
 	}
 }
 
+// WithAuth adds authorization to a http.Handler
 func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
@@ -73,21 +76,23 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 	})
 }
 
+// App is the main app structure
 type App struct {
 	options    AppOptions
 	backend    *memoryBackend
 	hubBackend *hubIncomingBackend
 }
 
+// Run runs the app
 func (app *App) Run() {
 	app.backend.run()
 	app.hubBackend.run()
 
 	log.Printf("Listening on port %d\n", app.options.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", app.options.Port), nil))
-
 }
 
+// NewApp initializes the App
 func NewApp(options AppOptions) *App {
 	app := &App{
 		options: options,
@@ -95,6 +100,7 @@ func NewApp(options AppOptions) *App {
 
 	app.backend = loadMemoryBackend()
 	app.backend.AuthEnabled = options.AuthEnabled
+	app.backend.baseURL = options.BaseURL
 
 	app.hubBackend = &hubIncomingBackend{app.backend, options.BaseURL}
 
