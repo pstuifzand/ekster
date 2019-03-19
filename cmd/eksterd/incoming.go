@@ -1,20 +1,3 @@
-/*
-   Microsub server
-   Copyright (C) 2018  Peter Stuifzand
-
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
 package main
 
 import (
@@ -41,7 +24,12 @@ var (
 func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	r.ParseForm()
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "could not parse form data", http.StatusBadRequest)
+		return
+	}
+
 	log.Printf("%s %s\n", r.Method, r.URL)
 	log.Println(r.URL.Query())
 	log.Println(r.PostForm)
@@ -73,7 +61,8 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		verify := values.Get("hub.challenge")
-		fmt.Fprint(w, verify)
+		_, err := fmt.Fprint(w, verify)
+		http.Error(w, fmt.Sprintf("could not write verification challenge: %v", err), 400)
 
 		return
 	}

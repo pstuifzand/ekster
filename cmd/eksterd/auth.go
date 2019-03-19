@@ -1,20 +1,3 @@
-/*
-   ekster - microsub server
-   Copyright (C) 2018  Peter Stuifzand
-
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
 package main
 
 import (
@@ -116,10 +99,15 @@ func setCachedTokenResponseValue(conn redis.Conn, key string, r *auth.TokenRespo
 // getCachedValue gets the cached value from Redis
 func getCachedValue(conn redis.Conn, key string, r *auth.TokenResponse) (bool, error) {
 	values, err := redis.Values(conn.Do("HGETALL", key))
-	if err == nil && len(values) > 0 {
+	if err != nil {
+		return false, fmt.Errorf("error while getting value from backend: %v", err)
+	}
+
+	if len(values) > 0 {
 		if err = redis.ScanStruct(values, r); err == nil {
 			return true, nil
 		}
 	}
-	return false, fmt.Errorf("error while getting value from backend: %v", err)
+
+	return false, fmt.Errorf("no cached value available")
 }
