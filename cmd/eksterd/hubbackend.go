@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"p83.nl/go/ekster/pkg/util"
 	"p83.nl/go/ekster/pkg/websub"
 
@@ -78,18 +79,24 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 		return 0, err
 	}
 
-	log.Printf("WebSub Hub URL found for topic=%s hub=%s\n", topic, hubURL)
-
 	callbackURL := fmt.Sprintf("%s/incoming/%d", h.baseURL, id)
+
+	log.Printf("WebSub Hub URL found for topic=%q hub=%q callback=%q\n", topic, hubURL, callbackURL)
 
 	if err == nil && hubURL != "" {
 		args := redis.Args{}.Add(fmt.Sprintf("feed:%d", id), "hub", hubURL, "callback", callbackURL)
-		conn.Do("HMSET", args...)
+		_, err = conn.Do("HMSET", args...)
+		if err != nil {
+			return 0, errors.Wrap(err, "could not write to redis backend")
+		}
 	} else {
 		return id, nil
 	}
 
-	websub.Subscribe(client, hubURL, topic, callbackURL, secret, 24*3600)
+	err = websub.Subscribe(client, hubURL, topic, callbackURL, secret, 24*3600)
+	if err != nil {
+		return 0, err
+	}
 
 	return id, nil
 }
