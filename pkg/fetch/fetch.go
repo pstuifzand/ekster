@@ -1,21 +1,4 @@
-// fetch url in different ways
-/*
-   ekster - microsub server
-   Copyright (C) 2018  Peter Stuifzand
-
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// Package fetch provides an API for fetching information about urls.
 package fetch
 
 import (
@@ -41,6 +24,7 @@ import (
 	"willnorris.com/go/microformats"
 )
 
+// FeedHeader returns a new microsub.Feed with the information parsed from body.
 func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
@@ -123,6 +107,7 @@ func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (
 	return feed, nil
 }
 
+// FeedItems returns the items from the url, parsed from body.
 func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
@@ -246,15 +231,6 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 		if v.Author != nil && v.Author.Name == "" && v.Author.Photo == "" && v.Author.URL == "" {
 			v.Author = nil
 			items[i] = v
-		}
-	}
-
-	for _, item := range items {
-		log.Printf("ID=%s Name=%s\n", item.ID, item.Name)
-		log.Printf("Author=%#v\n", item.Author)
-		if item.Content != nil {
-			log.Printf("Text=%s\n", item.Content.Text)
-			log.Printf("HTML=%s\n", item.Content.HTML)
 		}
 	}
 
