@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -21,7 +22,8 @@ const LeaseSeconds = 24 * 60 * 60
 
 // HubBackend handles information for the incoming handler
 type HubBackend interface {
-	GetFeeds() []Feed
+	GetFeeds() []Feed // Deprecated
+	Feeds() ([]Feed, error)
 	CreateFeed(url, channel string) (int64, error)
 	GetSecret(feedID int64) string
 	UpdateFeed(feedID int64, contentType string, body io.Reader) error
@@ -138,7 +140,18 @@ func (h *hubIncomingBackend) FeedSetLeaseSeconds(feedID int64, leaseSeconds int6
 	return nil
 }
 
+// GetFeeds is deprecated, use Feeds instead
 func (h *hubIncomingBackend) GetFeeds() []Feed {
+	log.Println("GetFeeds called, consider replacing with Feeds")
+	feeds, err := h.Feeds()
+	if err != nil {
+		log.Printf("Feeds returned an error: %v", err)
+	}
+	return feeds
+}
+
+// Feeds returns a list of subscribed feeds
+func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 	conn := pool.Get()
 	defer conn.Close()
 	feeds := []Feed{}
@@ -146,29 +159,48 @@ func (h *hubIncomingBackend) GetFeeds() []Feed {
 	// FIXME(peter): replace with set of currently checked feeds
 	feedKeys, err := redis.Strings(conn.Do("KEYS", "feed:*"))
 	if err != nil {
-		log.Println(err)
-		return feeds
+		return nil, errors.Wrap(err, "could not get feeds from backend")
 	}
 
 	for _, feedKey := range feedKeys {
 		var feed Feed
 		values, err := redis.Values(conn.Do("HGETALL", feedKey))
 		if err != nil {
-			log.Println(err)
+			log.Printf("could not get feed info for key %s: %v", feedKey, err)
 			continue
 		}
 
 		err = redis.ScanStruct(values, &feed)
 		if err != nil {
-			log.Println(err)
+			log.Printf("could not scan struct for key %s: %v", feedKey, err)
 			continue
 		}
 
+		// Add feed id
 		if feed.ID == 0 {
 			parts := strings.Split(feedKey, ":")
 			if len(parts) == 2 {
 				feed.ID, _ = strconv.ParseInt(parts[1], 10, 64)
-				conn.Do("HPUT", feedKey, "id", feed.ID)
+				_, err = conn.Do("HPUT", feedKey, "id", feed.ID)
+				if err != nil {
+					log.Printf("could not save id for %s: %v", feedKey, err)
+				}
+			}
+		}
+
+		// Fix the callback url
+		callbackURL, err := url.Parse(feed.Callback)
+		if err != nil || !callbackURL.IsAbs() {
+			if err != nil {
+				log.Printf("could not parse callback url %q: %v", callbackURL, err)
+			} else {
+				log.Printf("url is relative; replace with absolute url: %q", callbackURL)
+			}
+
+			feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
+			_, err = conn.Do("HPUT", feedKey, "callback", feed.Callback)
+			if err != nil {
+				log.Printf("could not save id for %s: %v", feedKey, err)
 			}
 		}
 
@@ -181,7 +213,7 @@ func (h *hubIncomingBackend) GetFeeds() []Feed {
 		feeds = append(feeds, feed)
 	}
 
-	return feeds
+	return feeds, nil
 }
 
 func (h *hubIncomingBackend) Subscribe(feed *Feed) error {
