@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/pkg/errors"
 	"p83.nl/go/ekster/pkg/auth"
 
 	"p83.nl/go/ekster/pkg/server"
@@ -97,16 +98,16 @@ type App struct {
 }
 
 // Run runs the app
-func (app *App) Run() {
+func (app *App) Run() error {
 	app.backend.run()
 	app.hubBackend.run()
 
 	log.Printf("Listening on port %d\n", app.options.Port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", app.options.Port), nil))
+	return http.ListenAndServe(fmt.Sprintf(":%d", app.options.Port), nil)
 }
 
 // NewApp initializes the App
-func NewApp(options AppOptions) *App {
+func NewApp(options AppOptions) (*App, error) {
 	app := &App{
 		options: options,
 	}
@@ -137,12 +138,12 @@ func NewApp(options AppOptions) *App {
 	if !options.Headless {
 		handler, err := newMainHandler(app.backend, options.BaseURL, options.TemplateDir, options.pool)
 		if err != nil {
-			log.Fatal(err)
+			return nil, errors.Wrap(err, "could not create main handler")
 		}
 		http.Handle("/", handler)
 	}
 
-	return app
+	return app, nil
 }
 
 func main() {
@@ -204,5 +205,13 @@ func main() {
 	pool := newPool(options.RedisServer)
 	options.pool = pool
 
-	NewApp(options).Run()
+	app, err := NewApp(options)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = app.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
