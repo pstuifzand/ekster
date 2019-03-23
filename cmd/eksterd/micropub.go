@@ -78,10 +78,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Method == http.MethodGet {
-		// show profile with endpoint urls
-
-	} else if r.Method == http.MethodPost {
+	if r.Method == http.MethodPost {
 		sourceID := r.URL.Query().Get("source_id")
 
 		authHeader := r.Header.Get("Authorization")
