@@ -34,7 +34,11 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn := h.pool.Get()
 	defer conn.Close()
 
-	r.ParseForm()
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
 
 	if r.Method == http.MethodGet {
 		// show profile with endpoint urls
@@ -49,36 +53,36 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		channel, err := redis.String(conn.Do("HGET", "sources", sourceID))
 		if err != nil {
-
 			channel, err = redis.String(conn.Do("HGET", "token:"+sourceID, "channel"))
 			if err != nil {
-				http.Error(w, "Unknown source", 400)
+				http.Error(w, "could not find source", 400)
 				return
 			}
 		}
 
 		var item microsub.Item
 		ok := false
-		if r.Header.Get("Content-Type") == "application/jf2+json" {
+		contentType := r.Header.Get("Content-Type")
+		if contentType == "application/jf2+json" {
 			dec := json.NewDecoder(r.Body)
 			err := dec.Decode(&item)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Error decoding: %v", err), 400)
+				http.Error(w, fmt.Sprintf("could not decode request body as jf2: %v", err), 400)
 				return
 			}
 			ok = true
-		} else if r.Header.Get("Content-Type") == "application/json" {
+		} else if contentType == "application/json" {
 			var mfItem microformats.Microformat
 			dec := json.NewDecoder(r.Body)
 			err := dec.Decode(&mfItem)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Error decoding: %v", err), 400)
+				http.Error(w, fmt.Sprintf("could not decode request body as json: %v", err), 400)
 				return
 			}
 
 			author := microsub.Card{}
 			item, ok = jf2.SimplifyMicroformatItem(&mfItem, author)
-		} else if r.Header.Get("Content-Type") == "application/x-www-form-urlencoded" {
+		} else if contentType == "application/x-www-form-urlencoded" {
 			content := r.FormValue("content")
 			name := r.FormValue("name")
 			item.Type = "entry"
@@ -87,7 +91,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			item.Published = time.Now().Format(time.RFC3339)
 			ok = true
 		} else {
-			http.Error(w, "Unsupported Content-Type", 400)
+			http.Error(w, fmt.Sprintf("content-type %s is not supported", contentType), 400)
 			return
 		}
 
@@ -98,7 +102,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			err = h.Backend.channelAddItemWithMatcher(channel, item)
 			err = h.Backend.updateChannelUnreadCount(channel)
 			if err != nil {
-				log.Printf("error: while updating channel unread count for %s: %s\n", channel, err)
+				log.Printf("could not update channel unread content %s: %v", channel, err)
 			}
 		}
 
