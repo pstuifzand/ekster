@@ -1,10 +1,16 @@
+// Package timeline contains different types of timeline backends.
+//
+// "sorted-set" uses Redis sorted sets as a backend
+// "stream" uses Redis 5 streams as a backend
+// "null" doesn't remember any items added to it
 package timeline
 
 import (
 	"encoding/json"
 
-	"github.com/gomodule/redigo/redis"
 	"p83.nl/go/ekster/pkg/microsub"
+
+	"github.com/gomodule/redigo/redis"
 )
 
 // Backend specifies the interface for Timeline. It supports everything that is needed
