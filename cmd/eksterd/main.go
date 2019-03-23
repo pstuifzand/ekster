@@ -42,10 +42,11 @@ type AppOptions struct {
 	RedisServer string
 	BaseURL     string
 	TemplateDir string
+	pool        *redis.Pool
 }
 
 var (
-	pool *redis.Pool
+// pool *redis.Pool
 )
 
 func init() {
@@ -113,8 +114,9 @@ func NewApp(options AppOptions) *App {
 	app.backend = loadMemoryBackend()
 	app.backend.AuthEnabled = options.AuthEnabled
 	app.backend.baseURL = options.BaseURL
+	app.backend.pool = options.pool
 
-	app.hubBackend = &hubIncomingBackend{app.backend, options.BaseURL}
+	app.hubBackend = &hubIncomingBackend{app.backend, options.BaseURL, options.pool}
 
 	http.Handle("/micropub", &micropubHandler{
 		Backend: app.backend,
@@ -134,7 +136,7 @@ func NewApp(options AppOptions) *App {
 	})
 
 	if !options.Headless {
-		handler, err := newMainHandler(app.backend, options.BaseURL, options.TemplateDir)
+		handler, err := newMainHandler(app.backend, options.BaseURL, options.TemplateDir, options.pool)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -200,7 +202,8 @@ func main() {
 		return
 	}
 
-	pool = newPool(options.RedisServer)
+	pool := newPool(options.RedisServer)
+	options.pool = pool
 
 	NewApp(options).Run()
 }

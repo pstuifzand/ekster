@@ -1,6 +1,8 @@
 package server
 
 import (
+	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +12,10 @@ import (
 	"p83.nl/go/ekster/pkg/client"
 	"p83.nl/go/ekster/pkg/microsub"
 )
+
+func init() {
+	log.SetOutput(ioutil.Discard)
+}
 
 func createServerClient() (*httptest.Server, *client.Client) {
 	backend := &NullBackend{}

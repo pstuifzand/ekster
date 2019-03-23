@@ -34,6 +34,7 @@ type HubBackend interface {
 type hubIncomingBackend struct {
 	backend *memoryBackend
 	baseURL string
+	pool    *redis.Pool
 }
 
 // Feed contains information about the feed subscriptions
@@ -49,7 +50,7 @@ type Feed struct {
 }
 
 func (h *hubIncomingBackend) GetSecret(id int64) string {
-	conn := pool.Get()
+	conn := h.pool.Get()
 	defer conn.Close()
 	secret, err := redis.String(conn.Do("HGET", fmt.Sprintf("feed:%d", id), "secret"))
 	if err != nil {
@@ -59,7 +60,7 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 }
 
 func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, error) {
-	conn := pool.Get()
+	conn := h.pool.Get()
 	defer conn.Close()
 
 	// TODO(peter): check if topic already is registered
@@ -104,7 +105,7 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 }
 
 func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body io.Reader) error {
-	conn := pool.Get()
+	conn := h.pool.Get()
 	defer conn.Close()
 	log.Printf("updating feed %d", feedID)
 	u, err := redis.String(conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "url"))
@@ -126,7 +127,7 @@ func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body i
 }
 
 func (h *hubIncomingBackend) FeedSetLeaseSeconds(feedID int64, leaseSeconds int64) error {
-	conn := pool.Get()
+	conn := h.pool.Get()
 	defer conn.Close()
 	log.Printf("updating feed %d lease_seconds", feedID)
 
@@ -152,7 +153,7 @@ func (h *hubIncomingBackend) GetFeeds() []Feed {
 
 // Feeds returns a list of subscribed feeds
 func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
-	conn := pool.Get()
+	conn := h.pool.Get()
 	defer conn.Close()
 	feeds := []Feed{}
 

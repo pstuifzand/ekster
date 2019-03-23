@@ -31,7 +31,7 @@ func (b *memoryBackend) getTimeline(channel string) TimelineBackend {
 	}
 
 	if timelineType == "sorted-set" {
-		timeline := &redisSortedSetTimeline{channel}
+		timeline := &redisSortedSetTimeline{channel: channel, pool: b.pool}
 		err := timeline.Init()
 		if err != nil {
 			return nil
@@ -39,7 +39,7 @@ func (b *memoryBackend) getTimeline(channel string) TimelineBackend {
 		return timeline
 	}
 	if timelineType == "stream" {
-		timeline := &redisStreamTimeline{channel: channel}
+		timeline := &redisStreamTimeline{channel: channel, pool: b.pool}
 		err := timeline.Init()
 		if err != nil {
 			return nil

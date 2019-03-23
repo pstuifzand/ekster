@@ -12,6 +12,8 @@ import (
 
 type redisStreamTimeline struct {
 	channel, channelKey string
+
+	pool *redis.Pool
 }
 
 /*
@@ -23,7 +25,7 @@ func (timeline *redisStreamTimeline) Init() error {
 }
 
 func (timeline *redisStreamTimeline) Items(before, after string) (microsub.Timeline, error) {
-	conn := pool.Get()
+	conn := timeline.pool.Get()
 	defer conn.Close()
 
 	if before == "" {
@@ -69,7 +71,7 @@ func (timeline *redisStreamTimeline) Items(before, after string) (microsub.Timel
 }
 
 func (timeline *redisStreamTimeline) AddItem(item microsub.Item) error {
-	conn := pool.Get()
+	conn := timeline.pool.Get()
 	defer conn.Close()
 
 	if item.Published == "" {
@@ -90,7 +92,7 @@ func (timeline *redisStreamTimeline) AddItem(item microsub.Item) error {
 }
 
 func (timeline *redisStreamTimeline) Count() (int, error) {
-	conn := pool.Get()
+	conn := timeline.pool.Get()
 	defer conn.Close()
 
 	return redis.Int(conn.Do("XLEN", timeline.channelKey))

@@ -18,6 +18,7 @@ import (
 
 type micropubHandler struct {
 	Backend *memoryBackend
+	pool    *redis.Pool
 }
 
 /*
@@ -30,7 +31,7 @@ type micropubHandler struct {
 func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	conn := pool.Get()
+	conn := h.pool.Get()
 	defer conn.Close()
 
 	r.ParseForm()

@@ -24,6 +24,7 @@ type mainHandler struct {
 	Backend     *memoryBackend
 	BaseURL     string
 	TemplateDir string
+	pool        *redis.Pool
 }
 
 type session struct {
@@ -85,13 +86,15 @@ type authRequest struct {
 	AccessToken string `redis:"access_token"`
 }
 
-func newMainHandler(backend *memoryBackend, baseURL, templateDir string) (*mainHandler, error) {
+func newMainHandler(backend *memoryBackend, baseURL, templateDir string, pool *redis.Pool) (*mainHandler, error) {
 	h := &mainHandler{Backend: backend}
 
 	h.BaseURL = baseURL
 
 	templateDir = strings.TrimRight(templateDir, "/")
 	h.TemplateDir = templateDir
+
+	h.pool = pool
 
 	return h, nil
 }
@@ -257,6 +260,8 @@ func getAppInfo(clientID string) (app, error) {
 }
 
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	pool := h.pool
+
 	conn := pool.Get()
 	defer conn.Close()
 

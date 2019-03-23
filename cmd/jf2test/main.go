@@ -17,9 +17,8 @@ func init() {
 	log.SetOutput(f)
 }
 
-type fetcher struct{}
-
-func (f fetcher) Fetch(url string) (*http.Response, error) {
+// Fetch calls http.Get
+func Fetch(url string) (*http.Response, error) {
 	return http.Get(url)
 }
 
@@ -33,7 +32,7 @@ func main() {
 	}
 	defer resp.Body.Close()
 
-	items, err := fetch.FeedItems(fetcher{}, url, resp.Header.Get("Content-Type"), resp.Body)
+	items, err := fetch.FeedItems(Fetch, url, resp.Header.Get("Content-Type"), resp.Body)
 	if err != nil {
 		log.Fatal(err)
 	}

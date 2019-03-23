@@ -25,7 +25,7 @@ import (
 )
 
 // FeedHeader returns a new microsub.Feed with the information parsed from body.
-func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
+func FeedHeader(fetcher FetcherFunc, fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
 
@@ -38,7 +38,7 @@ func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (
 		author, ok := jf2.SimplifyMicroformatDataAuthor(data)
 		if !ok {
 			if strings.HasPrefix(author.URL, "http") {
-				resp, err := fetcher.Fetch(fetchURL)
+				resp, err := fetcher(fetchURL)
 				if err != nil {
 					return feed, err
 				}
@@ -108,7 +108,7 @@ func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (
 }
 
 // FeedItems returns the items from the url, parsed from body.
-func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
+func FeedItems(fetcher FetcherFunc, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
 

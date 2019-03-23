@@ -12,6 +12,7 @@ import (
 
 type redisSortedSetTimeline struct {
 	channel string
+	pool    *redis.Pool
 }
 
 /*
@@ -22,7 +23,7 @@ func (timeline *redisSortedSetTimeline) Init() error {
 }
 
 func (timeline *redisSortedSetTimeline) Items(before, after string) (microsub.Timeline, error) {
-	conn := pool.Get()
+	conn := timeline.pool.Get()
 	defer conn.Close()
 
 	items := []microsub.Item{}
@@ -103,7 +104,7 @@ func (timeline *redisSortedSetTimeline) Items(before, after string) (microsub.Ti
 }
 
 func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) error {
-	conn := pool.Get()
+	conn := timeline.pool.Get()
 	defer conn.Close()
 
 	channel := timeline.channel
@@ -158,7 +159,7 @@ func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) error {
 }
 
 func (timeline *redisSortedSetTimeline) Count() (int, error) {
-	conn := pool.Get()
+	conn := timeline.pool.Get()
 	defer conn.Close()
 
 	channel := timeline.channel
@@ -171,7 +172,7 @@ func (timeline *redisSortedSetTimeline) Count() (int, error) {
 }
 
 func (timeline *redisSortedSetTimeline) MarkRead(uids []string) error {
-	conn := pool.Get()
+	conn := timeline.pool.Get()
 	defer conn.Close()
 
 	channel := timeline.channel

@@ -45,6 +45,8 @@ type memoryBackend struct {
 	quit   chan struct{}
 
 	broker *server.Broker
+
+	pool *redis.Pool
 }
 
 type channelSetting struct {
@@ -78,7 +80,7 @@ func (f *fetch2) Fetch(url string) (*http.Response, error) {
 }
 
 func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse) bool {
-	conn := pool.Get()
+	conn := b.pool.Get()
 	defer conn.Close()
 	return b.cachedCheckAuthToken(conn, header, r)
 }
@@ -108,7 +110,7 @@ func (b *memoryBackend) load() error {
 }
 
 func (b *memoryBackend) refreshChannels() {
-	conn := pool.Get()
+	conn := b.pool.Get()
 	defer conn.Close()
 
 	conn.Do("DEL", "channels")
@@ -173,7 +175,7 @@ func createMemoryBackend() {
 
 // ChannelsGetList gets channels
 func (b *memoryBackend) ChannelsGetList() ([]microsub.Channel, error) {
-	conn := pool.Get()
+	conn := b.pool.Get()
 	defer conn.Close()
 
 	b.lock.RLock()
@@ -207,7 +209,7 @@ func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 	channel := b.createChannel(name)
 	b.setChannel(channel)
 
-	conn := pool.Get()
+	conn := b.pool.Get()
 	defer conn.Close()
 
 	updateChannelInRedis(conn, channel.UID, DefaultPrio)
@@ -240,7 +242,7 @@ func (b *memoryBackend) ChannelsUpdate(uid, name string) (microsub.Channel, erro
 func (b *memoryBackend) ChannelsDelete(uid string) error {
 	defer b.save()
 
-	conn := pool.Get()
+	conn := b.pool.Get()
 	defer conn.Close()
 
 	removeChannelFromRedis(conn, uid)
@@ -423,9 +425,11 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 	// needs to be like this, because we get a null result otherwise in the json output
 	feeds := []microsub.Feed{}
 
+	cachingFetch := WithCaching(b.pool, Fetch2)
+
 	for _, u := range urls {
 		log.Println(u)
-		resp, err := Fetch2(u)
+		resp, err := cachingFetch(u)
 		if err != nil {
 			log.Printf("Error while fetching %s: %v\n", u, err)
 			continue
@@ -439,7 +443,7 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 			continue
 		}
 
-		feedResp, err := Fetch2(fetchURL.String())
+		feedResp, err := cachingFetch(fetchURL.String())
 		if err != nil {
 			log.Printf("Error in fetch of %s - %v\n", fetchURL, err)
 			continue
@@ -447,7 +451,7 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 		defer feedResp.Body.Close()
 
 		// TODO: Combine FeedHeader and FeedItems so we can use it here
-		parsedFeed, err := fetch.FeedHeader(&fetch2{}, fetchURL.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
+		parsedFeed, err := fetch.FeedHeader(cachingFetch, fetchURL.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
 		if err != nil {
 			log.Printf("Error in parse of %s - %v\n", fetchURL, err)
 			continue
@@ -462,7 +466,7 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 				log.Printf("alternate found with type %s %#v\n", relURL.Type, relURL)
 
 				if strings.HasPrefix(relURL.Type, "text/html") || strings.HasPrefix(relURL.Type, "application/json") || strings.HasPrefix(relURL.Type, "application/xml") || strings.HasPrefix(relURL.Type, "text/xml") || strings.HasPrefix(relURL.Type, "application/rss+xml") || strings.HasPrefix(relURL.Type, "application/atom+xml") {
-					feedResp, err := Fetch2(alt)
+					feedResp, err := cachingFetch(alt)
 					if err != nil {
 						log.Printf("Error in fetch of %s - %v\n", alt, err)
 						continue
@@ -470,7 +474,7 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 					// FIXME: don't defer in for loop (possible memory leak)
 					defer feedResp.Body.Close()
 
-					parsedFeed, err := fetch.FeedHeader(&fetch2{}, alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
+					parsedFeed, err := fetch.FeedHeader(cachingFetch, alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
 					if err != nil {
 						log.Printf("Error in parse of %s - %v\n", alt, err)
 						continue
@@ -486,12 +490,13 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 }
 
 func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error) {
-	resp, err := Fetch2(previewURL)
+	cachingFetch := WithCaching(b.pool, Fetch2)
+	resp, err := cachingFetch(previewURL)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
 	defer resp.Body.Close()
-	items, err := fetch.FeedItems(&fetch2{}, previewURL, resp.Header.Get("content-type"), resp.Body)
+	items, err := fetch.FeedItems(cachingFetch, previewURL, resp.Header.Get("content-type"), resp.Body)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
@@ -518,10 +523,9 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) error {
 }
 
 func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
-	conn := pool.Get()
-	defer conn.Close()
+	cachingFetch := WithCaching(b.pool, Fetch2)
 
-	items, err := fetch.FeedItems(&fetch2{}, fetchURL, contentType, body)
+	items, err := fetch.FeedItems(cachingFetch, fetchURL, contentType, body)
 	if err != nil {
 		return err
 	}
@@ -666,11 +670,54 @@ func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
 	return nil
 }
 
-// Fetch2 fetches stuff
-func Fetch2(fetchURL string) (*http.Response, error) {
+// WithCaching adds caching to a FetcherFunc
+func WithCaching(pool *redis.Pool, ff fetch.FetcherFunc) fetch.FetcherFunc {
 	conn := pool.Get()
 	defer conn.Close()
 
+	return func(fetchURL string) (*http.Response, error) {
+		cacheKey := fmt.Sprintf("http_cache:%s", fetchURL)
+		u, err := url.Parse(fetchURL)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing %s as url: %s", fetchURL, err)
+		}
+
+		req, err := http.NewRequest("GET", u.String(), nil)
+
+		data, err := redis.Bytes(conn.Do("GET", cacheKey))
+		if err == nil {
+			log.Printf("HIT %s\n", fetchURL)
+			rd := bufio.NewReader(bytes.NewReader(data))
+			return http.ReadResponse(rd, req)
+		}
+
+		log.Printf("MISS %s\n", fetchURL)
+
+		resp, err := ff(fetchURL)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		var b bytes.Buffer
+		err = resp.Write(&b)
+		if err != nil {
+			return nil, err
+		}
+
+		cachedCopy := make([]byte, b.Len())
+		cur := b.Bytes()
+		copy(cachedCopy, cur)
+
+		conn.Do("SET", cacheKey, cachedCopy, "EX", 60*60)
+
+		cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
+		return cachedResp, err
+	}
+}
+
+// Fetch2 fetches stuff
+func Fetch2(fetchURL string) (*http.Response, error) {
 	if !strings.HasPrefix(fetchURL, "http") {
 		return nil, fmt.Errorf("error parsing %s as url, has no http(s) prefix", fetchURL)
 	}
@@ -682,34 +729,13 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 
-	cacheKey := fmt.Sprintf("http_cache:%s", u.String())
-	data, err := redis.Bytes(conn.Do("GET", cacheKey))
-	if err == nil {
-		log.Printf("HIT %s\n", u.String())
-		rd := bufio.NewReader(bytes.NewReader(data))
-		return http.ReadResponse(rd, req)
-	}
-
-	log.Printf("MISS %s\n", u.String())
-
 	client := http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch failed: %s: %s", u, err)
 	}
-	defer resp.Body.Close()
 
-	var b bytes.Buffer
-	resp.Write(&b)
-
-	cachedCopy := make([]byte, b.Len())
-	cur := b.Bytes()
-	copy(cachedCopy, cur)
-
-	conn.Do("SET", cacheKey, cachedCopy, "EX", 60*60)
-
-	cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
-	return cachedResp, err
+	return resp, err
 }
 
 func (b *memoryBackend) createChannel(name string) microsub.Channel {

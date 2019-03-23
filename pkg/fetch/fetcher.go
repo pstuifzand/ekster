@@ -2,6 +2,5 @@ package fetch
 
 import "net/http"
 
-type Fetcher interface {
-	Fetch(url string) (*http.Response, error)
-}
+// FetcherFunc is a function that fetches an url
+type FetcherFunc func(url string) (*http.Response, error)
