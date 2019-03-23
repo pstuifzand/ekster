@@ -67,9 +67,14 @@ func (f *fetch2) Fetch(url string) (*http.Response, error) {
 	return Fetch2(url)
 }
 
-func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse) bool {
+func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse) (bool, error) {
 	conn := b.pool.Get()
-	defer conn.Close()
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			log.Printf("could not close redis connection: %v", err)
+		}
+	}()
 	return b.cachedCheckAuthToken(conn, header, r)
 }
 
@@ -495,8 +500,8 @@ func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error)
 }
 
 func (b *memoryBackend) MarkRead(channel string, uids []string) error {
-	timeline := b.getTimeline(channel)
-	err := timeline.MarkRead(uids)
+	tl := b.getTimeline(channel)
+	err := tl.MarkRead(uids)
 
 	if err != nil {
 		return err

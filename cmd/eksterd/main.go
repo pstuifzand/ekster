@@ -74,7 +74,11 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 
 		var token auth.TokenResponse
 
-		if !b.AuthTokenAccepted(authorization, &token) {
+		authorized, err := b.AuthTokenAccepted(authorization, &token)
+		if err != nil {
+			log.Printf("token not accepted: %v", err)
+		}
+		if !authorized {
 			log.Printf("Token could not be validated")
 			http.Error(w, "Can't validate token", 403)
 			return

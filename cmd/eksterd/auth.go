@@ -9,90 +9,101 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/pkg/errors"
 	"p83.nl/go/ekster/pkg/auth"
 )
 
 var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")
 
-func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *auth.TokenResponse) bool {
+func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *auth.TokenResponse) (bool, error) {
 	tokens := authHeaderRegex.FindStringSubmatch(header)
 
 	if len(tokens) != 2 {
-		log.Println("No token found in the header")
-		return false
+		return false, fmt.Errorf("could not find token in header")
 	}
 
 	key := fmt.Sprintf("token:%s", tokens[1])
 
 	authorized, err := getCachedValue(conn, key, r)
 	if err != nil {
-		log.Println(err)
+		log.Printf("could not get cached auth token value: %v", err)
 	}
 
 	if authorized {
-		return true
+		return true, nil
 	}
 
-	authorized = b.checkAuthToken(header, r)
+	authorized, err = b.checkAuthToken(header, r)
+	if err != nil {
+		return false, errors.Wrap(err, "could not check auth token")
+	}
+
 	if authorized {
 		err = setCachedTokenResponseValue(conn, key, r)
 		if err != nil {
-			log.Println(err)
+			log.Printf("could not set cached token response value: %v", err)
 		}
-		return true
+
+		return true, nil
 	}
 
-	return authorized
+	return authorized, nil
 }
 
-func (b *memoryBackend) checkAuthToken(header string, token *auth.TokenResponse) bool {
-	log.Println("Checking auth token")
-
+func (b *memoryBackend) checkAuthToken(header string, token *auth.TokenResponse) (bool, error) {
 	tokenEndpoint := b.TokenEndpoint
 
 	req, err := buildValidateAuthTokenRequest(tokenEndpoint, header)
 	if err != nil {
-		return false
+		return false, err
 	}
 
 	client := http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
-		log.Println(err)
-		return false
+		return false, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		err := res.Body.Close()
+		if err != nil {
+			log.Printf("could not close http response body: %v", err)
+		}
+	}()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		log.Printf("HTTP StatusCode when verifying token: %d\n", res.StatusCode)
-		return false
+		return false, fmt.Errorf("got unsuccessfull http status code while verifying token: %d", res.StatusCode)
 	}
 
 	dec := json.NewDecoder(res.Body)
 	err = dec.Decode(&token)
 	if err != nil {
-		log.Printf("Error in json object: %v", err)
-		return false
+		return false, errors.Wrap(err, "could not decode json body")
 	}
 
-	log.Println("Auth Token: Success")
-	return true
+	return true, nil
 }
 
 func buildValidateAuthTokenRequest(tokenEndpoint string, header string) (*http.Request, error) {
 	req, err := http.NewRequest("GET", tokenEndpoint, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not create a new request")
+	}
 	req.Header.Add("Authorization", header)
 	req.Header.Add("Accept", "application/json")
-	return req, err
+
+	return req, nil
 }
 
 // setCachedTokenResponseValue remembers the value of the auth token response in redis
 func setCachedTokenResponseValue(conn redis.Conn, key string, r *auth.TokenResponse) error {
 	_, err := conn.Do("HMSET", redis.Args{}.Add(key).AddFlat(r)...)
 	if err != nil {
-		return fmt.Errorf("error while setting token: %v", err)
+		return errors.Wrap(err, "could not remember token")
 	}
-	conn.Do("EXPIRE", key, uint64(10*time.Minute/time.Second))
+	_, err = conn.Do("EXPIRE", key, uint64(10*time.Minute/time.Second))
+	if err != nil {
+		return errors.Wrap(err, "could not set expiration for token")
+	}
 	return nil
 }
 
@@ -100,7 +111,7 @@ func setCachedTokenResponseValue(conn redis.Conn, key string, r *auth.TokenRespo
 func getCachedValue(conn redis.Conn, key string, r *auth.TokenResponse) (bool, error) {
 	values, err := redis.Values(conn.Do("HGETALL", key))
 	if err != nil {
-		return false, fmt.Errorf("error while getting value from backend: %v", err)
+		return false, errors.Wrap(err, "could not get value from backend")
 	}
 
 	if len(values) > 0 {

@@ -127,7 +127,7 @@ func getSessionCookie(w http.ResponseWriter, r *http.Request) string {
 		}
 
 		http.SetCookie(w, newCookie)
-	} else {
+	} else if err == nil {
 		sessionVar = c.Value
 	}
 
@@ -294,6 +294,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
 				http.Redirect(w, r, "/", 302)
+				return
+			} else if err != nil {
+				http.Error(w, "could not read cookie", 500)
 				return
 			}
 
