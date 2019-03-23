@@ -137,8 +137,8 @@ func (b *memoryBackend) save() {
 	jw.Encode(b)
 }
 
-func loadMemoryBackend() *memoryBackend {
-	backend := &memoryBackend{}
+func loadMemoryBackend(pool *redis.Pool) *memoryBackend {
+	backend := &memoryBackend{pool: pool}
 	err := backend.load()
 	if err != nil {
 		log.Printf("Error while loadingbackend: %v\n", err)
