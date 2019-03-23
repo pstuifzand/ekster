@@ -13,12 +13,50 @@ import (
 	"p83.nl/go/ekster/pkg/microsub"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/pkg/errors"
 	"willnorris.com/go/microformats"
 )
 
 type micropubHandler struct {
 	Backend *memoryBackend
 	pool    *redis.Pool
+}
+
+func parseIncomingItem(r *http.Request) (*microsub.Item, error) {
+	var item microsub.Item
+
+	contentType := r.Header.Get("content-type")
+
+	if contentType == "application/jf2+json" {
+		dec := json.NewDecoder(r.Body)
+		err := dec.Decode(&item)
+		if err != nil {
+			return nil, errors.Wrapf(err, "could not decode request body as jf2: %v", err)
+		}
+	} else if contentType == "application/json" {
+		var mfItem microformats.Microformat
+		dec := json.NewDecoder(r.Body)
+		err := dec.Decode(&mfItem)
+		if err != nil {
+			return nil, errors.Wrapf(err, "could not decode request body as json: %v", err)
+		}
+		author := microsub.Card{}
+		var ok bool
+		item, ok = jf2.SimplifyMicroformatItem(&mfItem, author)
+		if !ok {
+			return nil, fmt.Errorf("could not simplify microformat item to jf2")
+		}
+	} else if contentType == "application/x-www-form-urlencoded" {
+		content := r.FormValue("content")
+		name := r.FormValue("name")
+		item.Type = "entry"
+		item.Name = name
+		item.Content = &microsub.Content{Text: content}
+		item.Published = time.Now().Format(time.RFC3339)
+	} else {
+		return nil, fmt.Errorf("content-type %s is not supported", contentType)
+	}
+	return &item, nil
 }
 
 /*
@@ -55,55 +93,24 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			channel, err = redis.String(conn.Do("HGET", "token:"+sourceID, "channel"))
 			if err != nil {
-				http.Error(w, "could not find source", 400)
+				http.Error(w, "unauthorized", 401)
 				return
 			}
 		}
 
-		var item microsub.Item
-		ok := false
-		contentType := r.Header.Get("Content-Type")
-		if contentType == "application/jf2+json" {
-			dec := json.NewDecoder(r.Body)
-			err := dec.Decode(&item)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("could not decode request body as jf2: %v", err), 400)
-				return
-			}
-			ok = true
-		} else if contentType == "application/json" {
-			var mfItem microformats.Microformat
-			dec := json.NewDecoder(r.Body)
-			err := dec.Decode(&mfItem)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("could not decode request body as json: %v", err), 400)
-				return
-			}
-
-			author := microsub.Card{}
-			item, ok = jf2.SimplifyMicroformatItem(&mfItem, author)
-		} else if contentType == "application/x-www-form-urlencoded" {
-			content := r.FormValue("content")
-			name := r.FormValue("name")
-			item.Type = "entry"
-			item.Name = name
-			item.Content = &microsub.Content{Text: content}
-			item.Published = time.Now().Format(time.RFC3339)
-			ok = true
-		} else {
-			http.Error(w, fmt.Sprintf("content-type %s is not supported", contentType), 400)
+		item, err := parseIncomingItem(r)
+		if err != nil {
+			http.Error(w, err.Error(), 400)
 			return
 		}
 
-		if ok {
-			item.Read = false
-			id, _ := redis.Int(conn.Do("INCR", "source:"+sourceID+"next_id"))
-			item.ID = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("source:%s:%d", sourceID, id))))
-			err = h.Backend.channelAddItemWithMatcher(channel, item)
-			err = h.Backend.updateChannelUnreadCount(channel)
-			if err != nil {
-				log.Printf("could not update channel unread content %s: %v", channel, err)
-			}
+		item.Read = false
+		id, _ := redis.Int(conn.Do("INCR", "source:"+sourceID+"next_id"))
+		item.ID = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("source:%s:%d", sourceID, id))))
+		err = h.Backend.channelAddItemWithMatcher(channel, *item)
+		err = h.Backend.updateChannelUnreadCount(channel)
+		if err != nil {
+			log.Printf("could not update channel unread content %s: %v", channel, err)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
