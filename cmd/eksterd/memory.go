@@ -19,6 +19,7 @@ import (
 	"p83.nl/go/ekster/pkg/fetch"
 	"p83.nl/go/ekster/pkg/microsub"
 	"p83.nl/go/ekster/pkg/server"
+	"p83.nl/go/ekster/pkg/timeline"
 	"p83.nl/go/ekster/pkg/util"
 
 	"github.com/gomodule/redigo/redis"
@@ -723,6 +724,21 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	}
 
 	return resp, err
+}
+
+func (b *memoryBackend) getTimeline(channel string) timeline.Backend {
+	timelineType := "sorted-set"
+	if channel == "notifications" {
+		timelineType = "stream"
+	} else {
+		if setting, ok := b.Settings[channel]; ok {
+			if setting.ChannelType != "" {
+				timelineType = setting.ChannelType
+			}
+		}
+	}
+
+	return timeline.Create(channel, timelineType, b.pool)
 }
 
 func (b *memoryBackend) createChannel(name string) microsub.Channel {
