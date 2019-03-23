@@ -59,18 +59,21 @@ func parseIncomingItem(r *http.Request) (*microsub.Item, error) {
 	return &item, nil
 }
 
-/*
- * URLs needed:
- * - /		      with endpoint urls
- * - /micropub    micropub endpoint
- * - /auth        auth endpoint
- * - /token       token endpoint
- */
 func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		err := r.Body.Close()
+		if err != nil {
+			log.Printf("could not close request body: %v", err)
+		}
+	}()
 
 	conn := h.pool.Get()
-	defer conn.Close()
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			log.Printf("could not close redis connection: %v", err)
+		}
+	}()
 
 	err := r.ParseForm()
 	if err != nil {
@@ -79,20 +82,19 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
-		sourceID := r.URL.Query().Get("source_id")
+		var channel string
 
-		authHeader := r.Header.Get("Authorization")
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			sourceID = authHeader[7:]
+		channel, err = getChannelFromAuthorization(r, conn)
+		if err != nil {
+			log.Println(err)
+			http.Error(w, "unauthorized", 401)
+			return
 		}
 
-		channel, err := redis.String(conn.Do("HGET", "sources", sourceID))
-		if err != nil {
-			channel, err = redis.String(conn.Do("HGET", "token:"+sourceID, "channel"))
-			if err != nil {
-				http.Error(w, "unauthorized", 401)
-				return
-			}
+		// no channel is found
+		if channel == "" {
+			http.Error(w, "bad request, unknown channel", 400)
+			return
 		}
 
 		item, err := parseIncomingItem(r)
@@ -102,9 +104,12 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		item.Read = false
-		id, _ := redis.Int(conn.Do("INCR", "source:"+sourceID+"next_id"))
-		item.ID = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("source:%s:%d", sourceID, id))))
+		id, _ := redis.Int(conn.Do("INCR", fmt.Sprintf("source:%s:next_id", channel)))
+		item.ID = fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("source:%s:%d", channel, id))))
 		err = h.Backend.channelAddItemWithMatcher(channel, *item)
+		if err != nil {
+			log.Printf("could not add item to channel %s: %v", channel, err)
+		}
 		err = h.Backend.updateChannelUnreadCount(channel)
 		if err != nil {
 			log.Printf("could not update channel unread content %s: %v", channel, err)
@@ -112,13 +117,38 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 
-		enc := json.NewEncoder(w)
-		err = enc.Encode(map[string]string{
-			"ok": "1",
-		})
-
+		if err = json.NewEncoder(w).Encode(map[string]string{"ok": "1"}); err != nil {
+			http.Error(w, "internal server error", 500)
+		}
 		return
 	}
 
 	http.Error(w, "Method not allowed", 405)
+}
+
+func getChannelFromAuthorization(r *http.Request, conn redis.Conn) (string, error) {
+	// backward compatible
+	sourceID := r.URL.Query().Get("source_id")
+	if sourceID != "" {
+		channel, err := redis.String(conn.Do("HGET", "sources", sourceID))
+		if err != nil {
+			return "", errors.Wrapf(err, "could not get channel for sourceID: %s", sourceID)
+		}
+
+		return channel, nil
+	}
+
+	// full micropub with indieauth
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		token := authHeader[7:]
+		channel, err := redis.String(conn.Do("HGET", "token:"+token, "channel"))
+		if err != nil {
+			return "", errors.Wrap(err, "could not get channel for token")
+		}
+
+		return channel, nil
+	}
+
+	return "", fmt.Errorf("could not get channel from authorization")
 }
