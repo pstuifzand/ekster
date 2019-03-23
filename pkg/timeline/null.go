@@ -1,4 +1,4 @@
-package main
+package timeline
 
 import "p83.nl/go/ekster/pkg/microsub"
 

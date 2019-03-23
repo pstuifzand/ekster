@@ -1,24 +1,10 @@
 package main
 
 import (
-	"p83.nl/go/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/timeline"
 )
 
-// TimelineBackend specifies the interface for Timeline. It supports everything that is needed
-// for Ekster to implement the channel protocol for Microsub
-type TimelineBackend interface {
-	Items(before, after string) (microsub.Timeline, error)
-	Count() (int, error)
-
-	AddItem(item microsub.Item) error
-	MarkRead(uids []string) error
-
-	// Not used at the moment
-	// MarkUnread(uids []string) error
-}
-
-func (b *memoryBackend) getTimeline(channel string) TimelineBackend {
-	// TODO: fetch timeline type from channel
+func (b *memoryBackend) getTimeline(channel string) timeline.Backend {
 	timelineType := "sorted-set"
 	if channel == "notifications" {
 		timelineType = "stream"
@@ -30,29 +16,5 @@ func (b *memoryBackend) getTimeline(channel string) TimelineBackend {
 		}
 	}
 
-	if timelineType == "sorted-set" {
-		timeline := &redisSortedSetTimeline{channel: channel, pool: b.pool}
-		err := timeline.Init()
-		if err != nil {
-			return nil
-		}
-		return timeline
-	}
-	if timelineType == "stream" {
-		timeline := &redisStreamTimeline{channel: channel, pool: b.pool}
-		err := timeline.Init()
-		if err != nil {
-			return nil
-		}
-		return timeline
-	}
-	if timelineType == "null" {
-		timeline := &nullTimeline{channel: channel}
-		err := timeline.Init()
-		if err != nil {
-			return nil
-		}
-		return timeline
-	}
-	return nil
+	return timeline.Create(channel, timelineType, b.pool)
 }

@@ -60,19 +60,6 @@ type Debug interface {
 	Debug()
 }
 
-type redisItem struct {
-	ID        string
-	Published string
-	Read      bool
-	Data      []byte
-}
-
-func (ri *redisItem) Item() microsub.Item {
-	var item microsub.Item
-	_ = json.Unmarshal(ri.Data, &item)
-	return item
-}
-
 type fetch2 struct{}
 
 func (f *fetch2) Fetch(url string) (*http.Response, error) {
@@ -743,7 +730,7 @@ func (b *memoryBackend) createChannel(name string) microsub.Channel {
 	channel := microsub.Channel{
 		UID:    uid,
 		Name:   name,
-		Unread: microsub.Unread{microsub.UnreadCount, false, 0},
+		Unread: microsub.Unread{Type: microsub.UnreadCount},
 	}
 	return channel
 }
