@@ -51,15 +51,11 @@ type Feed struct {
 }
 
 var (
-	subscribeRuns     *expvar.Int
-	resubscriptions   *expvar.Int
-	resubscribeErrors *expvar.Int
+	varWebsub *expvar.Map
 )
 
 func init() {
-	subscribeRuns = expvar.NewInt("subscribe.runs")
-	resubscriptions = expvar.NewInt("subscribe.calls")
-	resubscribeErrors = expvar.NewInt("subscribe.errors")
+	varWebsub = expvar.NewMap("websub")
 }
 
 func (h *hubIncomingBackend) GetSecret(id int64) string {
@@ -244,7 +240,7 @@ func (h *hubIncomingBackend) run() error {
 			select {
 			case <-ticker.C:
 				log.Println("Getting feeds for WebSub")
-				subscribeRuns.Add(1)
+				varWebsub.Add("runs", 1)
 
 				feeds, err := h.Feeds()
 				if err != nil {
@@ -257,11 +253,11 @@ func (h *hubIncomingBackend) run() error {
 							feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
 						}
 						log.Printf("Send resubscribe for %q on %q with callback %q\n", feed.URL, feed.Hub, feed.Callback)
-						resubscriptions.Add(1)
+						varWebsub.Add("resubscribe", 1)
 						err := h.Subscribe(&feed)
 						if err != nil {
 							log.Printf("Error while subscribing: %s", err)
-							resubscribeErrors.Add(1)
+							varWebsub.Add("errors", 1)
 						}
 					}
 				}
