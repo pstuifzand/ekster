@@ -18,7 +18,7 @@ import (
 	"p83.nl/go/ekster/pkg/auth"
 	"p83.nl/go/ekster/pkg/fetch"
 	"p83.nl/go/ekster/pkg/microsub"
-	"p83.nl/go/ekster/pkg/server"
+	"p83.nl/go/ekster/pkg/sse"
 	"p83.nl/go/ekster/pkg/timeline"
 	"p83.nl/go/ekster/pkg/util"
 
@@ -45,7 +45,7 @@ type memoryBackend struct {
 	ticker *time.Ticker
 	quit   chan struct{}
 
-	broker *server.Broker
+	broker *sse.Broker
 
 	pool *redis.Pool
 }
@@ -636,7 +636,7 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) error
 	err := timelineBackend.AddItem(item)
 
 	// Sent message to Server-Sent-Events
-	b.broker.Notifier <- server.Message{Event: "new item", Object: item}
+	b.broker.Notifier <- sse.Message{Event: "new item", Object: item}
 
 	return err
 }
