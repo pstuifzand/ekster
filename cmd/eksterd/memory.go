@@ -75,7 +75,7 @@ func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse) 
 			log.Printf("could not close redis connection: %v", err)
 		}
 	}()
-	return b.cachedCheckAuthToken(conn, header, r)
+	return cachedCheckAuthToken(conn, header, b.TokenEndpoint, r)
 }
 
 func (b *memoryBackend) Debug() {

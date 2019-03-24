@@ -15,7 +15,7 @@ import (
 
 var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")
 
-func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *auth.TokenResponse) (bool, error) {
+func cachedCheckAuthToken(conn redis.Conn, header string, tokenEndpoint string, r *auth.TokenResponse) (bool, error) {
 	tokens := authHeaderRegex.FindStringSubmatch(header)
 
 	if len(tokens) != 2 {
@@ -33,7 +33,7 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 		return true, nil
 	}
 
-	authorized, err = b.checkAuthToken(header, r)
+	authorized, err = checkAuthToken(header, tokenEndpoint, r)
 	if err != nil {
 		return false, errors.Wrap(err, "could not check auth token")
 	}
@@ -50,8 +50,7 @@ func (b *memoryBackend) cachedCheckAuthToken(conn redis.Conn, header string, r *
 	return authorized, nil
 }
 
-func (b *memoryBackend) checkAuthToken(header string, token *auth.TokenResponse) (bool, error) {
-	tokenEndpoint := b.TokenEndpoint
+func checkAuthToken(header string, tokenEndpoint string, token *auth.TokenResponse) (bool, error) {
 
 	req, err := buildValidateAuthTokenRequest(tokenEndpoint, header)
 	if err != nil {
