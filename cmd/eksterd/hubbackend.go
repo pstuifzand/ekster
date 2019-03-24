@@ -1,6 +1,7 @@
 package main
 
 import (
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -47,6 +48,22 @@ type Feed struct {
 	Secret        string `redis:"secret"`
 	LeaseSeconds  int64  `redis:"lease_seconds"`
 	ResubscribeAt int64  `redis:"resubscribe_at"`
+}
+
+var (
+	subscribeRuns     *expvar.Int
+	resubscriptions   *expvar.Int
+	resubscribeErrors *expvar.Int
+)
+
+func init() {
+	subscribeRuns = expvar.NewInt("subscribe.runs")
+	resubscriptions = expvar.NewInt("subscribe.calls")
+	resubscribeErrors = expvar.NewInt("subscribe.errors")
+
+	expvar.Publish("subscribe.runs", subscribeRuns)
+	expvar.Publish("subscribe.calls", resubscriptions)
+	expvar.Publish("subscribe.errors", resubscribeErrors)
 }
 
 func (h *hubIncomingBackend) GetSecret(id int64) string {
@@ -231,7 +248,12 @@ func (h *hubIncomingBackend) run() error {
 			select {
 			case <-ticker.C:
 				log.Println("Getting feeds for WebSub")
-				feeds := h.GetFeeds()
+				subscribeRuns.Add(1)
+
+				feeds, err := h.Feeds()
+				if err != nil {
+				}
+
 				for _, feed := range feeds {
 					log.Printf("Looking at %s\n", feed.URL)
 					if feed.ResubscribeAt == 0 || time.Now().After(time.Unix(feed.ResubscribeAt, 0)) {
@@ -239,9 +261,11 @@ func (h *hubIncomingBackend) run() error {
 							feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
 						}
 						log.Printf("Send resubscribe for %q on %q with callback %q\n", feed.URL, feed.Hub, feed.Callback)
+						resubscriptions.Add(1)
 						err := h.Subscribe(&feed)
 						if err != nil {
 							log.Printf("Error while subscribing: %s", err)
+							resubscribeErrors.Add(1)
 						}
 					}
 				}
