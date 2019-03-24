@@ -260,9 +260,7 @@ func getAppInfo(clientID string) (app, error) {
 }
 
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	pool := h.pool
-
-	conn := pool.Get()
+	conn := h.pool.Get()
 	defer conn.Close()
 
 	err := r.ParseForm()

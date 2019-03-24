@@ -1,20 +1,4 @@
-/*
-   ek - microsub client
-   Copyright (C) 2018  Peter Stuifzand
-
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// Ek is a microsub client.
 package main
 
 import (
@@ -49,8 +33,10 @@ type Export struct {
 	Feeds     map[string][]ExportFeed `json:"feeds,omitempty"`
 }
 
+// ExportFeed is a feed.
 type ExportFeed string
 
+// ExportChannel contains the channel information for exports.
 type ExportChannel struct {
 	UID  string `json:"uid,omitempty"`
 	Name string `json:"channel,omitempty"`
@@ -359,9 +345,9 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		filetype := commands[1]
 
 		if filetype == "opml" {
-			exportOpmlFromMicrosub(sub)
+			exportOPMLFromMicrosub(sub)
 		} else if filetype == "json" {
-			exportJsonFromMicrosub(sub)
+			exportJSONFromMicrosub(sub)
 		} else {
 			log.Fatalf("unsupported filetype %q", filetype)
 		}
@@ -372,9 +358,9 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		filename := commands[2]
 
 		if filetype == "opml" {
-			importOpmlIntoMicrosub(sub, filename)
+			importOPMLIntoMicrosub(sub, filename)
 		} else if filetype == "json" {
-			importJsonIntoMicrosub(sub, filename)
+			importJSONIntoMicrosub(sub, filename)
 		} else {
 			log.Fatalf("unsupported filetype %q", filetype)
 		}
@@ -383,9 +369,19 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	if len(commands) == 1 && commands[0] == "version" {
 		fmt.Printf("ek %s\n", Version)
 	}
+
+	if len(commands) == 1 && commands[0] == "events" {
+		c, err := sub.Events()
+		if err != nil {
+			log.Fatalf("could not start event listener: %+v", err)
+		}
+		for msg := range c {
+			log.Printf("%s: %s", msg.Event, msg.Data)
+		}
+	}
 }
 
-func exportOpmlFromMicrosub(sub microsub.Microsub) {
+func exportOPMLFromMicrosub(sub microsub.Microsub) {
 	output := opml.OPML{}
 	output.Head.Title = "Microsub channels and feeds"
 	output.Head.DateCreated = time.Now().Format(time.RFC3339)
@@ -424,7 +420,7 @@ func exportOpmlFromMicrosub(sub microsub.Microsub) {
 	os.Stdout.WriteString(xml)
 }
 
-func exportJsonFromMicrosub(sub microsub.Microsub) {
+func exportJSONFromMicrosub(sub microsub.Microsub) {
 	contents := Export{Version: "1.0", Generator: "ek version " + Version}
 	channels, err := sub.ChannelsGetList()
 	if err != nil {
@@ -449,7 +445,7 @@ func exportJsonFromMicrosub(sub microsub.Microsub) {
 	}
 }
 
-func importJsonIntoMicrosub(sub microsub.Microsub, filename string) {
+func importJSONIntoMicrosub(sub microsub.Microsub, filename string) {
 	var export Export
 	f, err := os.Open(filename)
 	if err != nil {
@@ -509,7 +505,7 @@ func importJsonIntoMicrosub(sub microsub.Microsub, filename string) {
 	}
 }
 
-func importOpmlIntoMicrosub(sub microsub.Microsub, filename string) {
+func importOPMLIntoMicrosub(sub microsub.Microsub, filename string) {
 	channelMap := make(map[string]microsub.Channel)
 	channels, err := sub.ChannelsGetList()
 	if err != nil {

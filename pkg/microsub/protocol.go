@@ -4,6 +4,8 @@ package microsub
 import (
 	"encoding/json"
 	"fmt"
+
+	"p83.nl/go/ekster/pkg/sse"
 )
 
 /*
@@ -37,6 +39,7 @@ type Channel struct {
 	Unread Unread `json:"unread,omitempty"`
 }
 
+// Card contains the fields of an author or location.
 type Card struct {
 	// Filled      bool   `json:"filled,omitempty"`
 	Type        string `json:"type,omitempty"`
@@ -50,6 +53,7 @@ type Card struct {
 	Latitude    string `json:"latitude,omitempty" mf2:"latitude"`
 }
 
+// Content contains the Text or HTML content of an Item.
 type Content struct {
 	Text string `json:"text,omitempty" mf2:"value"`
 	HTML string `json:"html,omitempty" mf2:"html"`
@@ -92,6 +96,7 @@ type Timeline struct {
 	Paging Pagination `json:"paging"`
 }
 
+// Feed is one microsub feed.
 type Feed struct {
 	Type        string `json:"type"`
 	URL         string `json:"url"`
@@ -99,16 +104,6 @@ type Feed struct {
 	Photo       string `json:"photo,omitempty"`
 	Description string `json:"description,omitempty"`
 	Author      Card   `json:"author,omitempty"`
-}
-
-type Message string
-
-type Event struct {
-	Msg Message
-}
-
-type EventListener interface {
-	WriteMessage(evt Event)
 }
 
 // Microsub is the main protocol that should be implemented by a backend
@@ -129,8 +124,11 @@ type Microsub interface {
 
 	Search(query string) ([]Feed, error)
 	PreviewURL(url string) (Timeline, error)
+
+	Events() (chan sse.Message, error)
 }
 
+// MarshalJSON encodes an Unread value as JSON
 func (unread Unread) MarshalJSON() ([]byte, error) {
 	switch unread.Type {
 	case UnreadBool:
@@ -141,6 +139,7 @@ func (unread Unread) MarshalJSON() ([]byte, error) {
 	return json.Marshal(nil)
 }
 
+// UnmarshalJSON decodes an Unread value from JSON
 func (unread *Unread) UnmarshalJSON(bytes []byte) error {
 	var b bool
 	err := json.Unmarshal(bytes, &b)
@@ -161,6 +160,7 @@ func (unread *Unread) UnmarshalJSON(bytes []byte) error {
 	return fmt.Errorf("can't unmarshal as bool or int")
 }
 
+// String returns a string of the unread value
 func (unread Unread) String() string {
 	switch unread.Type {
 	case UnreadBool:
@@ -171,6 +171,7 @@ func (unread Unread) String() string {
 	return ""
 }
 
+// HasUnread return true of there are unread items.
 func (unread *Unread) HasUnread() bool {
 	switch unread.Type {
 	case UnreadBool:

@@ -2,6 +2,7 @@ package server
 
 import (
 	"p83.nl/go/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/sse"
 )
 
 // NullBackend is the simplest possible backend
@@ -80,4 +81,11 @@ func (b *NullBackend) PreviewURL(url string) (microsub.Timeline, error) {
 // MarkRead marks no items as read
 func (b *NullBackend) MarkRead(channel string, uids []string) error {
 	return nil
+}
+
+// Events returns a closed channel.
+func (b *NullBackend) Events() (chan sse.Message, error) {
+	ch := make(chan sse.Message)
+	close(ch)
+	return ch, nil
 }

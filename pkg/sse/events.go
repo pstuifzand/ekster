@@ -1,10 +1,15 @@
 package sse
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"strings"
+
+	"github.com/pkg/errors"
 )
 
 // A MessageChan is a channel of channels
@@ -16,6 +21,7 @@ type MessageChan chan Message
 // Message is a message.
 type Message struct {
 	Event  string
+	Data   string
 	Object interface{}
 }
 
@@ -77,8 +83,24 @@ func NewBroker() (broker *Broker) {
 	return
 }
 
+// CloseClient closes the client channel
+func (broker *Broker) CloseClient(ch MessageChan) {
+	broker.closingClients <- ch
+}
+
 // StartConnection starts a SSE connection, based on an existing HTTP connection.
-func StartConnection(broker *Broker, w http.ResponseWriter) error {
+func StartConnection(broker *Broker) (MessageChan, error) {
+	// Each connection registers its own message channel with the Broker's connections registry
+	messageChan := make(MessageChan)
+
+	// Signal the broker that we have a new connection
+	broker.newClients <- messageChan
+
+	return messageChan, nil
+}
+
+// WriteMessages writes SSE formatted messages to the writer
+func WriteMessages(w http.ResponseWriter, messageChan chan Message) error {
 	// Make sure that the writer supports flushing.
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -102,39 +124,56 @@ func StartConnection(broker *Broker, w http.ResponseWriter) error {
 
 	flusher.Flush()
 
-	// Each connection registers its own message channel with the Broker's connections registry
-	messageChan := make(MessageChan)
-
-	// Signal the broker that we have a new connection
-	broker.newClients <- messageChan
-
-	// Remove this client from the map of connected clients
-	// when this handler exits.
-	defer func() {
-		broker.closingClients <- messageChan
-	}()
-
-	// Listen to connection close and un-register messageChan
-	notify := w.(http.CloseNotifier).CloseNotify()
-
-	go func() {
-		<-notify
-		broker.closingClients <- messageChan
-	}()
-
 	// block waiting or messages broadcast on this connection's messageChan
-	for {
+	for message := range messageChan {
 		// Write to the ResponseWriter, Server Sent Events compatible
-		message := <-messageChan
 		output, err := json.Marshal(message.Object)
 		if err != nil {
-			log.Println(err)
-			continue
+			return errors.Wrap(err, "could not marshal message data")
 		}
-		fmt.Fprintf(w, "event: %s\n", message.Event)
-		fmt.Fprintf(w, "data: %s\n\n", output)
 
-		// Flush the data immediately instead of buffering it for later.
+		_, err = fmt.Fprintf(w, "event: %s\r\n", message.Event)
+		if err != nil {
+			return errors.Wrap(err, "could not write message header")
+		}
+
+		_, err = fmt.Fprintf(w, "data: %s\r\n\r\n", output)
+		if err != nil {
+			return errors.Wrap(err, "could not write message data")
+		}
 		flusher.Flush()
 	}
+
+	return nil
+}
+
+// Reader returns a channel that contains parsed SSE messages.
+func Reader(body io.ReadCloser) (MessageChan, error) {
+	ch := make(MessageChan)
+
+	r := bufio.NewScanner(body)
+	var msg Message
+	go func() {
+		for r.Scan() {
+			line := r.Text()
+			if line == "" {
+				ch <- msg
+				msg = Message{}
+				continue
+			}
+			if strings.HasPrefix(line, "event: ") {
+				line = line[len("event: "):]
+				msg.Event = line
+			}
+			if strings.HasPrefix(line, "data: ") {
+				line = line[len("data: "):]
+				msg.Data = line
+			}
+		}
+		if err := r.Err(); err != nil {
+			log.Printf("could not scanner lines from sse events: %+v", err)
+		}
+	}()
+
+	return ch, nil
 }

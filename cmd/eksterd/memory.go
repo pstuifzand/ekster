@@ -515,6 +515,10 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) error {
 	return nil
 }
 
+func (b *memoryBackend) Events() (chan sse.Message, error) {
+	return sse.StartConnection(b.broker)
+}
+
 func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
 	cachingFetch := WithCaching(b.pool, Fetch2)
 

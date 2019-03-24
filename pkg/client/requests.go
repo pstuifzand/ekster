@@ -10,7 +10,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/pkg/errors"
 	"p83.nl/go/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/sse"
 )
 
 // Client is a HTTP client for Microsub
@@ -201,6 +203,7 @@ func (c *Client) PreviewURL(url string) (microsub.Timeline, error) {
 	return timeline, nil
 }
 
+// FollowGetList gets the list of followed feeds.
 func (c *Client) FollowGetList(channel string) ([]microsub.Feed, error) {
 	args := make(map[string]string)
 	args["channel"] = channel
@@ -228,6 +231,7 @@ func (c *Client) FollowGetList(channel string) ([]microsub.Feed, error) {
 	return response.Items, nil
 }
 
+// ChannelsCreate creates and new channel on a microsub server.
 func (c *Client) ChannelsCreate(name string) (microsub.Channel, error) {
 	args := make(map[string]string)
 	args["name"] = name
@@ -245,6 +249,7 @@ func (c *Client) ChannelsCreate(name string) (microsub.Channel, error) {
 	return channel, nil
 }
 
+// ChannelsUpdate updates a channel.
 func (c *Client) ChannelsUpdate(uid, name string) (microsub.Channel, error) {
 	args := make(map[string]string)
 	args["name"] = name
@@ -263,6 +268,7 @@ func (c *Client) ChannelsUpdate(uid, name string) (microsub.Channel, error) {
 	return channel, nil
 }
 
+// ChannelsDelete deletes a channel.
 func (c *Client) ChannelsDelete(uid string) error {
 	args := make(map[string]string)
 	args["channel"] = uid
@@ -275,6 +281,7 @@ func (c *Client) ChannelsDelete(uid string) error {
 	return nil
 }
 
+// FollowURL follows a url.
 func (c *Client) FollowURL(channel, url string) (microsub.Feed, error) {
 	args := make(map[string]string)
 	args["channel"] = channel
@@ -293,6 +300,7 @@ func (c *Client) FollowURL(channel, url string) (microsub.Feed, error) {
 	return feed, nil
 }
 
+// UnfollowURL unfollows a url in a channel.
 func (c *Client) UnfollowURL(channel, url string) error {
 	args := make(map[string]string)
 	args["channel"] = channel
@@ -305,6 +313,7 @@ func (c *Client) UnfollowURL(channel, url string) error {
 	return nil
 }
 
+// Search asks the server to search for the query.
 func (c *Client) Search(query string) ([]microsub.Feed, error) {
 	args := make(map[string]string)
 	args["query"] = query
@@ -325,6 +334,7 @@ func (c *Client) Search(query string) ([]microsub.Feed, error) {
 	return response.Results, nil
 }
 
+// MarkRead marks an item read on the server.
 func (c *Client) MarkRead(channel string, uids []string) error {
 	args := make(map[string]string)
 	args["channel"] = channel
@@ -341,4 +351,18 @@ func (c *Client) MarkRead(channel string, uids []string) error {
 	}
 	res.Body.Close()
 	return nil
+}
+
+// Events open an event channel to the server.
+func (c *Client) Events() (chan sse.Message, error) {
+	res, err := c.microsubGetRequest("events", nil)
+	if err != nil {
+		return nil, err
+	}
+	ch, err := sse.Reader(res.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not create reader")
+	}
+
+	return ch, nil
 }

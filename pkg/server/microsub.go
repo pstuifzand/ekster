@@ -7,6 +7,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 
@@ -99,9 +100,29 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"items": following,
 			})
 		} else if action == "events" {
-			err := sse.StartConnection(h.Broker, w)
+			events, err := h.backend.Events()
 			if err != nil {
 				http.Error(w, "could not start sse connection", 500)
+			}
+
+			// Remove this client from the map of connected clients
+			// when this handler exits.
+			defer func() {
+				h.Broker.CloseClient(events)
+			}()
+
+			// Listen to connection close and un-register messageChan
+			notify := w.(http.CloseNotifier).CloseNotify()
+
+			go func() {
+				<-notify
+				h.Broker.CloseClient(events)
+			}()
+
+			err = sse.WriteMessages(w, events)
+			if err != nil {
+				log.Println(err)
+				http.Error(w, "internal server error", 500)
 			}
 		} else {
 			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 400)
