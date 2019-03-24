@@ -117,16 +117,16 @@ func WriteMessages(w http.ResponseWriter, messageChan chan Message) error {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	_, err := fmt.Fprintf(w, "event: started\r\n")
-	if err != nil {
-		return err
-	}
-
 	var welcomeMsg welcomeMessage
 	welcomeMsg.Version = "1.0.0"
 	encoded, err := json.Marshal(&welcomeMsg)
 	if err != nil {
 		return errors.Wrap(err, "could not encode welcome message")
+	}
+
+	_, err = fmt.Fprintf(w, "event: started\r\n")
+	if err != nil {
+		return err
 	}
 
 	_, err = fmt.Fprintf(w, "data: %s", encoded)
@@ -181,7 +181,7 @@ func Reader(body io.ReadCloser, ch MessageChan) error {
 		}
 	}
 	if err := r.Err(); err != nil {
-		return errors.Wrap(err, "could not scan lines from sse events: %+v")
+		return errors.Wrap(err, "could not scan lines from sse events")
 	}
 	return nil
 }

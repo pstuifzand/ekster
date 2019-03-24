@@ -362,7 +362,7 @@ func (c *Client) Events() (chan sse.Message, error) {
 		for {
 			res, err := c.microsubGetRequest("events", nil)
 			if err != nil {
-				log.Printf("could not request events: %s", err)
+				log.Printf("could not request events: %+v", err)
 				errorCounter++
 				if errorCounter > 5 {
 					break
@@ -372,7 +372,7 @@ func (c *Client) Events() (chan sse.Message, error) {
 
 			err = sse.Reader(res.Body, ch)
 			if err != nil {
-				log.Printf("could not create reader: %s", err)
+				log.Printf("could not create reader: %+v", err)
 				break
 			}
 		}
