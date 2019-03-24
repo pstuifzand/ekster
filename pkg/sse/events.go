@@ -99,6 +99,10 @@ func StartConnection(broker *Broker) (MessageChan, error) {
 	return messageChan, nil
 }
 
+type welcomeMessage struct {
+	Version string `json:"version"`
+}
+
 // WriteMessages writes SSE formatted messages to the writer
 func WriteMessages(w http.ResponseWriter, messageChan chan Message) error {
 	// Make sure that the writer supports flushing.
@@ -113,11 +117,19 @@ func WriteMessages(w http.ResponseWriter, messageChan chan Message) error {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	_, err := fmt.Fprintf(w, "event: welcome\r\n")
+	_, err := fmt.Fprintf(w, "event: started\r\n")
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(w, "data: {\"key\":\"hello world\"}\r\n\r\n")
+
+	var welcomeMsg welcomeMessage
+	welcomeMsg.Version = "1.0.0"
+	encoded, err := json.Marshal(&welcomeMsg)
+	if err != nil {
+		return errors.Wrap(err, "could not encode welcome message")
+	}
+
+	_, err = fmt.Fprintf(w, "data: %s", encoded)
 	if err != nil {
 		return err
 	}
@@ -148,32 +160,28 @@ func WriteMessages(w http.ResponseWriter, messageChan chan Message) error {
 }
 
 // Reader returns a channel that contains parsed SSE messages.
-func Reader(body io.ReadCloser) (MessageChan, error) {
-	ch := make(MessageChan)
-
+func Reader(body io.ReadCloser, ch MessageChan) error {
 	r := bufio.NewScanner(body)
 	var msg Message
-	go func() {
-		for r.Scan() {
-			line := r.Text()
-			if line == "" {
-				ch <- msg
-				msg = Message{}
-				continue
-			}
-			if strings.HasPrefix(line, "event: ") {
-				line = line[len("event: "):]
-				msg.Event = line
-			}
-			if strings.HasPrefix(line, "data: ") {
-				line = line[len("data: "):]
-				msg.Data = line
-			}
-		}
-		if err := r.Err(); err != nil {
-			log.Printf("could not scanner lines from sse events: %+v", err)
-		}
-	}()
 
-	return ch, nil
+	for r.Scan() {
+		line := r.Text()
+		if line == "" {
+			ch <- msg
+			msg = Message{}
+			continue
+		}
+		if strings.HasPrefix(line, "event: ") {
+			line = line[len("event: "):]
+			msg.Event = line
+		}
+		if strings.HasPrefix(line, "data: ") {
+			line = line[len("data: "):]
+			msg.Data = line
+		}
+	}
+	if err := r.Err(); err != nil {
+		return errors.Wrap(err, "could not scan lines from sse events: %+v")
+	}
+	return nil
 }

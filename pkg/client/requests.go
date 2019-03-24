@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/pkg/errors"
 	"p83.nl/go/ekster/pkg/microsub"
 	"p83.nl/go/ekster/pkg/sse"
 )
@@ -355,14 +354,31 @@ func (c *Client) MarkRead(channel string, uids []string) error {
 
 // Events open an event channel to the server.
 func (c *Client) Events() (chan sse.Message, error) {
-	res, err := c.microsubGetRequest("events", nil)
-	if err != nil {
-		return nil, err
-	}
-	ch, err := sse.Reader(res.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not create reader")
-	}
+
+	ch := make(chan sse.Message)
+
+	errorCounter := 0
+	go func() {
+		for {
+			res, err := c.microsubGetRequest("events", nil)
+			if err != nil {
+				log.Printf("could not request events: %s", err)
+				errorCounter++
+				if errorCounter > 5 {
+					break
+				}
+				continue
+			}
+
+			err = sse.Reader(res.Body, ch)
+			if err != nil {
+				log.Printf("could not create reader: %s", err)
+				break
+			}
+		}
+
+		close(ch)
+	}()
 
 	return ch, nil
 }
