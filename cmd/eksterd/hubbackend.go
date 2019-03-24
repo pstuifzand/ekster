@@ -60,10 +60,6 @@ func init() {
 	subscribeRuns = expvar.NewInt("subscribe.runs")
 	resubscriptions = expvar.NewInt("subscribe.calls")
 	resubscribeErrors = expvar.NewInt("subscribe.errors")
-
-	expvar.Publish("subscribe.runs", subscribeRuns)
-	expvar.Publish("subscribe.calls", resubscriptions)
-	expvar.Publish("subscribe.errors", resubscribeErrors)
 }
 
 func (h *hubIncomingBackend) GetSecret(id int64) string {
@@ -137,7 +133,7 @@ func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body i
 	log.Printf("Updating feed %d - %s %s\n", feedID, u, channel)
 	err = h.backend.ProcessContent(channel, u, contentType, body)
 	if err != nil {
-		log.Printf("Error while updating content for channel %s: %s", channel, err)
+		log.Printf("could not process content for channel %s: %s", channel, err)
 	}
 
 	return err
