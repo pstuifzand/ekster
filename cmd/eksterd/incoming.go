@@ -2,15 +2,14 @@ package main
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha1"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"regexp"
 	"strconv"
-	"strings"
+
+	"p83.nl/go/ekster/pkg/websub"
 )
 
 type incomingHandler struct {
@@ -85,8 +84,9 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// match signature
 	sig := r.Header.Get("X-Hub-Signature")
 	if sig != "" {
-		if err := isHubSignatureValid(sig, feedContent, secret); err != nil {
-			http.Error(w, fmt.Sprintf("Error in signature: %s", err), 400)
+		if err := websub.ValidateHubSignature(sig, feedContent, []byte(secret)); err != nil {
+			log.Printf("could not validate signature: %+v", err)
+			http.Error(w, fmt.Sprintf("could not validate signature: %s", err), 400)
 			return
 		}
 	}
@@ -94,32 +94,9 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ct := r.Header.Get("Content-Type")
 	err = h.Backend.UpdateFeed(feed, ct, bytes.NewBuffer(feedContent))
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Unknown format of body: %s (%s)", ct, err), 400)
+		http.Error(w, fmt.Sprintf("could not update feed: %s (%s)", ct, err), 400)
 		return
 	}
 
 	return
-}
-
-func isHubSignatureValid(sig string, feedContent []byte, secret string) error {
-	parts := strings.Split(sig, "=")
-
-	if len(parts) != 2 {
-		return fmt.Errorf("signature format is not like sha1=signature")
-	}
-
-	if parts[0] != "sha1" {
-		return fmt.Errorf("signature format is not like sha1=signature")
-	}
-
-	// verification
-	mac := hmac.New(sha1.New, []byte(secret))
-	mac.Write(feedContent)
-	signature := mac.Sum(nil)
-
-	if fmt.Sprintf("%x", signature) != parts[1] {
-		return fmt.Errorf("signature does not match feed %s %s", signature, parts[1])
-	}
-
-	return nil
 }
