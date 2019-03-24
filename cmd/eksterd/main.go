@@ -119,6 +119,7 @@ func NewApp(options AppOptions) (*App, error) {
 	app.backend = loadMemoryBackend(options.pool)
 	app.backend.AuthEnabled = options.AuthEnabled
 	app.backend.baseURL = options.BaseURL
+	app.backend.pool = options.pool
 
 	app.hubBackend = &hubIncomingBackend{app.backend, options.BaseURL, options.pool}
 
