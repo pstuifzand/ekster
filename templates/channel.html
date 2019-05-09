@@ -56,15 +56,15 @@
                     <form action="/settings/channel" method="post">
                         <input type="hidden" name="uid" value="{{ .CurrentChannel.UID }}" />
                         <div class="field">
-                            <label class="label">Blocking Regex</label>
+                            <label class="label" for="exclude_regex">Blocking Regex</label>
                             <div class="control">
-                                <input type="text" class="input" name="exclude_regex" value="{{ .CurrentSetting.ExcludeRegex }}" placeholder="enter regex to block" />
+                                <input type="text" class="input" id="exclude_regex" name="exclude_regex" value="{{ .CurrentSetting.ExcludeRegex }}" placeholder="enter regex to block" />
                             </div>
                         </div>
                         <div class="field">
-                            <label class="label">Tracking Regex</label>
+                            <label class="label" for="include_regex">Tracking Regex</label>
                             <div class="control">
-                                <input type="text" class="input" name="include_regex" value="{{ .CurrentSetting.IncludeRegex }}" placeholder="enter regex to track items" />
+                                <input type="text" class="input" id="include_regex" name="include_regex" value="{{ .CurrentSetting.IncludeRegex }}" placeholder="enter regex to track items" />
                             </div>
                         </div>
                         <div class="field">
@@ -80,7 +80,9 @@
                             </div>
                         </div>
                         <div class="field">
-                            <button type="submit" class="button is-primary">Save</button>
+                            <div class="control">
+                                <button type="submit" class="button is-primary">Save</button>
+                            </div>
                         </div>
                     </form>
                 </div>
