@@ -348,6 +348,14 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					} else {
 						page.CurrentSetting = channelSetting{}
 					}
+					// TODO: similar code is found in timeline.go
+					if page.CurrentSetting.ChannelType == "" {
+						if v.UID == "notifications" {
+							page.CurrentSetting.ChannelType = "stream"
+						} else {
+							page.CurrentSetting.ChannelType = "sorted-set"
+						}
+					}
 					break
 				}
 			}
