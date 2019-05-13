@@ -516,16 +516,26 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			sess, err := loadSession(sessionVar, conn)
 
+			if err != nil {
+				http.Redirect(w, r, "/", 302)
+				return
+			}
+
 			sess.AuthorizationEndpoint = endpoints.AuthorizationEndpoint
 			sess.Me = meURL.String()
 			sess.State = state
 			sess.RedirectURI = redirectURI
 			sess.LoggedIn = false
-			saveSession(sessionVar, &sess, conn)
+
+			err = saveSession(sessionVar, &sess, conn)
+			if err != nil {
+				http.Redirect(w, r, "/", 302)
+				return
+			}
 
 			authenticationURL := indieauth.CreateAuthenticationURL(*authURL, meURL.String(), ClientID, redirectURI, state)
-
 			http.Redirect(w, r, authenticationURL, 302)
+
 			return
 		} else if r.URL.Path == "/session/logout" {
 			c, err := r.Cookie("session")
