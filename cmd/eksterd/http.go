@@ -538,19 +538,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			return
 		} else if r.URL.Path == "/session/logout" {
-			c, err := r.Cookie("session")
-
-			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
-				return
-			}
-
-			if err == nil {
-				sessionVar := c.Value
-				_, _ = conn.Do("DEL", "session:"+sessionVar)
-			}
-
-			http.Redirect(w, r, "/", 302)
+			httpSessionLogout(r, w, conn)
 			return
 		} else if r.URL.Path == "/auth/approve" {
 			// create a code
@@ -680,4 +668,17 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.NotFound(w, r)
+}
+
+func httpSessionLogout(r *http.Request, w http.ResponseWriter, conn redis.Conn) {
+	c, err := r.Cookie("session")
+	if err == http.ErrNoCookie {
+		http.Redirect(w, r, "/", 302)
+		return
+	}
+	if err == nil {
+		sessionVar := c.Value
+		_, _ = conn.Do("DEL", "session:"+sessionVar)
+	}
+	http.Redirect(w, r, "/", 302)
 }
