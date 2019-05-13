@@ -545,8 +545,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			sessionVar := c.Value
-			conn.Do("DEL", "session:"+sessionVar)
+			if err == nil {
+				sessionVar := c.Value
+				_, _ = conn.Do("DEL", "session:"+sessionVar)
+			}
+
 			http.Redirect(w, r, "/", 302)
 			return
 		} else if r.URL.Path == "/auth/approve" {
