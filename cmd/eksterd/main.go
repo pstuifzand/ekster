@@ -126,6 +126,7 @@ func NewApp(options AppOptions) (*App, error) {
 
 	http.Handle("/micropub", &micropubHandler{
 		Backend: app.backend,
+		pool:    options.pool,
 	})
 
 	handler, broker := server.NewMicrosubHandler(app.backend)
