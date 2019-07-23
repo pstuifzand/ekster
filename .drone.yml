@@ -33,7 +33,6 @@ steps:
       tags:
         - alpine
       dockerfile: Dockerfile.alpine
-      registry: registry.stuifzandapp.com
       username:
         from_secret: docker_official_username
       password:
