@@ -16,7 +16,7 @@ steps:
       - go build p83.nl/go/ekster/cmd/eksterd
       - go test ./...
 
-  - name: publish
+  - name: publish-personal
     image: plugins/docker
     settings:
       repo: registry.stuifzandapp.com/microsub-server
@@ -25,6 +25,19 @@ steps:
         from_secret: docker_username
       password:
         from_secret: docker_password
+
+  - name: publish-docker
+    image: plugins/docker
+    settings:
+      repo: pstuifzand/ekster
+      tags:
+        - alpine
+      dockerfile: Dockerfile.alpine
+      registry: registry.stuifzandapp.com
+      username:
+        from_secret: docker_official_username
+      password:
+        from_secret: docker_official_password
 
   - name: deploy
     image: appleboy/drone-ssh
