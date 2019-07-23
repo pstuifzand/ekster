@@ -15,3 +15,14 @@ repos:
     - id: go-fmt
     - id: go-lint
     - id: go-unit-tests
+- repo: https://github.com/lauritzsh/markdownlint-plugin
+  rev: d2945f77abee898fef48212adccbc2e3195c33c3
+  hooks:
+    - id: markdownlint
+- repo: local
+  hooks:
+    - id: drone-lint
+      name: Drone linting
+      language: system
+      entry: drone lint
+      files: .drone.yml
