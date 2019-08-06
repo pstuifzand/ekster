@@ -8,9 +8,12 @@ workspace:
 steps:
   - name: testing
     image: golang:1.12-alpine
+    environment:
+      GOPATH: /go
+      CGO_ENABLED: 0
+      GOOS: linux
+      GOARCH: amd64
     commands:
-      - export GOPATH=/go
-      - export CGO_ENABLED=0 GOOS=linux GOARCH=amd64
       - apk --no-cache add git
       - go get -d -t ./...
       - go build ./...
