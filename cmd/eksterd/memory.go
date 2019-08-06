@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"p83.nl/go/ekster/pkg/auth"
 	"p83.nl/go/ekster/pkg/fetch"
 	"p83.nl/go/ekster/pkg/microsub"
@@ -90,7 +91,7 @@ func (b *memoryBackend) load() error {
 	filename := "backend.json"
 	f, err := os.Open(filename)
 	if err != nil {
-		panic("cant open backend.json")
+		return err
 	}
 	defer f.Close()
 	jw := json.NewDecoder(f)
@@ -119,30 +120,31 @@ func (b *memoryBackend) refreshChannels() {
 	b.lock.RUnlock()
 }
 
-func (b *memoryBackend) save() {
+func (b *memoryBackend) save() error {
 	filename := "backend.json"
-	f, _ := os.Create(filename)
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
 	defer f.Close()
 	jw := json.NewEncoder(f)
 	jw.SetIndent("", "    ")
 	b.lock.RLock()
 	defer b.lock.RUnlock()
-	jw.Encode(b)
+	return jw.Encode(b)
 }
 
-func loadMemoryBackend(pool *redis.Pool) *memoryBackend {
+func loadMemoryBackend(pool *redis.Pool) (*memoryBackend, error) {
 	backend := &memoryBackend{pool: pool}
 	err := backend.load()
 	if err != nil {
-		log.Printf("Error while loadingbackend: %v\n", err)
-		return nil
+		return nil, errors.Wrap(err, "while loading backend")
 	}
 	backend.refreshChannels()
-
-	return backend
+	return backend, nil
 }
 
-func createMemoryBackend() {
+func createMemoryBackend() error {
 	backend := memoryBackend{}
 	backend.lock.Lock()
 
@@ -163,7 +165,7 @@ func createMemoryBackend() {
 
 	backend.lock.Unlock()
 
-	backend.save()
+	return backend.save()
 }
 
 // ChannelsGetList gets channels

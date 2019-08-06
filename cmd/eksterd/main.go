@@ -116,7 +116,11 @@ func NewApp(options AppOptions) (*App, error) {
 		options: options,
 	}
 
-	app.backend = loadMemoryBackend(options.pool)
+	backend, err := loadMemoryBackend(options.pool)
+	if err != nil {
+		return nil, err
+	}
+	app.backend = backend
 	app.backend.AuthEnabled = options.AuthEnabled
 	app.backend.baseURL = options.BaseURL
 	app.backend.hubIncomingBackend.pool = options.pool
@@ -199,7 +203,10 @@ func main() {
 	}
 
 	if createBackend {
-		createMemoryBackend()
+		err := createMemoryBackend()
+		if err != nil {
+			log.Fatalf("Error while saving backend.json: %s", err)
+		}
 
 		// TODO(peter): automatically gather this information from login or otherwise
 		log.Println(`Config file "backend.json" is created in the current directory.`)
