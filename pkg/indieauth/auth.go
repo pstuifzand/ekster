@@ -17,13 +17,16 @@ import (
 	"willnorris.com/go/microformats"
 )
 
+// Endpoints contain the endpoints used by Ekster
 type Endpoints struct {
+	Me                    string `json:"me"`
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
 	TokenEndpoint         string `json:"token_endpoint"`
 	MicropubEndpoint      string `json:"micropub_endpoint"`
 	MicrosubEndpoint      string `json:"microsub_endpoint"`
 }
 
+// TokenResponse contains the response from a token request to an IndieAuth server
 type TokenResponse struct {
 	Me               string `json:"me"`
 	AccessToken      string `json:"access_token"`
@@ -33,8 +36,10 @@ type TokenResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
+// GetEndpoints returns the endpoints for the me url
 func GetEndpoints(me *url.URL) (Endpoints, error) {
 	var endpoints Endpoints
+	endpoints.Me = me.String()
 
 	baseURL := me
 
@@ -89,6 +94,7 @@ func GetEndpoints(me *url.URL) (Endpoints, error) {
 	return endpoints, nil
 }
 
+// Authorize allows you to get the token from Indieauth through the command line
 func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenResponse, error) {
 	var tokenResponse TokenResponse
 
@@ -188,7 +194,7 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 
 		values, err := url.ParseQuery(string(body))
 		if err != nil {
-			return tokenResponse, fmt.Errorf("error while parsing response body with content-type %s as application/x-www-form-urlencoded: %s\nbody was: %q\n", res.Header.Get("content-type"), err, body)
+			return tokenResponse, fmt.Errorf("error while parsing response body with content-type %s as application/x-www-form-urlencoded: %s; body was: %q", res.Header.Get("content-type"), err, body)
 		}
 
 		if values.Get("me") == "" {
@@ -205,6 +211,7 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 	return tokenResponse, nil
 }
 
+// CreateAuthenticationURL builds the url for authentication
 func CreateAuthenticationURL(authURL url.URL, meURL, clientID, redirectURI, state string) string {
 	q := authURL.Query()
 
@@ -219,6 +226,7 @@ func CreateAuthenticationURL(authURL url.URL, meURL, clientID, redirectURI, stat
 	return authURL.String()
 }
 
+// CreateAuthorizationURL builds the url for authorization
 func CreateAuthorizationURL(authURL url.URL, meURL, clientID, redirectURI, state, scope string) string {
 	q := authURL.Query()
 	q.Add("response_type", "code")

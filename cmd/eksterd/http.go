@@ -491,25 +491,12 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			// redirect to endpoint
 			me := r.Form.Get("url")
-			log.Println(me)
-			meURL, err := url.Parse(me)
+
+			endpoints, err := getEndpoints(me)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("Bad Request: %s, %s", err.Error(), me), 400)
 				return
 			}
-			endpoints, err := indieauth.GetEndpoints(meURL)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("Bad Request: %s %s", err.Error(), me), 400)
-				return
-			}
-			log.Println(endpoints)
-
-			authURL, err := url.Parse(endpoints.AuthorizationEndpoint)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("Bad Request: %s %s", err.Error(), me), 400)
-				return
-			}
-			log.Println(authURL)
 
 			state := util.RandStringBytes(16)
 			redirectURI := fmt.Sprintf("%s/session/callback", h.BaseURL)
@@ -521,8 +508,8 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			sess.AuthorizationEndpoint = endpoints.AuthorizationEndpoint
-			sess.Me = meURL.String()
+			sess.AuthorizationEndpoint = endpoints.AuthorizationEndpoint.String()
+			sess.Me = endpoints.Me.String()
 			sess.State = state
 			sess.RedirectURI = redirectURI
 			sess.LoggedIn = false
@@ -533,7 +520,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			authenticationURL := indieauth.CreateAuthenticationURL(*authURL, meURL.String(), ClientID, redirectURI, state)
+			authenticationURL := indieauth.CreateAuthenticationURL(*endpoints.AuthorizationEndpoint, endpoints.Me.String(), ClientID, redirectURI, state)
 			http.Redirect(w, r, authenticationURL, 302)
 
 			return
@@ -681,4 +668,53 @@ func httpSessionLogout(r *http.Request, w http.ResponseWriter, conn redis.Conn) 
 		_, _ = conn.Do("DEL", "session:"+sessionVar)
 	}
 	http.Redirect(w, r, "/", 302)
+}
+
+type parsedEndpoints struct {
+	Me                    *url.URL
+	AuthorizationEndpoint *url.URL
+	TokenEndpoint         *url.URL
+	MicrosubEndpoint      *url.URL
+	MicropubEndpoint      *url.URL
+}
+
+func getEndpoints(me string) (parsedEndpoints, error) {
+	endpoints := parsedEndpoints{}
+
+	meURL, err := url.Parse(me)
+	if err != nil {
+		return endpoints, err
+	}
+	endpoints.Me = meURL
+
+	eps, err := indieauth.GetEndpoints(meURL)
+	if err != nil {
+		return endpoints, err
+	}
+
+	authURL, err := url.Parse(eps.AuthorizationEndpoint)
+	if err != nil {
+		return endpoints, err
+	}
+	endpoints.AuthorizationEndpoint = authURL
+
+	tokenURL, err := url.Parse(eps.TokenEndpoint)
+	if err != nil {
+		return endpoints, err
+	}
+	endpoints.TokenEndpoint = tokenURL
+
+	microsubEndpoint, err := url.Parse(eps.MicrosubEndpoint)
+	if err != nil {
+		return endpoints, err
+	}
+	endpoints.MicrosubEndpoint = microsubEndpoint
+
+	micropubEndpoint, err := url.Parse(eps.MicropubEndpoint)
+	if err != nil {
+		return endpoints, err
+	}
+	endpoints.MicropubEndpoint = micropubEndpoint
+
+	return endpoints, err
 }
