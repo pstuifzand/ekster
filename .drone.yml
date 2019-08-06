@@ -10,7 +10,7 @@ steps:
     image: golang:1.12-alpine
     commands:
       - export GOPATH=/go
-      - export CGO_ENABLED=0
+      - export CGO_ENABLED=0 GOOS=linux GOARCH=amd64
       - apk --no-cache add git
       - go get -d -t ./...
       - go build ./...
