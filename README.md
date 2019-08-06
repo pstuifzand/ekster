@@ -8,7 +8,7 @@ There are two methods for installing and running ekster.
 
 ### Method 1: From binaries
 
-Download the binaries from the [latest release](https://github.com/pstuifzand/ekster/releases/) on Github.
+Download the binaries from the [latest release](https://github.cGom/pstuifzand/ekster/releases/) on Github.
 
 
 ### Method 2: Install ekster from source with Go
@@ -161,6 +161,10 @@ Micropub client.
 `TokenEndpoint` should be the `token_endpoint` you use for that domain,
 `ekster` will check every 10 minutes, if the token is still valid. This could
 be retrieved automatically, but this doesn't happen at the moment.
+
+## Support me
+
+[![ko-fi](https://www.ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/V7V7ZUS1)
 
 ## Other Microsub projects
 
