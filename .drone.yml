@@ -29,17 +29,16 @@ steps:
       password:
         from_secret: docker_password
 
-  # - name: publish-docker
-  #   image: plugins/docker
-  #   settings:
-  #     repo: pstuifzand/ekster
-  #     tags:
-  #       - alpine
-  #     dockerfile: Dockerfile.alpine
-  #     username:
-  #       from_secret: docker_official_username
-  #     password:
-  #       from_secret: docker_official_password
+  - name: publish-docker
+    image: plugins/docker
+    settings:
+      repo: pstuifzand/ekster
+      tags:
+        - alpine
+      username:
+        from_secret: docker_official_username
+      password:
+        from_secret: docker_official_password
 
   - name: deploy
     image: appleboy/drone-ssh
