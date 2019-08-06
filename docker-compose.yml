@@ -4,12 +4,11 @@ services:
     image: "redis:5"
 
   web:
-    image: "pstuifzand/eksterd:alpine"
+    image: "pstuifzand/ekster:alpine"
     working_dir: /opt/microsub
     links:
       - redis:redis
     volumes:
-      - .:/app:ro
       - ./data:/opt/microsub
     entrypoint: /app/eksterd
     command: -auth=false -port 80 -templates /app/templates
