@@ -30,11 +30,6 @@ import (
 	"p83.nl/go/ekster/pkg/server"
 )
 
-const (
-	// ClientID is used to identify the server when we make authentication requests.
-	ClientID string = "https://p83.nl/microsub-client"
-)
-
 // AppOptions are options for the app
 type AppOptions struct {
 	Port        int
@@ -45,10 +40,6 @@ type AppOptions struct {
 	TemplateDir string
 	pool        *redis.Pool
 }
-
-var (
-// pool *redis.Pool
-)
 
 func init() {
 	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)

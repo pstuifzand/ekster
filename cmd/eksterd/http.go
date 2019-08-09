@@ -153,10 +153,10 @@ func saveSession(sessionVar string, sess *session, conn redis.Conn) error {
 	return err
 }
 
-func verifyAuthCode(code, redirectURI, authEndpoint string) (bool, *authResponse, error) {
+func verifyAuthCode(code, redirectURI, authEndpoint, clientID string) (bool, *authResponse, error) {
 	reqData := url.Values{}
 	reqData.Set("code", code)
-	reqData.Set("client_id", ClientID)
+	reqData.Set("client_id", clientID)
 	reqData.Set("redirect_uri", redirectURI)
 
 	req, err := http.NewRequest(http.MethodPost, authEndpoint, strings.NewReader(reqData.Encode()))
@@ -206,14 +206,14 @@ func isLoggedIn(backend *memoryBackend, sess *session) bool {
 	return true
 }
 
-func performIndieauthCallback(r *http.Request, sess *session) (bool, *authResponse, error) {
+func performIndieauthCallback(clientID string, r *http.Request, sess *session) (bool, *authResponse, error) {
 	state := r.Form.Get("state")
 	if state != sess.State {
 		return false, &authResponse{}, fmt.Errorf("mismatched state")
 	}
 
 	code := r.Form.Get("code")
-	return verifyAuthCode(code, sess.RedirectURI, sess.AuthorizationEndpoint)
+	return verifyAuthCode(code, sess.RedirectURI, sess.AuthorizationEndpoint, clientID)
 }
 
 type app struct {
@@ -301,7 +301,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
 
-			verified, authResponse, err := performIndieauthCallback(r, &sess)
+			verified, authResponse, err := performIndieauthCallback(h.BaseURL, r, &sess)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %q\n", err)
 				return
@@ -520,7 +520,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			authenticationURL := indieauth.CreateAuthenticationURL(*endpoints.AuthorizationEndpoint, endpoints.Me.String(), ClientID, redirectURI, state)
+			authenticationURL := indieauth.CreateAuthenticationURL(*endpoints.AuthorizationEndpoint, endpoints.Me.String(), h.BaseURL, redirectURI, state)
 			http.Redirect(w, r, authenticationURL, 302)
 
 			return
