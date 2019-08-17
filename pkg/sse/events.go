@@ -124,16 +124,14 @@ func WriteMessages(w http.ResponseWriter, messageChan chan Message) error {
 		return errors.Wrap(err, "could not encode welcome message")
 	}
 
-	_, err = fmt.Fprintf(w, "event: started\r\n")
+	messageID := 1
+
+	_, err = fmt.Fprintf(w, "event: started\r\nid: %d\r\ndata: %s\r\n\r\n", messageID, encoded)
 	if err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "data: %s\r\n\r\n", encoded)
-	if err != nil {
-		return err
-	}
-
+	messageID++
 	flusher.Flush()
 
 	// block waiting or messages broadcast on this connection's messageChan
@@ -144,15 +142,13 @@ func WriteMessages(w http.ResponseWriter, messageChan chan Message) error {
 			return errors.Wrap(err, "could not marshal message data")
 		}
 
-		_, err = fmt.Fprintf(w, "event: %s\r\n", message.Event)
+		_, err = fmt.Fprintf(w, "event: %s\r\nid: %d\r\ndata: %s\r\n\r\n", message.Event, messageID, output)
 		if err != nil {
-			return errors.Wrap(err, "could not write message header")
+			return errors.Wrap(err, "could not write message")
 		}
 
-		_, err = fmt.Fprintf(w, "data: %s\r\n\r\n", output)
-		if err != nil {
-			return errors.Wrap(err, "could not write message data")
-		}
+		messageID++
+
 		flusher.Flush()
 	}
 
