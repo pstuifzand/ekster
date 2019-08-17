@@ -147,12 +147,12 @@ func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) (bool, error
 		return false, fmt.Errorf("can't parse %s as time", item.Published)
 	}
 
-	_, err = redis.Int64(conn.Do("ZADD", zchannelKey, score.Unix()*1.0, itemKey))
+	n, err := redis.Int64(conn.Do("ZADD", zchannelKey, score.Unix()*1.0, itemKey))
 	if err != nil {
 		return false, fmt.Errorf("zadding failed item %s to channel %s for redis: %v", itemKey, zchannelKey, err)
 	}
 
-	return true, nil
+	return n == 1, nil
 }
 
 func (timeline *redisSortedSetTimeline) Count() (int, error) {
