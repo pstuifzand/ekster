@@ -191,7 +191,7 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 			parts := strings.Split(feedKey, ":")
 			if len(parts) == 2 {
 				feed.ID, _ = strconv.ParseInt(parts[1], 10, 64)
-				_, err = conn.Do("HPUT", feedKey, "id", feed.ID)
+				_, err = conn.Do("HSET", feedKey, "id", feed.ID)
 				if err != nil {
 					log.Printf("could not save id for %s: %v", feedKey, err)
 				}
@@ -208,7 +208,7 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 			}
 
 			feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
-			_, err = conn.Do("HPUT", feedKey, "callback", feed.Callback)
+			_, err = conn.Do("HSET", feedKey, "callback", feed.Callback)
 			if err != nil {
 				log.Printf("could not save id for %s: %v", feedKey, err)
 			}
