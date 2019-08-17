@@ -70,7 +70,7 @@ func (timeline *redisStreamTimeline) Items(before, after string) (microsub.Timel
 	}, nil
 }
 
-func (timeline *redisStreamTimeline) AddItem(item microsub.Item) error {
+func (timeline *redisStreamTimeline) AddItem(item microsub.Item) (bool, error) {
 	conn := timeline.pool.Get()
 	defer conn.Close()
 
@@ -81,14 +81,14 @@ func (timeline *redisStreamTimeline) AddItem(item microsub.Item) error {
 	data, err := json.Marshal(item)
 	if err != nil {
 		log.Printf("error while creating item for redis: %v\n", err)
-		return err
+		return false, err
 	}
 
 	args := redis.Args{}.Add(timeline.channelKey).Add("*").Add("ID").Add(item.ID).Add("Published").Add(item.Published).Add("Read").Add(item.Read).Add("Data").Add(data)
 
 	_, err = redis.String(conn.Do("XADD", args...))
 
-	return err
+	return err == nil, err
 }
 
 func (timeline *redisStreamTimeline) Count() (int, error) {

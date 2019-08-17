@@ -19,7 +19,7 @@ type Backend interface {
 	Items(before, after string) (microsub.Timeline, error)
 	Count() (int, error)
 
-	AddItem(item microsub.Item) error
+	AddItem(item microsub.Item) (bool, error)
 	MarkRead(uids []string) error
 
 	// Not used at the moment

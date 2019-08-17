@@ -639,10 +639,12 @@ func matchItemText(item microsub.Item, re *regexp.Regexp) bool {
 
 func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) error {
 	timelineBackend := b.getTimeline(channel)
-	err := timelineBackend.AddItem(item)
+	added, err := timelineBackend.AddItem(item)
 
 	// Sent message to Server-Sent-Events
-	b.broker.Notifier <- sse.Message{Event: "new item", Object: item}
+	if added {
+		b.broker.Notifier <- sse.Message{Event: "new item", Object: item}
+	}
 
 	return err
 }
@@ -660,6 +662,9 @@ func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
 		}
 		defer b.save()
 		c.Unread = microsub.Unread{Type: microsub.UnreadCount, UnreadCount: unread}
+
+		// Sent message to Server-Sent-Events
+		b.broker.Notifier <- sse.Message{Event: "new item in channel", Object: c}
 
 		b.lock.Lock()
 		b.Channels[channel] = c

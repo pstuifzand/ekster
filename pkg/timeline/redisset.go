@@ -103,7 +103,7 @@ func (timeline *redisSortedSetTimeline) Items(before, after string) (microsub.Ti
 	}, nil
 }
 
-func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) error {
+func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) (bool, error) {
 	conn := timeline.pool.Get()
 	defer conn.Close()
 
@@ -116,7 +116,7 @@ func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) error {
 
 	data, err := json.Marshal(item)
 	if err != nil {
-		return fmt.Errorf("couldn't marshall item for redis: %s", err)
+		return false, fmt.Errorf("couldn't marshal item for redis: %s", err)
 	}
 
 	forRedis := redisItem{
@@ -129,33 +129,30 @@ func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) error {
 	itemKey := fmt.Sprintf("item:%s", item.ID)
 	_, err = redis.String(conn.Do("HMSET", redis.Args{}.Add(itemKey).AddFlat(&forRedis)...))
 	if err != nil {
-		return fmt.Errorf("writing failed for item to redis: %v", err)
+		return false, fmt.Errorf("writing failed for item to redis: %v", err)
 	}
 
 	readChannelKey := fmt.Sprintf("channel:%s:read", channel)
 	isRead, err := redis.Bool(conn.Do("SISMEMBER", readChannelKey, itemKey))
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if isRead {
-		return nil
+		return false, nil
 	}
 
 	score, err := time.Parse(time.RFC3339, item.Published)
 	if err != nil {
-		return fmt.Errorf("can't parse %s as time", item.Published)
+		return false, fmt.Errorf("can't parse %s as time", item.Published)
 	}
 
 	_, err = redis.Int64(conn.Do("ZADD", zchannelKey, score.Unix()*1.0, itemKey))
 	if err != nil {
-		return fmt.Errorf("zadding failed item %s to channel %s for redis: %v", itemKey, zchannelKey, err)
+		return false, fmt.Errorf("zadding failed item %s to channel %s for redis: %v", itemKey, zchannelKey, err)
 	}
 
-	// FIXME: send message to events...
-	// b.sendMessage(microsub.Message("item added " + item.ID))
-
-	return nil
+	return true, nil
 }
 
 func (timeline *redisSortedSetTimeline) Count() (int, error) {

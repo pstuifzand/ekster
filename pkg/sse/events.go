@@ -129,7 +129,7 @@ func WriteMessages(w http.ResponseWriter, messageChan chan Message) error {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "data: %s", encoded)
+	_, err = fmt.Fprintf(w, "data: %s\r\n\r\n", encoded)
 	if err != nil {
 		return err
 	}

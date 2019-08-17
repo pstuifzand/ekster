@@ -14,8 +14,8 @@ func (timeline *nullTimeline) Items(before, after string) (microsub.Timeline, er
 	return microsub.Timeline{Items: []microsub.Item{}}, nil
 }
 
-func (timeline *nullTimeline) AddItem(item microsub.Item) error {
-	return nil
+func (timeline *nullTimeline) AddItem(item microsub.Item) (bool, error) {
+	return false, nil
 }
 
 func (timeline *nullTimeline) Count() (int, error) {
