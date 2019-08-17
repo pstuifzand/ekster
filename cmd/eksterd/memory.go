@@ -661,10 +661,14 @@ func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
 			return err
 		}
 		defer b.save()
+
+		currentCount := c.Unread.UnreadCount
 		c.Unread = microsub.Unread{Type: microsub.UnreadCount, UnreadCount: unread}
 
 		// Sent message to Server-Sent-Events
-		b.broker.Notifier <- sse.Message{Event: "new item in channel", Object: c}
+		if currentCount != unread {
+			b.broker.Notifier <- sse.Message{Event: "new item in channel", Object: c}
+		}
 
 		b.lock.Lock()
 		b.Channels[channel] = c
