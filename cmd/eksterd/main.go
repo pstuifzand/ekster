@@ -63,8 +63,10 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 
 		authorization := ""
 
-		if r.Method == http.MethodGet && r.URL.Query().Get("action") == "events" {
-			authorization = "Bearer " + r.URL.Query().Get("access_token")
+		values := r.URL.Query()
+
+		if r.Method == http.MethodGet && values.Get("action") == "events" && values.Get("access_token") != "" {
+			authorization = "Bearer " + values.Get("access_token")
 		} else {
 			authorization = r.Header.Get("Authorization")
 		}
