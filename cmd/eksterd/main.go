@@ -21,7 +21,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -64,7 +63,7 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 
 		authorization := ""
 
-		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "events") {
+		if r.Method == http.MethodGet && r.URL.Query().Get("action") == "events" {
 			authorization = "Bearer " + r.URL.Query().Get("access_token")
 		} else {
 			authorization = r.Header.Get("Authorization")
