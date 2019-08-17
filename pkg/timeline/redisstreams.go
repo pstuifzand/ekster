@@ -88,6 +88,8 @@ func (timeline *redisStreamTimeline) AddItem(item microsub.Item) (bool, error) {
 
 	_, err = redis.String(conn.Do("XADD", args...))
 
+	_, _ = conn.Do("XTRIM", timeline.channelKey, "MAXLEN", "~", "250")
+
 	return err == nil, err
 }
 
