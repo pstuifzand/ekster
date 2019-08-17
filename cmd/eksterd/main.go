@@ -62,9 +62,12 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 			return
 		}
 
-		authorization := r.Header.Get("Authorization")
-		if authorization == "" && strings.Contains(r.URL.Path, "events") {
+		authorization := ""
+
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "events") {
 			authorization = "Bearer " + r.URL.Query().Get("access_token")
+		} else {
+			authorization = r.Header.Get("Authorization")
 		}
 
 		var token auth.TokenResponse
