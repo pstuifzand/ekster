@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -23,6 +24,10 @@ type Message struct {
 	Event  string
 	Data   string
 	Object interface{}
+}
+
+type pingMessage struct {
+	PingCount int `json:"ping"`
 }
 
 // Broker holds open client connections,
@@ -44,8 +49,16 @@ type Broker struct {
 
 // Listen on different channels and act accordingly
 func (broker *Broker) listen() {
+	ticker := time.NewTicker(10 * time.Second)
+	pingCount := 0
 	for {
 		select {
+		case <-ticker.C:
+			broker.Notifier <- Message{
+				Event:  "ping",
+				Object: pingMessage{PingCount: pingCount},
+			}
+			pingCount++
 		case s := <-broker.newClients:
 			// A new client has connected.
 			// Register their message channel
