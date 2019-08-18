@@ -642,8 +642,8 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) error
 	added, err := timelineBackend.AddItem(item)
 
 	type newItemMessage struct {
-		Item    microsub.Item
-		Channel string
+		Item    microsub.Item `json:"item"`
+		Channel string        `json:"channel"`
 	}
 
 	// Sent message to Server-Sent-Events
