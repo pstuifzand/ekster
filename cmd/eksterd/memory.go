@@ -641,9 +641,14 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) error
 	timelineBackend := b.getTimeline(channel)
 	added, err := timelineBackend.AddItem(item)
 
+	type newItemMessage struct {
+		Item    microsub.Item
+		Channel string
+	}
+
 	// Sent message to Server-Sent-Events
 	if added {
-		b.broker.Notifier <- sse.Message{Event: "new item", Object: item}
+		b.broker.Notifier <- sse.Message{Event: "new item", Object: newItemMessage{item, channel}}
 	}
 
 	return err
