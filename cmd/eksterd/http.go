@@ -54,8 +54,10 @@ type indexPage struct {
 type settingsPage struct {
 	Session session
 
-	CurrentChannel microsub.Channel
-	CurrentSetting channelSetting
+	CurrentChannel    microsub.Channel
+	CurrentSetting    channelSetting
+	ExcludedTypes     map[string]bool
+	ExcludedTypeNames map[string]string
 
 	Channels []microsub.Channel
 	Feeds    []microsub.Feed
@@ -348,13 +350,28 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					} else {
 						page.CurrentSetting = channelSetting{}
 					}
-					// TODO: similar code is found in timeline.go
+					// FIXME: similar code is found in timeline.go
 					if page.CurrentSetting.ChannelType == "" {
 						if v.UID == "notifications" {
 							page.CurrentSetting.ChannelType = "stream"
 						} else {
 							page.CurrentSetting.ChannelType = "sorted-set"
 						}
+					}
+					page.ExcludedTypeNames = map[string]string{
+						"repost":   "Reposts",
+						"like":     "Likes",
+						"bookmark": "Bookmarks",
+						"reply":    "Replies",
+						"checkin":  "Checkins",
+					}
+					page.ExcludedTypes = make(map[string]bool)
+					types := []string{"repost", "like", "bookmark", "reply", "checkin"}
+					for _, v := range types {
+						page.ExcludedTypes[v] = false
+					}
+					for _, v := range page.CurrentSetting.ExcludeType {
+						page.ExcludedTypes[v] = true
 					}
 					break
 				}

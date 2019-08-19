@@ -84,11 +84,9 @@
                             <div class="control">
                                 <div class="select is-multiple">
                                     <select name="exclude_type" id="exclude_type" multiple>
-                                        <option value="repost">Reposts</option>
-                                        <option value="like">Likes</option>
-                                        <option value="reply">Replies</option>
-                                        <option value="bookmark">Bookmarks</option>
-                                        <option value="checkin">Checkins</option>
+                                        {{ range $key, $excluded := .ExcludedTypes }}
+                                            <option value="{{ $key }}" {{ if $excluded }}selected="selected"{{ end }}>{{ index $.ExcludedTypeNames $key }}</option>
+                                        {{ end }}
                                     </select>
                                 </div>
                             </div>
