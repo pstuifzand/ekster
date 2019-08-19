@@ -54,6 +54,7 @@ type memoryBackend struct {
 type channelSetting struct {
 	ExcludeRegex string
 	IncludeRegex string
+	ExcludeType  []string
 	ChannelType  string
 }
 

@@ -629,23 +629,25 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			defer h.Backend.save()
 			uid := r.FormValue("uid")
 
+			if h.Backend.Settings == nil {
+				h.Backend.Settings = make(map[string]channelSetting)
+			}
+
 			excludeRegex := r.FormValue("exclude_regex")
 			includeRegex := r.FormValue("include_regex")
 			channelType := r.FormValue("type")
 
-			if setting, e := h.Backend.Settings[uid]; e {
-				setting.ExcludeRegex = excludeRegex
-				setting.IncludeRegex = includeRegex
-				setting.ChannelType = channelType
-				h.Backend.Settings[uid] = setting
-			} else {
-				setting = channelSetting{
-					ExcludeRegex: excludeRegex,
-					IncludeRegex: includeRegex,
-					ChannelType:  channelType,
-				}
-				h.Backend.Settings[uid] = setting
+			setting, e := h.Backend.Settings[uid]
+			if !e {
+				setting = channelSetting{}
 			}
+			setting.ExcludeRegex = excludeRegex
+			setting.IncludeRegex = includeRegex
+			setting.ChannelType = channelType
+			if values, e := r.Form["exclude_type"]; e {
+				setting.ExcludeType = values
+			}
+			h.Backend.Settings[uid] = setting
 
 			h.Backend.Debug()
 
