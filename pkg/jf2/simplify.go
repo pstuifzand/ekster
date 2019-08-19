@@ -1,3 +1,4 @@
+// Package jf2 converts microformats to JF2
 /*
    ekster - microsub server
    Copyright (C) 2018  Peter Stuifzand
@@ -18,9 +19,12 @@
 package jf2
 
 import (
+	"bytes"
 	"log"
+	"regexp"
 	"strings"
 
+	"golang.org/x/net/html"
 	"p83.nl/go/ekster/pkg/microsub"
 
 	"willnorris.com/go/microformats"
@@ -59,13 +63,64 @@ func simplifyContent(k string, v []interface{}) *microsub.Content {
 			content.Text = text.(string)
 		}
 		if text, e := t["html"]; e {
-			content.HTML = text.(string)
+			cleaned, err := CleanHTML(text.(string))
+			if err == nil {
+				content.HTML = cleaned
+			}
 		}
 	default:
 		log.Printf("simplifyContent(%s, %+v): unsupported type %T", k, v, t)
 		return nil
 	}
 	return &content
+}
+
+// CleanHTML removes white-space:pre from html
+func CleanHTML(s string) (string, error) {
+	doc, err := html.Parse(strings.NewReader(s))
+
+	if err != nil {
+		return "", err
+	}
+
+	var f func(*html.Node)
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "div" {
+			removeIndex := -1
+			for i, a := range n.Attr {
+				if a.Key != "style" {
+					continue
+				}
+				if m, err := regexp.MatchString("white-space:\\s*pre", a.Val); err == nil && m {
+					removeIndex = i
+					break
+				}
+			}
+			if removeIndex >= 0 {
+				n.Attr = append(n.Attr[0:removeIndex], n.Attr[removeIndex+1:]...)
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+	}
+
+	f(doc)
+
+	var buf bytes.Buffer
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "body" {
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				html.Render(&buf, c)
+			}
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+	}
+	f(doc)
+	return buf.String(), err
 }
 
 func itemPtr(item *microsub.Item, key string) *[]string {
@@ -288,6 +343,7 @@ func simplifyCardFromMicroformat(card microsub.Card, microformat *microformats.M
 	return card, true
 }
 
+// SimplifyMicroformatItem simplfies a Microformat object
 func SimplifyMicroformatItem(mdItem *microformats.Microformat, author microsub.Card) (microsub.Item, bool) {
 	item := microsub.Item{}
 
@@ -303,6 +359,7 @@ func hasType(item *microformats.Microformat, itemType string) bool {
 	return len(item.Type) >= 1 && item.Type[0] == itemType
 }
 
+// SimplifyMicroformatDataItems simplfies a microformats.Data object
 func SimplifyMicroformatDataItems(md *microformats.Data) []microsub.Item {
 	var items []microsub.Item
 
@@ -330,6 +387,7 @@ func SimplifyMicroformatDataItems(md *microformats.Data) []microsub.Item {
 	return items
 }
 
+// SimplifyMicroformatDataAuthor simplfies a microformats.Data object containing a Card
 func SimplifyMicroformatDataAuthor(md *microformats.Data) (microsub.Card, bool) {
 	card := microsub.Card{}
 

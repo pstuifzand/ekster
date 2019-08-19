@@ -201,3 +201,17 @@ func TestConvertAuthor(t *testing.T) {
 		assert.Equal(t, "Peter Stuifzand", item.Author.Name)
 	}
 }
+
+func TestCleanHTML(t *testing.T) {
+	clean, err := jf2.CleanHTML(`<div style="white-space: pre">test</div>`)
+	if assert.NoError(t, err) {
+		assert.Equal(t, "<div>test</div>", clean)
+	}
+}
+
+func TestCleanHTMLSimpler(t *testing.T) {
+	clean, err := jf2.CleanHTML(`<div>test</div><div>test2</div>`)
+	if assert.NoError(t, err) {
+		assert.Equal(t, "<div>test</div><div>test2</div>", clean)
+	}
+}
