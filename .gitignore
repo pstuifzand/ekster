@@ -1,6 +1,7 @@
 cmd/eksterd/eksterd
 cmd/ek/ek
 .idea
+.vscode
 
 ek
 eksterd
