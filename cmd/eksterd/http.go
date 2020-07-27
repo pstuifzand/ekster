@@ -177,19 +177,19 @@ func verifyAuthCode(code, redirectURI, authEndpoint, clientID string) (bool, *au
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 200 {
-		input := io.TeeReader(resp.Body, os.Stderr)
-		dec := json.NewDecoder(input)
-		var authResponse authResponse
-		err = dec.Decode(&authResponse)
-		if err != nil {
-			return false, nil, fmt.Errorf("while verifying authentication response from %s: %s", authEndpoint, err)
-		}
-
-		return true, &authResponse, nil
+	if resp.StatusCode != 200 {
+		return false, nil, fmt.Errorf("HTTP response code from authorization_endpoint (%s) %d", authEndpoint, resp.StatusCode)
 	}
 
-	return false, nil, fmt.Errorf("HTTP response code from authorization_endpoint (%s) %d", authEndpoint, resp.StatusCode)
+	input := io.TeeReader(resp.Body, os.Stderr)
+	dec := json.NewDecoder(input)
+	var authResponse authResponse
+	err = dec.Decode(&authResponse)
+	if err != nil {
+		return false, nil, fmt.Errorf("while verifying authentication response from %s: %s", authEndpoint, err)
+	}
+
+	return true, &authResponse, nil
 }
 
 func isLoggedIn(backend *memoryBackend, sess *session) bool {

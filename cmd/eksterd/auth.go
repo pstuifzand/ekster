@@ -51,7 +51,6 @@ func cachedCheckAuthToken(conn redis.Conn, header string, tokenEndpoint string, 
 }
 
 func checkAuthToken(header string, tokenEndpoint string, token *auth.TokenResponse) (bool, error) {
-
 	req, err := buildValidateAuthTokenRequest(tokenEndpoint, header)
 	if err != nil {
 		return false, err
