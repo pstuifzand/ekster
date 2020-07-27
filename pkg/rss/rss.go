@@ -133,6 +133,7 @@ func (f *Feed) UpdateWithContent(content []byte) error {
 	return err
 }
 
+// UpdateByFeed parses content and updates f
 func (f *Feed) UpdateByFeed(update *Feed) error {
 
 	// Check that we don't update too often.

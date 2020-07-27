@@ -96,6 +96,7 @@ func parseAtom(data []byte) (*Feed, error) {
 	return out, nil
 }
 
+// RAWContent is the innerxml
 type RAWContent struct {
 	RAWContent string `xml:",innerxml"`
 }

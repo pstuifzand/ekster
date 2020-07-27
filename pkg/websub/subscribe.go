@@ -9,8 +9,9 @@ import (
 	"net/url"
 	"strings"
 
-	"linkheader"
-	"rss"
+	"p83.nl/go/ekster/pkg/rss"
+
+	"p83.nl/go/ekster/pkg/linkheader"
 
 	"p83.nl/go/ekster/pkg/jsonfeed"
 	"willnorris.com/go/microformats"

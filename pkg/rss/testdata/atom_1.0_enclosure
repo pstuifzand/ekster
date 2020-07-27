@@ -14,7 +14,7 @@
     <updated>2003-12-13T18:30:02Z</updated>
     <summary>Zusammenfassung des Weblog-Eintrags</summary>
     <content>Volltext des Weblog-Eintrags</content>
-    <link rel="enclosure" 
+    <link rel="enclosure"
           type="audio/mpeg"
           title="MP3"
           href="http://example.org/audio.mp3"

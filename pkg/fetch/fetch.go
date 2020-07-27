@@ -12,14 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"rss"
-
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 
 	"p83.nl/go/ekster/pkg/jf2"
 	"p83.nl/go/ekster/pkg/jsonfeed"
 	"p83.nl/go/ekster/pkg/microsub"
+	"p83.nl/go/ekster/pkg/rss"
 
 	"willnorris.com/go/microformats"
 )
