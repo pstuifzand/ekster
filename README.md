@@ -169,4 +169,4 @@ be retrieved automatically, but this doesn't happen at the moment.
 ## Other Microsub projects
 
 * <https://indieweb.org/Microsub>
-* Aperture: [code](https://github.com/aaronparecki/Aperture), [hosted](https://aperture.p3k.io)
+* Aperture: [code](https://github.com/aaronpk/Aperture), [hosted](https://aperture.p3k.io)
