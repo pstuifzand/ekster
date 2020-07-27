@@ -182,10 +182,9 @@ func verifyAuthCode(code, redirectURI, authEndpoint, clientID string) (bool, *au
 	}
 
 	input := io.TeeReader(resp.Body, os.Stderr)
-	dec := json.NewDecoder(input)
+
 	var authResponse authResponse
-	err = dec.Decode(&authResponse)
-	if err != nil {
+	if err := json.NewDecoder(input).Decode(&authResponse); err != nil {
 		return false, nil, fmt.Errorf("while verifying authentication response from %s: %s", authEndpoint, err)
 	}
 
