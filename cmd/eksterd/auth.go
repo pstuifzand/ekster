@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -69,16 +70,20 @@ func checkAuthToken(header string, tokenEndpoint string, token *auth.TokenRespon
 	}()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return false, fmt.Errorf("got unsuccessfull http status code while verifying token: %d", res.StatusCode)
+		return false, fmt.Errorf("got unsuccessful http status code while verifying token: %d", res.StatusCode)
 	}
 
-	dec := json.NewDecoder(res.Body)
-	err = dec.Decode(&token)
-	if err != nil {
-		return false, errors.Wrap(err, "could not decode json body")
+	contentType := res.Header.Get("content-type")
+	if strings.HasPrefix(contentType, "application/json") {
+		dec := json.NewDecoder(res.Body)
+		err = dec.Decode(&token)
+		if err != nil {
+			return false, errors.Wrap(err, "could not decode json body")
+		}
+		return true, nil
 	}
 
-	return true, nil
+	return false, errors.Wrapf(err, "unknown content-type %q while checking auth token", contentType)
 }
 
 func buildValidateAuthTokenRequest(tokenEndpoint string, header string) (*http.Request, error) {

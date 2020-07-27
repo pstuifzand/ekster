@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -181,14 +181,28 @@ func verifyAuthCode(code, redirectURI, authEndpoint, clientID string) (bool, *au
 		return false, nil, fmt.Errorf("HTTP response code from authorization_endpoint (%s) %d", authEndpoint, resp.StatusCode)
 	}
 
-	input := io.TeeReader(resp.Body, os.Stderr)
-
-	var authResponse authResponse
-	if err := json.NewDecoder(input).Decode(&authResponse); err != nil {
-		return false, nil, fmt.Errorf("while verifying authentication response from %s: %s", authEndpoint, err)
+	contentType := resp.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "application/json") {
+		var authResponse authResponse
+		if err := json.NewDecoder(resp.Body).Decode(&authResponse); err != nil {
+			return false, nil, fmt.Errorf("while verifying authentication response from %s: %s", authEndpoint, err)
+		}
+		return true, &authResponse, nil
+	} else if strings.HasPrefix(contentType, "application/x-form-urlencoded") {
+		var authResponse authResponse
+		s, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return false, nil, fmt.Errorf("while reading response body: %s", err)
+		}
+		values, err := url.ParseQuery(string(s))
+		if err != nil {
+			return false, nil, fmt.Errorf("while reading response body: %s", err)
+		}
+		authResponse.Me = values.Get("me")
+		return true, &authResponse, nil
 	}
 
-	return true, &authResponse, nil
+	return false, nil, fmt.Errorf("unknown content-type %q while verifying authorization_code", contentType)
 }
 
 func isLoggedIn(backend *memoryBackend, sess *session) bool {
