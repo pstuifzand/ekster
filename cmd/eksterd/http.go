@@ -183,7 +183,7 @@ func verifyAuthCode(code, redirectURI, authEndpoint, clientID string) (bool, *au
 		var authResponse authResponse
 		err = dec.Decode(&authResponse)
 		if err != nil {
-			return false, nil, err
+			return false, nil, fmt.Errorf("while verifying authentication response from %s: %s", authEndpoint, err)
 		}
 
 		return true, &authResponse, nil
