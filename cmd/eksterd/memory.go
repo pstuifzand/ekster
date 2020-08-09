@@ -58,6 +58,16 @@ type channelSetting struct {
 	ChannelType  string
 }
 
+type channelMessage struct {
+	Version int              `json:"version"`
+	Channel microsub.Channel `json:"channel"`
+}
+
+type newItemMessage struct {
+	Item    microsub.Item `json:"item"`
+	Channel string        `json:"channel"`
+}
+
 // Debug interface for easy of use in other packages
 type Debug interface {
 	Debug()
@@ -210,6 +220,8 @@ func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 
 	updateChannelInRedis(conn, channel.UID, DefaultPrio)
 
+	b.broker.Notifier <- sse.Message{Event: "new channel", Object: channelMessage{1, channel}}
+
 	return channel, nil
 }
 
@@ -227,6 +239,8 @@ func (b *memoryBackend) ChannelsUpdate(uid, name string) (microsub.Channel, erro
 		b.lock.Lock()
 		b.Channels[uid] = c
 		b.lock.Unlock()
+
+		b.broker.Notifier <- sse.Message{Event: "update channel", Object: channelMessage{1, c}}
 
 		return c, nil
 	}
@@ -672,11 +686,6 @@ func matchItemText(item microsub.Item, re *regexp.Regexp) bool {
 func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) error {
 	timelineBackend := b.getTimeline(channel)
 	added, err := timelineBackend.AddItem(item)
-
-	type newItemMessage struct {
-		Item    microsub.Item `json:"item"`
-		Channel string        `json:"channel"`
-	}
 
 	// Sent message to Server-Sent-Events
 	if added {
