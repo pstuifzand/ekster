@@ -260,6 +260,14 @@ func (b *memoryBackend) ChannelsDelete(uid string) error {
 	conn := b.pool.Get()
 	defer conn.Close()
 
+	removed := false
+
+	b.lock.RLock()
+	if _, e := b.Channels[uid]; e {
+		removed = true
+	}
+	b.lock.RUnlock()
+
 	removeChannelFromRedis(conn, uid)
 
 	b.lock.Lock()
@@ -267,7 +275,9 @@ func (b *memoryBackend) ChannelsDelete(uid string) error {
 	delete(b.Feeds, uid)
 	b.lock.Unlock()
 
-	b.broker.Notifier <- sse.Message{Event: "delete channel", Object: channelDeletedMessage{1, uid}}
+	if removed {
+		b.broker.Notifier <- sse.Message{Event: "delete channel", Object: channelDeletedMessage{1, uid}}
+	}
 
 	return nil
 }
