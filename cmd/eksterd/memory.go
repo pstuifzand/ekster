@@ -63,6 +63,11 @@ type channelMessage struct {
 	Channel microsub.Channel `json:"channel"`
 }
 
+type channelDeletedMessage struct {
+	Version int    `json:"version"`
+	UID     string `json:"uid"`
+}
+
 type newItemMessage struct {
 	Item    microsub.Item `json:"item"`
 	Channel string        `json:"channel"`
@@ -261,6 +266,8 @@ func (b *memoryBackend) ChannelsDelete(uid string) error {
 	delete(b.Channels, uid)
 	delete(b.Feeds, uid)
 	b.lock.Unlock()
+
+	b.broker.Notifier <- sse.Message{Event: "delete channel", Object: channelDeletedMessage{1, uid}}
 
 	return nil
 }
