@@ -215,10 +215,15 @@ func (b *memoryBackend) ChannelsGetList() ([]microsub.Channel, error) {
 
 // ChannelsCreate creates a channels
 func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
-	defer b.save()
+	// Try to fetch the channel, if it exists, we don't create it
+	if channel, e := b.fetchChannel(name); e {
+		return channel, nil
+	}
 
+	// Otherwise create the channel
 	channel := b.createChannel(name)
 	b.setChannel(channel)
+	b.save()
 
 	conn := b.pool.Get()
 	defer conn.Close()
@@ -834,9 +839,23 @@ func (b *memoryBackend) createChannel(name string) microsub.Channel {
 	return channel
 }
 
+func (b *memoryBackend) fetchChannel(name string) (microsub.Channel, bool) {
+	b.lock.RLock()
+	defer b.lock.RUnlock()
+
+	for _, c := range b.Channels {
+		if c.Name == name {
+			return c, true
+		}
+	}
+
+	return microsub.Channel{}, false
+}
+
 func (b *memoryBackend) setChannel(channel microsub.Channel) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
+
 	b.Channels[channel.UID] = channel
 	b.Feeds[channel.UID] = []microsub.Feed{}
 	b.NextUID++
