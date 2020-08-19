@@ -3,7 +3,7 @@ cmd/ek/ek
 .idea
 .vscode
 
-ek
-eksterd
+/ek
+/eksterd
 
 backend.json
