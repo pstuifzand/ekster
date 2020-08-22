@@ -58,6 +58,16 @@ func simplifyContent(k string, v []interface{}) *microsub.Content {
 
 	var content microsub.Content
 	switch t := v[0].(type) {
+	case map[string]string:
+		if text, e := t["value"]; e {
+			content.Text = text
+		}
+		if text, e := t["html"]; e {
+			cleaned, err := CleanHTML(text)
+			if err == nil {
+				content.HTML = cleaned
+			}
+		}
 	case map[string]interface{}:
 		if text, e := t["value"]; e {
 			content.Text = text.(string)

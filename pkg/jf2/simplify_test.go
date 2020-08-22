@@ -19,6 +19,8 @@ package jf2_test
 
 import (
 	"encoding/json"
+	"log"
+	"net/url"
 	"os"
 	"testing"
 
@@ -214,4 +216,31 @@ func TestCleanHTMLSimpler(t *testing.T) {
 	if assert.NoError(t, err) {
 		assert.Equal(t, "<div>test</div><div>test2</div>", clean)
 	}
+}
+
+func TestConvertItemNoteWithCheckout(t *testing.T) {
+	f, err := os.Open("./tests/note-with-checkout.html")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	u, err := url.Parse("https://aaronparecki.com/2020/08/21/16/")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	data := microformats.Parse(f, u)
+	results := jf2.SimplifyMicroformatDataItems(data)
+	assert.Len(t, results, 1, "need 1 item")
+
+	assert.NotNil(t, results[0].Content)
+	assert.Equal(
+		t,
+		"not sure if it's cheaper to buy all the Microsoft Flight Simulator accessories or actually train for a pilots license 🤔 https://youtu.be/shpK1Gjvnuo",
+		results[0].Content.Text)
+	assert.Equal(
+		t,
+		"not sure if it&#39;s cheaper to buy all the Microsoft Flight Simulator accessories or actually train for a pilots license <a href=\"https://aaronparecki.com/emoji/%F0%9F%A4%94\" class=\"emoji\">🤔</a> <a href=\"https://youtu.be/shpK1Gjvnuo\"><span class=\"protocol\">https://</span>youtu.be/shpK1Gjvnuo</a>",
+		results[0].Content.HTML)
 }
