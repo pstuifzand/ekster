@@ -554,18 +554,27 @@ func importOPMLIntoMicrosub(sub microsub.Microsub, filename string) {
 		}
 
 		for _, f := range c.Outlines {
-			if f.HTMLURL == "" {
-				log.Println("Missing url on second row item")
+			var url string
+
+			if f.HTMLURL != "" {
+				url = f.HTMLURL
+			} else if f.XMLURL != "" {
+				url = f.XMLURL
+			} else {
+				log.Println("Missing htmlUrl and xmlUrl attributes")
 				continue
 			}
 
-			if _, e := feedMap[f.HTMLURL]; !e {
-				_, err := sub.FollowURL(uid, f.HTMLURL)
+			if _, e := feedMap[url]; !e {
+				_, err := sub.FollowURL(uid, url)
 				if err != nil {
-					log.Printf("An error occurred: %q\n", err)
+					log.Printf("An error occurred while following feed %s: %q\n", url, err)
 					continue
 				}
-				log.Printf("Feed followed: %s\n", f.HTMLURL)
+
+				log.Printf("Feed followed: %s\n", url)
+			} else {
+				log.Printf("Feed not followed: %s\n", url)
 			}
 		}
 	}
