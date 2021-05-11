@@ -3,6 +3,16 @@ services:
   redis:
     image: "redis:5"
 
+  database:
+    image: postgres
+    volumes:
+    - ./database-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ekster
+      POSTGRES_USER: ekster
+      POSTGRES_PASSWORD: simple
+      POSTGRES_HOST_AUTH_METHOD: trust
+
   web:
     image: "pstuifzand/ekster:alpine"
     working_dir: /opt/microsub
@@ -10,6 +20,8 @@ services:
       - redis:redis
     volumes:
       - ./data:/opt/microsub
+      - ./templates:/app/templates
+      - ./eksterd:/app/eksterd
     entrypoint: /app/eksterd
     command: -auth=false -port 80 -templates /app/templates
     ports:
@@ -17,5 +29,5 @@ services:
     environment:
       - "FEEDBIN_USER="
       - "FEEDBIN_PASS="
-      - "EKSTER_BASEURL="
+      - "EKSTER_BASEURL=http://localhost:8089/"
       - "EKSTER_TEMPLATES=/app/templates"

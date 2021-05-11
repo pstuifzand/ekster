@@ -10,7 +10,6 @@ There are two methods for installing and running ekster.
 
 Download the binaries from the [latest release](https://github.cGom/pstuifzand/ekster/releases/) on Github.
 
-
 ### Method 2: Install ekster from source with Go
 
 ekster is build using [go](https://golang.org). To be able to install ekster
@@ -45,10 +44,10 @@ You can now access `eksterd` on port `8090`. To really use it, you should proxy
 
 ### Method 3: Using Docker / Docker Compose
 
-It's now also possible to use docker-compose to start an ekster server. Create an empty directory. 
-Download [docker-compose.yml](https://raw.githubusercontent.com/pstuifzand/ekster/master/docker-compose.yml) from Github 
+It's now also possible to use docker-compose to start an ekster server. Create an empty directory.
+Download [docker-compose.yml](https://raw.githubusercontent.com/pstuifzand/ekster/master/docker-compose.yml) from Github
 and run the following commands in that directory.
-    
+
     docker-compose pull
     docker-compose run web new
     # edit the backend.json file according to the instructions
@@ -59,7 +58,7 @@ After editing, you can run `docker-compose up` to start the server. This will st
 so that you can run the program without problems. By default it will choose a random port, to run the server.
 To make it really useful, you need to run this on an internet connected server and choose a fixed port.
 
-The nicest way to run this docker-compose environment is with a proxy in the front. You can run ekster behind 
+The nicest way to run this docker-compose environment is with a proxy in the front. You can run ekster behind
 [nginx-proxy](https://github.com/jwilder/nginx-proxy).
 
 ## When ekster is running
@@ -74,7 +73,7 @@ you use to proxy the server.
 The microsub server responds to the `/microsub` url with the micropub protocol.
 You can use `ek` to talk to the endpoint.
 
-It's also possible to visit the microsub server with your browser, there are a few ways to 
+It's also possible to visit the microsub server with your browser, there are a few ways to
 change settings.
 
 ## Commands

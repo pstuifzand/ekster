@@ -7,6 +7,7 @@ package timeline
 
 import (
 	"encoding/json"
+	"log"
 
 	"p83.nl/go/ekster/pkg/microsub"
 
@@ -26,7 +27,7 @@ type Backend interface {
 	// MarkUnread(uids []string) error
 }
 
-// Create creates a channel of the specfied type. Return nil when the type
+// Create creates a channel of the specified type. Return nil when the type
 // is not known.
 func Create(channel, timelineType string, pool *redis.Pool) Backend {
 	if timelineType == "sorted-set" {
@@ -51,6 +52,16 @@ func Create(channel, timelineType string, pool *redis.Pool) Backend {
 		timeline := &nullTimeline{channel: channel}
 		err := timeline.Init()
 		if err != nil {
+			return nil
+		}
+		return timeline
+	}
+
+	if timelineType == "postgres-stream" {
+		timeline := &PostgresStream{channel: channel}
+		err := timeline.Init()
+		if err != nil {
+			log.Printf("Error while creating %s: %v", channel, err)
 			return nil
 		}
 		return timeline

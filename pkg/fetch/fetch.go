@@ -37,12 +37,12 @@ func FeedHeader(fetcher FetcherFunc, fetchURL, contentType string, body io.Reade
 		author, ok := jf2.SimplifyMicroformatDataAuthor(data)
 		if !ok {
 			if strings.HasPrefix(author.URL, "http") {
-				resp, err := fetcher(fetchURL)
+				resp, err := fetcher(author.URL)
 				if err != nil {
 					return feed, err
 				}
 				defer resp.Body.Close()
-				u, _ := url.Parse(fetchURL)
+				u, _ := url.Parse(author.URL)
 
 				md := microformats.Parse(resp.Body, u)
 

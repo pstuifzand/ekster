@@ -7,3 +7,6 @@ cmd/ek/ek
 /eksterd
 
 backend.json
+
+data/
+database-data/

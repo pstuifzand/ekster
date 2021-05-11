@@ -75,6 +75,7 @@
                                         <option value="null" {{if eq (.CurrentSetting.ChannelType) "null" }}selected{{end}}>Null</option>
                                         <option value="sorted-set" {{if eq (.CurrentSetting.ChannelType) "sorted-set" }}selected{{end}}>Sorted Set</option>
                                         <option value="stream" {{if eq (.CurrentSetting.ChannelType) "stream" }}selected{{end}}>Streams</option>
+                                        <option value="postgres-stream" {{if eq (.CurrentSetting.ChannelType) "postgres-stream" }}selected{{end}}>Postgres Stream</option>
                                     </select>
                                 </div>
                             </div>
@@ -84,7 +85,7 @@
                             <div class="control">
                                 <div class="select is-multiple">
                                     <select name="exclude_type" id="exclude_type" multiple>
-                                        {{ range $key, $excluded := .ExcludedTypes }}
+                                        {{ range $key, $excluded := $.ExcludedTypes }}
                                             <option value="{{ $key }}" {{ if $excluded }}selected="selected"{{ end }}>{{ index $.ExcludedTypeNames $key }}</option>
                                         {{ end }}
                                     </select>
