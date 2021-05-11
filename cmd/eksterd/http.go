@@ -683,6 +683,10 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			http.Redirect(w, r, "/settings", 302)
 			return
+		} else if r.URL.Path == "/refresh" {
+			h.Backend.RefreshFeeds()
+			http.Redirect(w, r, "/", 302)
+			return
 		}
 	}
 

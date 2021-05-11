@@ -6,6 +6,7 @@
 package timeline
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 
@@ -29,7 +30,7 @@ type Backend interface {
 
 // Create creates a channel of the specified type. Return nil when the type
 // is not known.
-func Create(channel, timelineType string, pool *redis.Pool) Backend {
+func Create(channel, timelineType string, pool *redis.Pool, db *sql.DB) Backend {
 	if timelineType == "sorted-set" {
 		timeline := &redisSortedSetTimeline{channel: channel, pool: pool}
 		err := timeline.Init()
@@ -58,7 +59,7 @@ func Create(channel, timelineType string, pool *redis.Pool) Backend {
 	}
 
 	if timelineType == "postgres-stream" {
-		timeline := &postgresStream{channel: channel}
+		timeline := &postgresStream{database: db, channel: channel}
 		err := timeline.Init()
 		if err != nil {
 			log.Printf("Error while creating %s: %v", channel, err)

@@ -19,13 +19,8 @@ type postgresStream struct {
 
 // Init
 func (p *postgresStream) Init() error {
-	db, err := sql.Open("postgres", "host=database user=postgres password=simple dbname=ekster sslmode=disable")
-	if err != nil {
-		return fmt.Errorf("database open failed: %w", err)
-	}
-	p.database = db
-
-	err = db.Ping()
+	db := p.database
+	err := db.Ping()
 	if err != nil {
 		return fmt.Errorf("database ping failed: %w", err)
 	}
@@ -80,7 +75,14 @@ CREATE TABLE IF NOT EXISTS "items" (
 
 // Items
 func (p *postgresStream) Items(before, after string) (microsub.Timeline, error) {
-	rows, err := p.database.Query(`SELECT "id", "uid", "data", "created_at", "is_read" FROM "items" WHERE "channel_id" = $1 ORDER BY "published_at"`, p.channelID)
+	query := `
+SELECT "id", "uid", "data", "created_at", "is_read"
+FROM "items"
+WHERE "channel_id" = $1
+ORDER BY "published_at"
+`
+
+	rows, err := p.database.Query(query, p.channelID)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("while query: %w", err)
 	}
@@ -138,9 +140,13 @@ func (p *postgresStream) Count() (int, error) {
 
 // AddItem
 func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
-	t, err := time.Parse(time.RFC3339, item.Published)
+	t, err := time.Parse("2006-01-02T15:04:05Z0700", item.Published)
 	if err != nil {
-		return false, fmt.Errorf("while adding item: time %q could not be parsed: %w", item.Published, err)
+		t2, err := time.Parse("2006-01-02T15:04:05Z07:00", item.Published)
+		if err != nil {
+			return false, fmt.Errorf("while adding item: time %q could not be parsed: %w", item.Published, err)
+		}
+		t = t2
 	}
 
 	_, err = p.database.Exec(`

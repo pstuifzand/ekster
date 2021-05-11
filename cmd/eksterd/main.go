@@ -16,6 +16,7 @@ Eksterd is a microsub server that is extendable.
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"log"
@@ -39,6 +40,7 @@ type AppOptions struct {
 	BaseURL     string
 	TemplateDir string
 	pool        *redis.Pool
+	database    *sql.DB
 }
 
 func init() {
@@ -115,7 +117,7 @@ func NewApp(options AppOptions) (*App, error) {
 		options: options,
 	}
 
-	backend, err := loadMemoryBackend(options.pool)
+	backend, err := loadMemoryBackend(options.pool, options.database)
 	if err != nil {
 		return nil, err
 	}
@@ -217,14 +219,18 @@ func main() {
 
 	pool := newPool(options.RedisServer)
 	options.pool = pool
+	db, err := sql.Open("postgres", "host=database user=postgres password=simple dbname=ekster sslmode=disable")
+	if err != nil {
+		log.Fatalf("database open failed: %w", err)
+	}
+	options.database = db
 
 	app, err := NewApp(options)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = app.Run()
-	if err != nil {
-		log.Fatal(err)
-	}
+	log.Fatal(app.Run())
+
+	db.Close()
 }
