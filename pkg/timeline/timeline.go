@@ -58,7 +58,7 @@ func Create(channel, timelineType string, pool *redis.Pool) Backend {
 	}
 
 	if timelineType == "postgres-stream" {
-		timeline := &PostgresStream{channel: channel}
+		timeline := &postgresStream{channel: channel}
 		err := timeline.Init()
 		if err != nil {
 			log.Printf("Error while creating %s: %v", channel, err)
