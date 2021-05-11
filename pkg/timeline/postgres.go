@@ -65,12 +65,12 @@ CREATE TABLE IF NOT EXISTS "items" (
 
 	rows, err := db.Query(`SELECT "id" FROM "channels" WHERE "name" = $1`, p.channel)
 	if err != nil {
-		return fmt.Errorf("fetch channel failed", err)
+		return fmt.Errorf("fetch channel failed: %w", err)
 	}
 	for rows.Next() {
 		err = rows.Scan(&p.channelID)
 		if err != nil {
-			return fmt.Errorf("fetch channel failed while scanning", err)
+			return fmt.Errorf("fetch channel failed while scanning: %w", err)
 		}
 		break
 	}
