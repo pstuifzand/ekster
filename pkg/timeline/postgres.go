@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS "items" (
 
 // Items
 func (p *postgresStream) Items(before, after string) (microsub.Timeline, error) {
-	rows, err := p.database.Query(`SELECT "id", "uid", "data", "created_at", "is_read" FROM "items" WHERE "channel_id" = $1`, p.channel)
+	rows, err := p.database.Query(`SELECT "id", "uid", "data", "created_at", "is_read" FROM "items" WHERE "channel_id" = $1 ORDER BY "published_at"`, p.channelID)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("while query: %w", err)
 	}
@@ -96,12 +96,22 @@ func (p *postgresStream) Items(before, after string) (microsub.Timeline, error) 
 
 		err = rows.Scan(&id, &uid, &item, &createdAt, &isRead)
 		if err != nil {
-			return microsub.Timeline{}, fmt.Errorf("while scanning: %w", err)
+			break
 		}
+
 		item.Read = isRead == 1
 		item.ID = uid
 
 		tl.Items = append(tl.Items, item)
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return tl, err
+	}
+	if err != nil {
+		return tl, err
+	}
+	if err = rows.Err(); err != nil {
+		return tl, err
 	}
 
 	return tl, nil
