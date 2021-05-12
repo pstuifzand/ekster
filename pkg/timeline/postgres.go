@@ -90,6 +90,12 @@ WHERE "channel_id" = $1
 			args = append(args, b)
 			qb.WriteString(` AND "published_at" < $2`)
 		}
+	} else if after != "" {
+		b, err := time.Parse(time.RFC3339, after)
+		if err == nil {
+			args = append(args, b)
+			qb.WriteString(` AND "published_at" > $2`)
+		}
 	}
 	qb.WriteString(` ORDER BY "published_at"`)
 
