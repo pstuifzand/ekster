@@ -3,6 +3,7 @@ package timeline
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"p83.nl/go/ekster/pkg/microsub"
@@ -75,19 +76,31 @@ CREATE TABLE IF NOT EXISTS "items" (
 
 // Items
 func (p *postgresStream) Items(before, after string) (microsub.Timeline, error) {
-	query := `
-SELECT "id", "uid", "data", "created_at", "is_read"
+	var args []interface{}
+	args = append(args, p.channelID)
+	var qb strings.Builder
+	qb.WriteString(`
+SELECT "id", "uid", "data", "created_at", "is_read", "published_at"
 FROM "items"
 WHERE "channel_id" = $1
-ORDER BY "published_at"
-`
+`)
+	if before != "" {
+		b, err := time.Parse(time.RFC3339, before)
+		if err == nil {
+			args = append(args, b)
+			qb.WriteString(` AND "published_at" < $2`)
+		}
+	}
+	qb.WriteString(` ORDER BY "published_at"`)
 
-	rows, err := p.database.Query(query, p.channelID)
+	rows, err := p.database.Query(qb.String(), args...)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("while query: %w", err)
 	}
 
 	var tl microsub.Timeline
+
+	var first, last string
 
 	for rows.Next() {
 		var id int
@@ -95,11 +108,16 @@ ORDER BY "published_at"
 		var item microsub.Item
 		var createdAt time.Time
 		var isRead int
+		var publishedAt string
 
-		err = rows.Scan(&id, &uid, &item, &createdAt, &isRead)
+		err = rows.Scan(&id, &uid, &item, &createdAt, &isRead, &publishedAt)
 		if err != nil {
 			break
 		}
+		if first == "" {
+			first = publishedAt
+		}
+		last = publishedAt
 
 		item.Read = isRead == 1
 		item.ID = uid
@@ -115,6 +133,9 @@ ORDER BY "published_at"
 	if err = rows.Err(); err != nil {
 		return tl, err
 	}
+
+	tl.Paging.Before = first
+	tl.Paging.After = last
 
 	return tl, nil
 }
