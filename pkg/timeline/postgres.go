@@ -173,7 +173,7 @@ func (p *postgresStream) Count() (int, error) {
 		return -1, err
 	}
 	defer conn.Close()
-	row := conn.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM items WHERE channel_id = $1", p.channelID)
+	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM items WHERE channel_id = $1 AND "is_read" = 0`, p.channelID)
 	if row == nil {
 		return 0, nil
 	}
