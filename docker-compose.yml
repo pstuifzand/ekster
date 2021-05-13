@@ -6,7 +6,7 @@ services:
   database:
     image: postgres
     volumes:
-    - ./database-data:/var/lib/postgresql/data
+    - database-data:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: ekster
       POSTGRES_USER: ekster
@@ -31,3 +31,6 @@ services:
       - "FEEDBIN_PASS="
       - "EKSTER_BASEURL=http://localhost:8089/"
       - "EKSTER_TEMPLATES=/app/templates"
+
+volumes:
+    database-data:
