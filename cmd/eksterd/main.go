@@ -221,7 +221,7 @@ func main() {
 	options.pool = pool
 	db, err := sql.Open("postgres", "host=database user=postgres password=simple dbname=ekster sslmode=disable")
 	if err != nil {
-		log.Fatalf("database open failed: %w", err)
+		log.Fatalf("database open failed: %s", err)
 	}
 	options.database = db
 
