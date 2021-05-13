@@ -207,7 +207,7 @@ func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 	result, err := conn.ExecContext(context.Background(), `
 INSERT INTO "items" ("channel_id", "uid", "data", "published_at", "created_at")
 VALUES ($1, $2, $3, $4, DEFAULT)
-ON CONFLICT ON CONSTRAINT "items_uid_key" DO UPDATE SET "updated_at" = now()
+ON CONFLICT ON CONSTRAINT "items_uid_key" DO NOTHING
 `, p.channelID, item.ID, &item, t)
 	if err != nil {
 		return false, fmt.Errorf("while adding item: %w", err)
