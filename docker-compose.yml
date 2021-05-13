@@ -9,7 +9,7 @@ services:
     - database-data:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: ekster
-      POSTGRES_USER: ekster
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: simple
       POSTGRES_HOST_AUTH_METHOD: trust
 

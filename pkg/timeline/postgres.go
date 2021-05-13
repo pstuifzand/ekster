@@ -11,7 +11,7 @@ import (
 	"p83.nl/go/ekster/pkg/microsub"
 
 	// load pq for postgres
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 type postgresStream struct {
@@ -223,7 +223,7 @@ func (p *postgresStream) MarkRead(uids []string) error {
 		return err
 	}
 	defer conn.Close()
-	_, err = conn.ExecContext(context.Background(), `UPDATE "items" SET is_read = 1 WHERE "uid" IN ($1)`, uids)
+	_, err = conn.ExecContext(context.Background(), `UPDATE "items" SET is_read = 1 WHERE "uid" IN ($1)`, pq.Array(uids))
 	if err != nil {
 		return fmt.Errorf("while marking as read: %w", err)
 	}

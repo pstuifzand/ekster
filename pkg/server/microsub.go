@@ -219,6 +219,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						http.Error(w, err.Error(), 500)
 						return
 					}
+				} else {
+					log.Println("No uids specified for mark read")
 				}
 			} else {
 				http.Error(w, fmt.Sprintf("unknown method in timeline %s\n", method), 500)
