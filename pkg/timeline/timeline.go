@@ -31,6 +31,7 @@ type Backend interface {
 // Create creates a channel of the specified type. Return nil when the type
 // is not known.
 func Create(channel, timelineType string, pool *redis.Pool, db *sql.DB) Backend {
+	log.Printf("fetching timeline with type %s", timelineType)
 	if timelineType == "sorted-set" {
 		timeline := &redisSortedSetTimeline{channel: channel, pool: pool}
 		err := timeline.Init()

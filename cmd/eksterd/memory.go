@@ -731,8 +731,8 @@ func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
 	b.lock.RUnlock()
 
 	if exists {
-		timeline := b.getTimeline(channel)
-		unread, err := timeline.Count()
+		tl := b.getTimeline(channel)
+		unread, err := tl.Count()
 		if err != nil {
 			return err
 		}
@@ -834,7 +834,11 @@ func (b *memoryBackend) getTimeline(channel string) timeline.Backend {
 		}
 	}
 
-	return timeline.Create(channel, timelineType, b.pool, b.database)
+	tl := timeline.Create(channel, timelineType, b.pool, b.database)
+	if tl == nil {
+		log.Printf("no timeline found with name %q and type %q", channel, timelineType)
+	}
+	return tl
 }
 
 func (b *memoryBackend) createChannel(name string) microsub.Channel {
