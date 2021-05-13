@@ -158,6 +158,10 @@ WHERE "channel_id" = $1
 	tl.Paging.Before = last
 	// tl.Paging.After = last
 
+	if tl.Items == nil {
+		tl.Items = []microsub.Item{}
+	}
+
 	return tl, nil
 }
 
