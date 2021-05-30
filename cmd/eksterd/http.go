@@ -1,9 +1,12 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,10 +18,12 @@ import (
 	"p83.nl/go/ekster/pkg/microsub"
 	"p83.nl/go/ekster/pkg/util"
 
-	"github.com/alecthomas/template"
 	"github.com/gomodule/redigo/redis"
 	"willnorris.com/go/microformats"
 )
+
+//go:embed templates/*.html
+var templates embed.FS
 
 type mainHandler struct {
 	Backend     *memoryBackend
@@ -106,7 +111,11 @@ func (h *mainHandler) templateFile(filename string) string {
 }
 
 func (h *mainHandler) renderTemplate(w io.Writer, filename string, data interface{}) error {
-	t, err := template.ParseFiles(h.templateFile("base.html"), h.templateFile(filename))
+	fsys, err := fs.Sub(templates, "templates")
+	if err != nil {
+		return err
+	}
+	t, err := template.ParseFS(fsys, "base.html", filename)
 	if err != nil {
 		return err
 	}
