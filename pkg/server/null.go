@@ -70,6 +70,11 @@ func (b *NullBackend) Search(query string) ([]microsub.Feed, error) {
 	}, nil
 }
 
+// ItemSearch returns a list of zero items
+func (b *NullBackend) ItemSearch(channel, query string) ([]microsub.Item, error) {
+	return []microsub.Item{}, nil
+}
+
 // PreviewURL shows an empty feed
 func (b *NullBackend) PreviewURL(url string) (microsub.Timeline, error) {
 	return microsub.Timeline{

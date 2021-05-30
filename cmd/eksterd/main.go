@@ -104,6 +104,10 @@ type App struct {
 
 // Run runs the app
 func (app *App) Run() error {
+	err := initSearch()
+	if err != nil {
+		return fmt.Errorf("while starting app: %v", err)
+	}
 	app.backend.run()
 	app.hubBackend.run()
 

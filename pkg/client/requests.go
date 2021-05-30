@@ -333,6 +333,28 @@ func (c *Client) Search(query string) ([]microsub.Feed, error) {
 	return response.Results, nil
 }
 
+// ItemSearch send a search request to the server
+func (c *Client) ItemSearch(channel, query string) ([]microsub.Item, error) {
+	args := make(map[string]string)
+	args["query"] = query
+	args["channel"] = channel
+	res, err := c.microsubPostRequest("search", args)
+	if err != nil {
+		return []microsub.Item{}, err
+	}
+	type searchResponse struct {
+		Items []microsub.Item `json:"items"`
+	}
+	defer res.Body.Close()
+	var response searchResponse
+	dec := json.NewDecoder(res.Body)
+	err = dec.Decode(&response)
+	if err != nil {
+		return []microsub.Item{}, err
+	}
+	return response.Items, nil
+}
+
 // MarkRead marks an item read on the server.
 func (c *Client) MarkRead(channel string, uids []string) error {
 	args := make(map[string]string)

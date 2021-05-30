@@ -125,6 +125,8 @@ type Microsub interface {
 	Search(query string) ([]Feed, error)
 	PreviewURL(url string) (Timeline, error)
 
+	ItemSearch(channel, query string) ([]Item, error)
+
 	Events() (chan sse.Message, error)
 }
 

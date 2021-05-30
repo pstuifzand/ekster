@@ -459,6 +459,10 @@ func getPossibleURLs(query string) []string {
 	return urls
 }
 
+func (b *memoryBackend) ItemSearch(channel, query string) ([]microsub.Item, error) {
+	return querySearch(channel, query)
+}
+
 func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 	urls := getPossibleURLs(query)
 
@@ -601,6 +605,11 @@ func (b *memoryBackend) channelAddItemWithMatcher(channel string, item microsub.
 	// check for all channels as channel
 	// if regex matches item
 	//  - add item to channel
+
+	err := addToSearch(item)
+	if err != nil {
+		return fmt.Errorf("in channelAddItemWithMatcher: %v", err)
+	}
 
 	var updatedChannels []string
 

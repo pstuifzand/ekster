@@ -184,14 +184,27 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respondJSON(w, []string{})
 		} else if action == "search" {
 			query := values.Get("query")
-			feeds, err := h.backend.Search(query)
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
+			channel := values.Get("channel")
+			if channel == "" {
+				feeds, err := h.backend.Search(query)
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
+				respondJSON(w, map[string][]microsub.Feed{
+					"results": feeds,
+				})
+			} else {
+				items, err := h.backend.ItemSearch(channel, query)
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
+				respondJSON(w, map[string]interface{}{
+					"query": query,
+					"items": items,
+				})
 			}
-			respondJSON(w, map[string][]microsub.Feed{
-				"results": feeds,
-			})
 		} else if action == "timeline" || r.PostForm.Get("action") == "timeline" {
 			method := values.Get("method")
 
