@@ -7,7 +7,7 @@ workspace:
 
 steps:
   - name: testing
-    image: golang:1.14-alpine
+    image: golang:1.16-alpine
     environment:
       CGO_ENABLED: 0
       GOOS: linux
