@@ -138,6 +138,7 @@ Commands:
 	timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
 
 	search QUERY                 search for feeds from QUERY
+	query QUERY CHANNEL          search for items matching QUERY in CHANNEL
 
 	preview URL                  show items from the feed at URL
 
@@ -296,6 +297,24 @@ func performCommands(sub microsub.Microsub, commands []string) {
 
 		for _, feed := range feeds {
 			fmt.Println(feed.Name, " ", feed.URL)
+		}
+	}
+
+	if len(commands) >= 2 && len(commands) <= 3 && commands[0] == "query" {
+		query := commands[1]
+		var channel string
+		if len(commands) == 3 {
+			channel = commands[2]
+		} else {
+			channel = "global"
+		}
+		items, err := sub.ItemSearch(channel, query)
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
+
+		for _, item := range items {
+			showItem(&item)
 		}
 	}
 
