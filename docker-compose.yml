@@ -19,11 +19,11 @@ services:
     links:
       - redis:redis
     volumes:
-      - ./data:/opt/microsub
+      - microsub-data:/opt/microsub
       - ./templates:/app/templates
       - ./eksterd:/app/eksterd
     entrypoint: /app/eksterd
-    command: -auth=false -port 80 -templates /app/templates
+    command: -auth=false -port 80 -templates templates
     ports:
       - 8089:80
     environment:
@@ -34,3 +34,4 @@ services:
 
 volumes:
     database-data:
+    microsub-data:
