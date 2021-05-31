@@ -1,20 +1,18 @@
-/*
-   Microsub server
-   Copyright (C) 2018  Peter Stuifzand
-
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// Package jsonfeed contains the types and a parse function for JSON feeds.
+// Copyright (C) 2018  Peter Stuifzand
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package jsonfeed
 
 import (
@@ -22,6 +20,7 @@ import (
 	"io"
 )
 
+// Attachment contains attachments for podcasts
 type Attachment struct {
 	URL               string `json:"url"`
 	MimeType          string `json:"mime_type"`
@@ -30,6 +29,7 @@ type Attachment struct {
 	DurationInSeconds int    `json:"duration_in_seconds,omitempty"`
 }
 
+// Item is the main item in the feed
 type Item struct {
 	ID            string       `json:"id"`
 	ContentText   string       `json:"content_text,omitempty"`
@@ -45,17 +45,20 @@ type Item struct {
 	Attachments   []Attachment `json:"attachments,omitempty"`
 }
 
+// Author is the author of the Item
 type Author struct {
 	Name   string `json:"name,omitempty"`
 	URL    string `json:"url,omitempty"`
 	Avatar string `json:"avatar,omitempty"`
 }
 
+// Hub contains a reference to a feed hub
 type Hub struct {
 	Type string `json:"type"`
 	URL  string `json:"url"`
 }
 
+// Feed is the main object
 type Feed struct {
 	Version     string `json:"version"`
 	Title       string `json:"title"`
@@ -72,7 +75,6 @@ type Feed struct {
 // Parse parses a jsonfeed
 func Parse(body io.Reader) (Feed, error) {
 	var feed Feed
-	dec := json.NewDecoder(body)
-	err := dec.Decode(&feed)
+	err := json.NewDecoder(body).Decode(&feed)
 	return feed, err
 }
