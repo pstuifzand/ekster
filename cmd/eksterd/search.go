@@ -27,10 +27,16 @@ func initSearch() error {
 	return nil
 }
 
-func addToSearch(item microsub.Item) error {
+type indexItem struct {
+	microsub.Item
+	Channel string `json:"channel"`
+}
+
+func addToSearch(item microsub.Item, channel string) error {
 	// TODO: add channel when indexing
 	if index != nil {
-		err := index.Index(item.ID, item)
+		indexItem := indexItem{item, channel}
+		err := index.Index(item.ID, indexItem)
 		if err != nil {
 			return fmt.Errorf("while indexing item: %v", err)
 		}

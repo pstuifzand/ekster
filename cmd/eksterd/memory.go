@@ -606,9 +606,9 @@ func (b *memoryBackend) channelAddItemWithMatcher(channel string, item microsub.
 	// if regex matches item
 	//  - add item to channel
 
-	err := addToSearch(item)
+	err := addToSearch(item, channel)
 	if err != nil {
-		return fmt.Errorf("in channelAddItemWithMatcher: %v", err)
+		return fmt.Errorf("addToSearch in channelAddItemWithMatcher: %v", err)
 	}
 
 	var updatedChannels []string
