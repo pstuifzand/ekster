@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/blevesearch/bleve/v2"
-	"github.com/davecgh/go-spew/spew"
 	"p83.nl/go/ekster/pkg/microsub"
 )
 
@@ -45,7 +44,6 @@ func getString(fields map[string]interface{}, key, def string) string {
 			return str
 		}
 	}
-
 	return def
 }
 
@@ -69,18 +67,38 @@ func querySearch(channel, query string) ([]microsub.Item, error) {
 
 	items := []microsub.Item{}
 
+	/*
+	   web_1       |  (string) (len=19) "author.country-name": (string) "",
+	   web_1       |  (string) (len=15) "author.latitude": (string) "",
+	   web_1       |  (string) (len=13) "author.region": (string) ""
+	   web_1       |  (string) (len=15) "author.locality": (string) "",
+	   web_1       |  (string) (len=16) "author.longitude": (string) "",
+	*/
+
 	hits := res.Hits
 	for _, hit := range hits {
 		fields := hit.Fields
 		var item microsub.Item
-		spew.Dump(fields)
+		item.UID = getString(fields, "uid", "")
 		item.Type = getString(fields, "type", "entry")
 		item.Name = getString(fields, "name", "")
 		item.Content = &microsub.Content{}
 		item.Content.HTML = getString(fields, "content.html", "")
 		item.Content.Text = getString(fields, "content.text", "")
+		item.Summary = getString(fields, "summary", "")
 		item.URL = getString(fields, "url", "")
 		item.Name = getString(fields, "name", "")
+		item.Longitude = getString(fields, "longitude", "")
+		item.Latitude = getString(fields, "latitude", "")
+		item.Published = getString(fields, "published", "")
+		item.Updated = getString(fields, "updated", "")
+		item.Read = false
+		item.Author = &microsub.Card{
+			Type:  getString(fields, "author.type", ""),
+			Name:  getString(fields, "author.name", ""),
+			URL:   getString(fields, "author.url", ""),
+			Photo: getString(fields, "author.photo", ""),
+		}
 		items = append(items, item)
 	}
 
