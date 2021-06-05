@@ -188,7 +188,10 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if channel == "" {
 				feeds, err := h.backend.Search(query)
 				if err != nil {
-					http.Error(w, err.Error(), 500)
+					respondJSON(w, map[string]interface{}{
+						"query": query,
+						"error": err.Error(),
+					})
 					return
 				}
 				respondJSON(w, map[string][]microsub.Feed{
@@ -197,7 +200,10 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			} else {
 				items, err := h.backend.ItemSearch(channel, query)
 				if err != nil {
-					http.Error(w, err.Error(), 500)
+					respondJSON(w, map[string]interface{}{
+						"query": query,
+						"error": err.Error(),
+					})
 					return
 				}
 				respondJSON(w, map[string]interface{}{
