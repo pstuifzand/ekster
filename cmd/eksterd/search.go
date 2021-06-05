@@ -44,6 +44,15 @@ func addToSearch(item microsub.Item, channel string) error {
 	return nil
 }
 
+func getStringArray(fields map[string]interface{}, key string) []string {
+	if value, e := fields[key]; e {
+		if str, ok := value.([]string); ok {
+			return str
+		}
+	}
+	return []string{}
+}
+
 func getString(fields map[string]interface{}, key, def string) string {
 	if value, e := fields[key]; e {
 		if str, ok := value.(string); ok {
@@ -105,6 +114,7 @@ func querySearch(channel, query string) ([]microsub.Item, error) {
 			URL:   getString(fields, "author.url", ""),
 			Photo: getString(fields, "author.photo", ""),
 		}
+		item.Category = getStringArray(fields, "category")
 		items = append(items, item)
 	}
 
