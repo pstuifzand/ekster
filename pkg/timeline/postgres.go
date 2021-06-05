@@ -217,7 +217,6 @@ ON CONFLICT ON CONSTRAINT "items_uid_key" DO NOTHING
 		return false, err
 	}
 
-	log.Printf("AddItem: rows affected %d\n", c)
 	return c > 0, nil
 }
 
