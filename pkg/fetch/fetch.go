@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -132,16 +133,12 @@ func FeedItems(fetcher FetcherFunc, fetchURL, contentType string, body io.Reader
 
 			items = append(items, r)
 		}
-	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
+	} else if strings.HasPrefix(contentType, "application/json") && strings.HasPrefix(contentType, "application/feed+json") { // json feed?
 		var feed jsonfeed.Feed
-		dec := json.NewDecoder(body)
-		err := dec.Decode(&feed)
+		err := json.NewDecoder(body).Decode(&feed)
 		if err != nil {
-			log.Printf("Error while parsing json feed: %s\n", err)
-			return items, err
+			return items, fmt.Errorf("could not parse as jsonfeed: %v", err)
 		}
-
-		log.Printf("%#v\n", feed)
 
 		author := &microsub.Card{}
 		author.Type = "card"
@@ -180,13 +177,11 @@ func FeedItems(fetcher FetcherFunc, fetchURL, contentType string, body io.Reader
 	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") || strings.HasPrefix(contentType, "application/xml") {
 		body, err := ioutil.ReadAll(body)
 		if err != nil {
-			log.Printf("Error while parsing rss/atom feed: %s\n", err)
-			return items, err
+			return items, fmt.Errorf("could not read feed for rss/atom: %v", err)
 		}
 		feed, err := rss.Parse(body)
 		if err != nil {
-			log.Printf("Error while parsing rss/atom feed: %s\n", err)
-			return items, err
+			return items, fmt.Errorf("while parsing rss/atom feed: %v", err)
 		}
 
 		baseURL, _ := url.Parse(fetchURL)
@@ -222,7 +217,7 @@ func FeedItems(fetcher FetcherFunc, fetchURL, contentType string, body io.Reader
 			items = append(items, item)
 		}
 	} else {
-		log.Printf("Unknown Content-Type: %s\n", contentType)
+		return items, fmt.Errorf("unknown content-type %s for url %s", contentType, fetchURL)
 	}
 
 	for i, v := range items {
