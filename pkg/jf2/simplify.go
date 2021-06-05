@@ -163,7 +163,7 @@ func simplifyToItem(itemType string, item map[string][]interface{}, author micro
 
 	for k, v := range item {
 		switch k {
-		case "bookmark-of", "like-of", "repost-of", "in-reply-to":
+		case "bookmark-of", "like-of", "repost-of", "in-reply-to", "quotation-of", "read-of":
 			u, withItem, refItem := simplifyRefItem(k, v)
 
 			if resultPtr := itemPtr(&feedItem, k); resultPtr != nil {
