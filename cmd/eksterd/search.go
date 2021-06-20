@@ -33,7 +33,6 @@ type indexItem struct {
 }
 
 func addToSearch(item microsub.Item, channel string) error {
-	// TODO: add channel when indexing
 	if index != nil {
 		indexItem := indexItem{item, channel}
 		err := index.Index(item.ID, indexItem)
@@ -90,6 +89,7 @@ func querySearch(channel, query string) ([]microsub.Item, error) {
 	   web_1       |  (string) (len=16) "author.longitude": (string) "",
 	*/
 
+	// TODO: fetch results from the channel instead of the search result
 	hits := res.Hits
 	for _, hit := range hits {
 		fields := hit.Fields

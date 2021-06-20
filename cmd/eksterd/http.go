@@ -152,10 +152,12 @@ func loadSession(sessionVar string, conn redis.Conn) (session, error) {
 	if err != nil {
 		return sess, err
 	}
+
 	err = redis.ScanStruct(data, &sess)
 	if err != nil {
 		return sess, err
 	}
+
 	return sess, nil
 }
 
