@@ -362,42 +362,50 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page settingsPage
 			page.Session = sess
-			currentChannel := r.URL.Query().Get("uid")
+			currentChannelUID := r.URL.Query().Get("uid")
 			page.Channels, err = h.Backend.ChannelsGetList()
-			page.Feeds, err = h.Backend.FollowGetList(currentChannel)
+			page.Feeds, err = h.Backend.FollowGetList(currentChannelUID)
+
+			var selectedChannel microsub.Channel
+			found := false
 
 			for _, v := range page.Channels {
-				if v.UID == currentChannel {
-					page.CurrentChannel = v
-					if setting, e := h.Backend.Settings[v.UID]; e {
-						page.CurrentSetting = setting
-					} else {
-						page.CurrentSetting = channelSetting{}
-					}
-					// FIXME: similar code is found in timeline.go
-					if page.CurrentSetting.ChannelType == "" {
-						if v.UID == "notifications" {
-							page.CurrentSetting.ChannelType = "stream"
-						} else {
-							page.CurrentSetting.ChannelType = "sorted-set"
-						}
-					}
-					page.ExcludedTypeNames = map[string]string{
-						"repost":   "Reposts",
-						"like":     "Likes",
-						"bookmark": "Bookmarks",
-						"reply":    "Replies",
-						"checkin":  "Checkins",
-					}
-					page.ExcludedTypes = make(map[string]bool)
-					types := []string{"repost", "like", "bookmark", "reply", "checkin"}
-					for _, v := range types {
-						page.ExcludedTypes[v] = false
-					}
-					for _, v := range page.CurrentSetting.ExcludeType {
-						page.ExcludedTypes[v] = true
-					}
+				if v.UID == currentChannelUID {
+					selectedChannel = v
+					found = true
 					break
+				}
+			}
+
+			if found {
+				page.CurrentChannel = selectedChannel
+				if setting, e := h.Backend.Settings[selectedChannel.UID]; e {
+					page.CurrentSetting = setting
+				} else {
+					page.CurrentSetting = channelSetting{}
+				}
+				// FIXME: similar code is found in timeline.go
+				if page.CurrentSetting.ChannelType == "" {
+					if selectedChannel.UID == "notifications" {
+						page.CurrentSetting.ChannelType = "stream"
+					} else {
+						page.CurrentSetting.ChannelType = "sorted-set"
+					}
+				}
+				page.ExcludedTypeNames = map[string]string{
+					"repost":   "Reposts",
+					"like":     "Likes",
+					"bookmark": "Bookmarks",
+					"reply":    "Replies",
+					"checkin":  "Checkins",
+				}
+				page.ExcludedTypes = make(map[string]bool)
+				types := []string{"repost", "like", "bookmark", "reply", "checkin"}
+				for _, v := range types {
+					page.ExcludedTypes[v] = false
+				}
+				for _, v := range page.CurrentSetting.ExcludeType {
+					page.ExcludedTypes[v] = true
 				}
 			}
 
