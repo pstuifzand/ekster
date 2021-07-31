@@ -411,7 +411,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			err = h.renderTemplate(w, "channel.html", page)
 			if err != nil {
-				fmt.Fprintf(w, "ERROR: %s\n", err)
+				http.Error(w, err.Error(), 500)
 			}
 			return
 		} else if r.URL.Path == "/logs" {
