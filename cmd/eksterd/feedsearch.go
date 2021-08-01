@@ -56,18 +56,12 @@ func findFeeds(cachingFetch fetch.FetcherFunc, feedURL string) ([]microsub.Feed,
 		for _, alt := range alts {
 			relURL := md.RelURLs[alt]
 			log.Printf("alternate found with type %s %#v\n", relURL.Type, relURL)
+
 			if isSupportedFeedType(relURL.Type) {
-				feedResp, err := cachingFetch(alt)
-				if err != nil {
-					return nil, fmt.Errorf("fetch of %s: %v", alt, err)
-				}
+				parsedFeed, err := fetchAlternateFeed(cachingFetch, alt)
 
-				// FIXME: don't defer in for loop (possible memory leak)
-				defer feedResp.Body.Close()
-
-				parsedFeed, err := fetch.FeedHeader(cachingFetch, alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
 				if err != nil {
-					return nil, fmt.Errorf("in parse of %s: %v", alt, err)
+					continue
 				}
 
 				feeds = append(feeds, parsedFeed)
@@ -75,6 +69,22 @@ func findFeeds(cachingFetch fetch.FetcherFunc, feedURL string) ([]microsub.Feed,
 		}
 	}
 	return feeds, nil
+}
+
+func fetchAlternateFeed(cachingFetch fetch.FetcherFunc, altURL string) (microsub.Feed, error) {
+	feedResp, err := cachingFetch(altURL)
+	if err != nil {
+		return microsub.Feed{}, fmt.Errorf("fetch of %s: %v", altURL, err)
+	}
+
+	defer feedResp.Body.Close()
+
+	parsedFeed, err := fetch.FeedHeader(cachingFetch, altURL, feedResp.Header.Get("Content-Type"), feedResp.Body)
+	if err != nil {
+		return microsub.Feed{}, fmt.Errorf("in parse of %s: %v", altURL, err)
+	}
+
+	return parsedFeed, nil
 }
 
 func getPossibleURLs(query string) []string {
