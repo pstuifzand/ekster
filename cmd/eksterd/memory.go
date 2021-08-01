@@ -25,7 +25,6 @@ import (
 	"p83.nl/go/ekster/pkg/util"
 
 	"github.com/gomodule/redigo/redis"
-	"willnorris.com/go/microformats"
 )
 
 // DefaultPrio is the priority value for new channels
@@ -423,42 +422,6 @@ func (b *memoryBackend) UnfollowURL(uid string, url string) error {
 	return nil
 }
 
-func checkURL(u string) bool {
-	testURL, err := url.Parse(u)
-	if err != nil {
-		return false
-	}
-
-	resp, err := http.Head(testURL.String())
-
-	if err != nil {
-		log.Printf("Error while HEAD %s: %v\n", u, err)
-		return false
-	}
-
-	defer resp.Body.Close()
-
-	return resp.StatusCode == 200
-}
-
-func getPossibleURLs(query string) []string {
-	urls := []string{}
-	if !(strings.HasPrefix(query, "https://") || strings.HasPrefix(query, "http://")) {
-		secureURL := "https://" + query
-		if checkURL(secureURL) {
-			urls = append(urls, secureURL)
-		} else {
-			unsecureURL := "http://" + query
-			if checkURL(unsecureURL) {
-				urls = append(urls, unsecureURL)
-			}
-		}
-	} else {
-		urls = append(urls, query)
-	}
-	return urls
-}
-
 func (b *memoryBackend) ItemSearch(channel, query string) ([]microsub.Item, error) {
 	return querySearch(channel, query)
 }
@@ -471,63 +434,13 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 
 	cachingFetch := WithCaching(b.pool, Fetch2)
 
-	for _, u := range urls {
-		log.Println(u)
-		resp, err := cachingFetch(u)
+	for _, feedURL := range urls {
+		log.Println(feedURL)
+		foundFeeds, err := findFeeds(cachingFetch, feedURL)
 		if err != nil {
-			log.Printf("Error while fetching %s: %v\n", u, err)
-			continue
+			log.Printf("error while finding feeds: %v", err)
 		}
-		defer resp.Body.Close()
-
-		fetchURL, err := url.Parse(u)
-		md := microformats.Parse(resp.Body, fetchURL)
-		if err != nil {
-			log.Printf("Error while fetching %s: %v\n", u, err)
-			continue
-		}
-
-		feedResp, err := cachingFetch(fetchURL.String())
-		if err != nil {
-			log.Printf("Error in fetch of %s - %v\n", fetchURL, err)
-			continue
-		}
-		defer feedResp.Body.Close()
-
-		// TODO: Combine FeedHeader and FeedItems so we can use it here
-		parsedFeed, err := fetch.FeedHeader(cachingFetch, fetchURL.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
-		if err != nil {
-			log.Printf("Error in parse of %s - %v\n", fetchURL, err)
-			continue
-		}
-
-		// TODO: Only include the feed if it contains some items
-		feeds = append(feeds, parsedFeed)
-
-		if alts, e := md.Rels["alternate"]; e {
-			for _, alt := range alts {
-				relURL := md.RelURLs[alt]
-				log.Printf("alternate found with type %s %#v\n", relURL.Type, relURL)
-
-				if strings.HasPrefix(relURL.Type, "text/html") || strings.HasPrefix(relURL.Type, "application/json") || strings.HasPrefix(relURL.Type, "application/xml") || strings.HasPrefix(relURL.Type, "text/xml") || strings.HasPrefix(relURL.Type, "application/rss+xml") || strings.HasPrefix(relURL.Type, "application/atom+xml") {
-					feedResp, err := cachingFetch(alt)
-					if err != nil {
-						log.Printf("Error in fetch of %s - %v\n", alt, err)
-						continue
-					}
-					// FIXME: don't defer in for loop (possible memory leak)
-					defer feedResp.Body.Close()
-
-					parsedFeed, err := fetch.FeedHeader(cachingFetch, alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
-					if err != nil {
-						log.Printf("Error in parse of %s - %v\n", alt, err)
-						continue
-					}
-
-					feeds = append(feeds, parsedFeed)
-				}
-			}
-		}
+		feeds = append(feeds, foundFeeds...)
 	}
 
 	return feeds, nil
