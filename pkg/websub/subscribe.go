@@ -21,12 +21,12 @@ import (
 func GetHubURL(client *http.Client, topic string) (string, error) {
 	hubURL, err := parseLinkHeaders(client, topic)
 	if err == nil {
-		return hubURL, err
+		return hubURL, nil
 	}
 
 	hubURL, err = parseBodyLinks(client, topic)
 	if err == nil {
-		return hubURL, err
+		return hubURL, nil
 	}
 
 	return "", fmt.Errorf("no hub url found for topic %s", topic)

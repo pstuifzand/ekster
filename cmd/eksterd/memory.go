@@ -114,12 +114,7 @@ func (b *memoryBackend) load() error {
 	}
 	defer f.Close()
 	jw := json.NewDecoder(f)
-	err = jw.Decode(b)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return jw.Decode(b)
 }
 
 func (b *memoryBackend) refreshChannels() {
@@ -558,12 +553,7 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) error {
 		return err
 	}
 
-	err = b.updateChannelUnreadCount(channel)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return b.updateChannelUnreadCount(channel)
 }
 
 func (b *memoryBackend) Events() (chan sse.Message, error) {
@@ -586,12 +576,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 		}
 	}
 
-	err = b.updateChannelUnreadCount(channel)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return b.updateChannelUnreadCount(channel)
 }
 
 // Fetch3 fills stuff

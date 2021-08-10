@@ -85,8 +85,7 @@ func (timeline *redisSortedSetTimeline) Items(before, after string) (microsub.Ti
 		item := microsub.Item{}
 		err := json.Unmarshal(obj, &item)
 		if err != nil {
-			// FIXME: what should we do if one of the items doen't unmarshal?
-			log.Println(err)
+			log.Printf("item doesn not unmarshal: %v", err)
 			continue
 		}
 		item.Read = false

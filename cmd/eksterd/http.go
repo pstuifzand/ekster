@@ -119,11 +119,7 @@ func (h *mainHandler) renderTemplate(w io.Writer, filename string, data interfac
 	if err != nil {
 		return err
 	}
-	err = t.ExecuteTemplate(w, filename, data)
-	if err != nil {
-		return err
-	}
-	return nil
+	return t.ExecuteTemplate(w, filename, data)
 }
 
 func getSessionCookie(w http.ResponseWriter, r *http.Request) string {
@@ -154,11 +150,7 @@ func loadSession(sessionVar string, conn redis.Conn) (session, error) {
 	}
 
 	err = redis.ScanStruct(data, &sess)
-	if err != nil {
-		return sess, err
-	}
-
-	return sess, nil
+	return sess, err
 }
 
 func saveSession(sessionVar string, sess *session, conn redis.Conn) error {

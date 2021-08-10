@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -11,7 +12,7 @@ import (
 var index bleve.Index
 
 func initSearch() error {
-	if _, err := os.Stat("items.bleve"); os.IsNotExist(err) {
+	if _, err := os.Stat("items.bleve"); errors.Is(err, os.ErrNotExist) {
 		mapping := bleve.NewIndexMapping()
 		index, err = bleve.New("items.bleve", mapping)
 		if err != nil {
