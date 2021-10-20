@@ -125,7 +125,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "internal server error", 500)
 			}
 		} else {
-			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 400)
+			http.Error(w, fmt.Sprintf("unknown action %s", action), 400)
 			return
 		}
 		return
@@ -182,6 +182,13 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			respondJSON(w, []string{})
+		} else if action == "preview" {
+			timeline, err := h.backend.PreviewURL(values.Get("url"))
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			respondJSON(w, timeline)
 		} else if action == "search" {
 			query := values.Get("query")
 			channel := values.Get("channel")

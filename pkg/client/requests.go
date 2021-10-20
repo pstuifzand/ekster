@@ -88,7 +88,7 @@ func (c *Client) microsubPostRequest(action string, args map[string]string) (*ht
 
 	if res.StatusCode != 200 {
 		msg, _ := ioutil.ReadAll(res.Body)
-		return nil, fmt.Errorf("unsuccessful response: %d: %q", res.StatusCode, string(msg))
+		return nil, fmt.Errorf("unsuccessful response: %d: %q", res.StatusCode, strings.TrimSpace(string(msg)))
 	}
 
 	return res, err
@@ -116,7 +116,7 @@ func (c *Client) microsubPostFormRequest(action string, args map[string]string, 
 
 	if res.StatusCode != 200 {
 		msg, _ := ioutil.ReadAll(res.Body)
-		return nil, fmt.Errorf("unsuccessful response: %d: %q", res.StatusCode, string(msg))
+		return nil, fmt.Errorf("unsuccessful response: %d: %q", res.StatusCode, strings.TrimSpace(string(msg)))
 	}
 
 	return res, err
@@ -180,7 +180,7 @@ func (c *Client) TimelineGet(before, after, channel string) (microsub.Timeline, 
 func (c *Client) PreviewURL(url string) (microsub.Timeline, error) {
 	args := make(map[string]string)
 	args["url"] = url
-	res, err := c.microsubGetRequest("preview", args)
+	res, err := c.microsubPostRequest("preview", args)
 	if err != nil {
 		return microsub.Timeline{}, err
 	}
