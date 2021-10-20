@@ -1,4 +1,5 @@
 kind: pipeline
+type: docker
 name: default
 
 workspace:
@@ -20,6 +21,8 @@ steps:
 
   - name: publish-personal
     image: plugins/docker
+    depends_on:
+      - testing
     settings:
       repo: registry.stuifzandapp.com/microsub-server
       registry: registry.stuifzandapp.com
@@ -30,6 +33,8 @@ steps:
 
   - name: publish-docker
     image: plugins/docker
+    depends_on:
+      - testing
     settings:
       repo: pstuifzand/ekster
       tags:
@@ -41,6 +46,8 @@ steps:
 
   - name: deploy
     image: appleboy/drone-ssh
+    depends_on:
+      - publish-personal
     settings:
       host: microsub.stuifzandapp.com
       username: microsub
