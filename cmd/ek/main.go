@@ -126,7 +126,7 @@ Usage:
 
 Commands:
 
-	connect URL                  login to Indieauth URL, e.g. your website
+	connect URL                  login to a website that supports Indieauth and Microsub
 
 	channels                     list channels
 	channels NAME                create channel with NAME
