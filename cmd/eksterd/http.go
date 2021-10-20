@@ -658,11 +658,8 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			w.Header().Add("Content-Type", "application/json")
-			enc := json.NewEncoder(w)
-			err = enc.Encode(&res)
-			if err != nil {
+			if err := json.NewEncoder(w).Encode(&res); err != nil {
 				log.Println(err)
-				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
 			return
