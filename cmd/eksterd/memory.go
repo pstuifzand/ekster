@@ -609,9 +609,10 @@ func ProcessSourcedItems(fetcher fetch.FetcherFunc, fetchURL, contentType string
 		return nil, err
 	}
 
-	for _, item := range items {
+	for i, item := range items {
 		item.Read = false
 		item.Source = source
+		items[i] = item
 	}
 
 	return items, nil
