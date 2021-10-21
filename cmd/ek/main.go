@@ -351,7 +351,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	}
 
 	if len(commands) == 2 && commands[0] == "follow" {
-		uid := commands[1]
+		uid, _ := channelID(sub, commands[1])
 		feeds, err := sub.FollowGetList(uid)
 		if err != nil {
 			log.Fatalf("An error occurred: %s\n", err)
