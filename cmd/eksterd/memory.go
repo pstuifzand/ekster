@@ -290,6 +290,21 @@ func (b *memoryBackend) ChannelsDelete(uid string) error {
 	return nil
 }
 
+func (b *memoryBackend) removeFeed(feedID string) error {
+	b.lock.Lock()
+	for uid := range b.Channels {
+		feeds := b.Feeds[uid]
+		for i, feed := range feeds {
+			if feed.URL == feedID {
+				feeds = append(feeds[:i], feeds[i+1:]...)
+			}
+		}
+		b.Feeds[uid] = feeds
+	}
+	b.lock.Unlock()
+	return nil
+}
+
 func (b *memoryBackend) getFeeds() map[string][]string {
 	feeds := make(map[string][]string)
 	b.lock.RLock()

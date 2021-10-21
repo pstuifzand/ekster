@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/stretchr/testify/assert"
 	"p83.nl/go/ekster/pkg/microsub"
 	"p83.nl/go/ekster/pkg/sse"
 )
@@ -108,6 +109,113 @@ func Test_memoryBackend_ChannelsCreate(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ChannelsCreate() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_memoryBackend_removeFeed(t *testing.T) {
+	type fields struct {
+		Channels map[string]microsub.Channel
+		Feeds    map[string][]microsub.Feed
+	}
+	type args struct {
+		feedID string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		lens    map[string]int
+		wantErr bool
+	}{
+		{
+			name: "remove from channel 1",
+			fields: fields{
+				Channels: map[string]microsub.Channel{
+					"123": {UID: "channel1", Name: "Channel 1"},
+					"124": {UID: "channel2", Name: "Channel 2"},
+				},
+				Feeds: map[string][]microsub.Feed{
+					"123": {{Type: "feed", URL: "feed1", Name: "Feed1"}},
+					"124": {{Type: "feed", URL: "feed2", Name: "Feed2"}},
+				},
+			},
+			args:    args{feedID: "feed1"},
+			lens:    map[string]int{"123": 0, "124": 1},
+			wantErr: false,
+		},
+		{
+			name: "remove from channel 2",
+			fields: fields{
+				Channels: map[string]microsub.Channel{
+					"123": {UID: "channel1", Name: "Channel 1"},
+					"124": {UID: "channel2", Name: "Channel 2"},
+				},
+				Feeds: map[string][]microsub.Feed{
+					"123": {{Type: "feed", URL: "feed1", Name: "Feed1"}},
+					"124": {{Type: "feed", URL: "feed2", Name: "Feed2"}},
+				},
+			},
+			args:    args{feedID: "feed2"},
+			lens:    map[string]int{"123": 1, "124": 0},
+			wantErr: false,
+		},
+		{
+			name: "remove unknown",
+			fields: fields{
+				Channels: map[string]microsub.Channel{
+					"123": {UID: "channel1", Name: "Channel 1"},
+					"124": {UID: "channel2", Name: "Channel 2"},
+				},
+				Feeds: map[string][]microsub.Feed{
+					"123": {{Type: "feed", URL: "feed1", Name: "Feed1"}},
+					"124": {{Type: "feed", URL: "feed2", Name: "Feed2"}},
+				},
+			},
+			args:    args{feedID: "feed3"},
+			lens:    map[string]int{"123": 1, "124": 1},
+			wantErr: false,
+		},
+		{
+			name: "remove from 0 channels",
+			fields: fields{
+				Channels: map[string]microsub.Channel{},
+				Feeds:    map[string][]microsub.Feed{},
+			},
+			args:    args{feedID: "feed3"},
+			lens:    map[string]int{},
+			wantErr: false,
+		},
+		{
+			name: "remove from multiple channels",
+			fields: fields{
+				Channels: map[string]microsub.Channel{
+					"123": {UID: "channel1", Name: "Channel 1"},
+					"124": {UID: "channel2", Name: "Channel 2"},
+				},
+				Feeds: map[string][]microsub.Feed{
+					"123": {{Type: "feed", URL: "feed1", Name: "Feed1"}},
+					"124": {{Type: "feed", URL: "feed1", Name: "Feed1"}},
+				},
+			},
+			args:    args{feedID: "feed1"},
+			lens:    map[string]int{"123": 0, "124": 0},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &memoryBackend{
+				Channels: tt.fields.Channels,
+				Feeds:    tt.fields.Feeds,
+			}
+			if err := b.removeFeed(tt.args.feedID); (err != nil) != tt.wantErr {
+				t.Errorf("removeFeed() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			assert.Len(t, b.Channels, len(tt.lens))
+			for k, v := range tt.lens {
+				assert.Len(t, b.Feeds[k], v)
 			}
 		})
 	}
