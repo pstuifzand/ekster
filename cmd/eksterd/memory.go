@@ -555,7 +555,8 @@ func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error)
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
 	defer resp.Body.Close()
-	items, err := fetch.FeedItems(cachingFetch, previewURL, resp.Header.Get("content-type"), resp.Body)
+
+	items, err := ProcessSourcedItems(cachingFetch, previewURL, resp.Header.Get("content-type"), resp.Body)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
@@ -585,12 +586,11 @@ func (b *memoryBackend) Events() (chan sse.Message, error) {
 	return sse.StartConnection(b.broker)
 }
 
-func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
-	cachingFetch := WithCaching(b.pool, Fetch2)
-
+// ProcessSourcedItems processes items and adds the Source
+func ProcessSourcedItems(fetcher fetch.FetcherFunc, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
 	// When the source is available from the Header, we fill the Source of the item
 	var source *microsub.Source
-	if header, err := fetch.FeedHeader(cachingFetch, fetchURL, contentType, body); err == nil {
+	if header, err := fetch.FeedHeader(fetcher, fetchURL, contentType, body); err == nil {
 		source = &microsub.Source{
 			ID:    header.URL,
 			URL:   header.URL,
@@ -604,14 +604,28 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 		}
 	}
 
-	items, err := fetch.FeedItems(cachingFetch, fetchURL, contentType, body)
+	items, err := fetch.FeedItems(fetcher, fetchURL, contentType, body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, item := range items {
 		item.Read = false
 		item.Source = source
+	}
+
+	return items, nil
+}
+
+func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
+	cachingFetch := WithCaching(b.pool, Fetch2)
+
+	items, err := ProcessSourcedItems(cachingFetch, fetchURL, contentType, body)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range items {
 		err = b.channelAddItemWithMatcher(channel, item)
 		if err != nil {
 			log.Printf("ERROR: %s\n", err)
