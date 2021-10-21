@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -589,8 +590,14 @@ func (b *memoryBackend) Events() (chan sse.Message, error) {
 // ProcessSourcedItems processes items and adds the Source
 func ProcessSourcedItems(fetcher fetch.FetcherFunc, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
 	// When the source is available from the Header, we fill the Source of the item
+
+	bodyBytes, err := ioutil.ReadAll(body)
+	if err != nil {
+		return nil, err
+	}
+
 	var source *microsub.Source
-	if header, err := fetch.FeedHeader(fetcher, fetchURL, contentType, body); err == nil {
+	if header, err := fetch.FeedHeader(fetcher, fetchURL, contentType, bytes.NewBuffer(bodyBytes)); err == nil {
 		source = &microsub.Source{
 			ID:    header.URL,
 			URL:   header.URL,
@@ -604,7 +611,7 @@ func ProcessSourcedItems(fetcher fetch.FetcherFunc, fetchURL, contentType string
 		}
 	}
 
-	items, err := fetch.FeedItems(fetcher, fetchURL, contentType, body)
+	items, err := fetch.FeedItems(fetcher, fetchURL, contentType, bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		return nil, err
 	}
