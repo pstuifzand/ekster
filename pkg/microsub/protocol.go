@@ -82,6 +82,15 @@ type Item struct {
 	Refs       map[string]Item `json:"refs,omitempty"`
 	ID         string          `json:"_id,omitempty"`
 	Read       bool            `json:"_is_read"`
+	Source     *Source         `json:"_source,omitempty"`
+}
+
+// Source is an Item source
+type Source struct {
+	ID    string `json:"_id"`
+	URL   string `json:"url"`
+	Name  string `json:"name"`
+	Photo string `json:"photo"`
 }
 
 // Pagination contains information about paging

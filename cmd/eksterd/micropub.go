@@ -60,6 +60,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// TODO: We could try to fill the Source of the Item with something, but what?
 		item, err := parseIncomingItem(r)
 		if err != nil {
 			http.Error(w, err.Error(), 400)
@@ -78,6 +79,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("could not add item to channel %s: %v", channel, err)
 		}
+
 		err = h.Backend.updateChannelUnreadCount(channel)
 		if err != nil {
 			log.Printf("could not update channel unread content %s: %v", channel, err)

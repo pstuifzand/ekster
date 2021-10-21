@@ -588,6 +588,22 @@ func (b *memoryBackend) Events() (chan sse.Message, error) {
 func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
 	cachingFetch := WithCaching(b.pool, Fetch2)
 
+	// When the source is available from the Header, we fill the Source of the item
+	var source *microsub.Source
+	if header, err := fetch.FeedHeader(cachingFetch, fetchURL, contentType, body); err == nil {
+		source = &microsub.Source{
+			ID:    header.URL,
+			URL:   header.URL,
+			Name:  header.Name,
+			Photo: header.Photo,
+		}
+	} else {
+		source = &microsub.Source{
+			ID:  fetchURL,
+			URL: fetchURL,
+		}
+	}
+
 	items, err := fetch.FeedItems(cachingFetch, fetchURL, contentType, body)
 	if err != nil {
 		return err
@@ -595,6 +611,7 @@ func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, bo
 
 	for _, item := range items {
 		item.Read = false
+		item.Source = source
 		err = b.channelAddItemWithMatcher(channel, item)
 		if err != nil {
 			log.Printf("ERROR: %s\n", err)
