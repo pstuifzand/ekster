@@ -832,17 +832,11 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 }
 
 func (b *memoryBackend) getTimeline(channel string) timeline.Backend {
-	timelineType := "sorted-set"
-	if channel == "notifications" {
-		timelineType = "stream"
-	} else {
-		if setting, ok := b.Settings[channel]; ok {
-			if setting.ChannelType != "" {
-				timelineType = setting.ChannelType
-			}
-		}
+	// Set a default timeline type if not set
+	timelineType := "postgres-stream"
+	if setting, ok := b.Settings[channel]; ok && setting.ChannelType != "" {
+		timelineType = setting.ChannelType
 	}
-
 	tl := timeline.Create(channel, timelineType, b.pool, b.database)
 	if tl == nil {
 		log.Printf("no timeline found with name %q and type %q", channel, timelineType)

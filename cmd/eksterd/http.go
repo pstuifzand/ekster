@@ -374,13 +374,8 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					} else {
 						page.CurrentSetting = channelSetting{}
 					}
-					// FIXME: similar code is found in timeline.go
 					if page.CurrentSetting.ChannelType == "" {
-						if v.UID == "notifications" {
-							page.CurrentSetting.ChannelType = "stream"
-						} else {
-							page.CurrentSetting.ChannelType = "sorted-set"
-						}
+						page.CurrentSetting.ChannelType = "postgres-stream"
 					}
 					page.ExcludedTypeNames = map[string]string{
 						"repost":   "Reposts",
