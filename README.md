@@ -140,6 +140,8 @@ support microsub.
       -verbose
             show verbose logging
 
+Instead of the `UID` you can also use the `NAME` of the channel in most functions.
+
 ## Configuration: backend.json
 
 The `backend.json` file contains all information about channels, feeds and authentication.
@@ -152,7 +154,6 @@ The two parts that should be changed are:
 
     "Me": "...",
     "TokenEndpoint": "...",
-
 
 The `Me` value should be set to the URL you use to sign into Monocle, or
 Micropub client.
