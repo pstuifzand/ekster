@@ -50,13 +50,23 @@ CREATE TABLE IF NOT EXISTS "items" (
     "channel_id" int references "channels" on delete cascade,
     "uid" varchar(512) not null unique,
     "is_read" int default 0,
-    "data" json,
+    "data" jsonb,
     "created_at" timestamp DEFAULT current_timestamp,
     "updated_at" timestamp,
     "published_at" timestamp
 );
 `)
 	if err != nil {
+
+		_, err = conn.ExecContext(ctx, `
+ALTER TABLE "items"
+ALTER COLUMN "data" TYPE jsonb
+ALTER COLUMN "uid"  TYPE varchar(1024);
+);
+`)
+		if err != nil {
+			return fmt.Errorf("create items table failed: %w", err)
+		}
 		return fmt.Errorf("create items table failed: %w", err)
 	}
 
