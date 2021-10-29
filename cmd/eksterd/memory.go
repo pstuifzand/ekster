@@ -343,22 +343,21 @@ func (b *memoryBackend) RefreshFeeds() {
 
 	for uid := range feeds {
 		for _, feedURL := range feeds[uid] {
-			log.Println(feedURL)
+			log.Println("Processing", feedURL)
 			resp, err := b.Fetch3(uid, feedURL)
 			if err != nil {
-				_ = b.channelAddItem("notifications", microsub.Item{
-					Type: "entry",
-					Name: "Error while fetching feed",
-					Content: &microsub.Content{
-						Text: fmt.Sprintf("Error while updating feed %s: %v", feedURL, err),
-					},
-					UID: time.Now().String(),
-				})
-				count++
 				log.Printf("Error while Fetch3 of %s: %v\n", feedURL, err)
+				b.addNotification("Error while fetching feed", feedURL, err)
+				count++
 				continue
 			}
-			_ = b.ProcessContent(uid, feedURL, resp.Header.Get("Content-Type"), resp.Body)
+			err = b.ProcessContent(uid, feedURL, resp.Header.Get("Content-Type"), resp.Body)
+			if err != nil {
+				log.Printf("Error while processing content for %s: %v\n", feedURL, err)
+				b.addNotification("Error while processing feed", feedURL, err)
+				count++
+				continue
+			}
 			_ = resp.Body.Close()
 		}
 	}
@@ -366,6 +365,17 @@ func (b *memoryBackend) RefreshFeeds() {
 	if count > 0 {
 		_ = b.updateChannelUnreadCount("notifications")
 	}
+}
+
+func (b *memoryBackend) addNotification(name string, feedURL string, err error) {
+	_ = b.channelAddItem("notifications", microsub.Item{
+		Type: "entry",
+		Name: name,
+		Content: &microsub.Content{
+			Text: fmt.Sprintf("Error while updating feed %s: %v", feedURL, err),
+		},
+		UID: time.Now().String(),
+	})
 }
 
 func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Timeline, error) {
