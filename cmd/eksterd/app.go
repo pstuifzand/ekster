@@ -42,7 +42,7 @@ func NewApp(options AppOptions) (*App, error) {
 	app.backend = backend
 
 	// FIXME: load from database
-	app.backend.TokenEndpoint = "https://p83.nl/auth/token"
+	app.backend.TokenEndpoint = "https://p83.nl/authtoken"
 	app.backend.Me = "https://p83.nl/"
 
 	app.backend.AuthEnabled = options.AuthEnabled
