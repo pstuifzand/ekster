@@ -549,7 +549,7 @@ func (b *memoryBackend) ProcessContent(channel, feedID, fetchURL, contentType st
 		item.Source.ID = feedID
 		err = b.channelAddItemWithMatcher(channel, item)
 		if err != nil {
-			log.Printf("ERROR: %s\n", err)
+			log.Printf("ERROR: (feedID=%s) %s\n", feedID, err)
 		}
 	}
 
