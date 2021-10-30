@@ -17,14 +17,20 @@ package main
 
 import (
 	"database/sql"
+	"embed"
+	_ "expvar"
 	"flag"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
 	"p83.nl/go/ekster/pkg/auth"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/gomodule/redigo/redis"
 )
 
 // AppOptions are options for the app
@@ -38,6 +44,9 @@ type AppOptions struct {
 	pool        *redis.Pool
 	database    *sql.DB
 }
+
+//go:embed db/migrations/*.sql
+var migrations embed.FS
 
 func init() {
 	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
@@ -126,28 +135,36 @@ func main() {
 			log.Fatal("EKSTER_TEMPLATES environment variable not found, use env var or -templates dir option")
 		}
 	}
+	//
+	// createBackend := false
+	// args := flag.Args()
+	//
+	// if len(args) >= 1 {
+	// 	if args[0] == "new" {
+	// 		createBackend = true
+	// 	}
+	// }
+	//
+	// if createBackend {
+	// 	err := createMemoryBackend()
+	// 	if err != nil {
+	// 		log.Fatalf("Error while saving backend.json: %s", err)
+	// 	}
+	//
+	// TODO(peter): automatically gather this information from login or otherwise
+	//
+	// 	log.Println(`Config file "backend.json" is created in the current directory.`)
+	// 	log.Println(`Update "Me" variable to your website address "https://example.com/"`)
+	// 	log.Println(`Update "TokenEndpoint" variable to the address of your token endpoint "https://example.com/token"`)
+	//
+	// 	return
+	// }
 
-	createBackend := false
-	args := flag.Args()
+	// TODO(peter): automatically gather this information from login or otherwise
 
-	if len(args) >= 1 {
-		if args[0] == "new" {
-			createBackend = true
-		}
-	}
-
-	if createBackend {
-		err := createMemoryBackend()
-		if err != nil {
-			log.Fatalf("Error while saving backend.json: %s", err)
-		}
-
-		// TODO(peter): automatically gather this information from login or otherwise
-		log.Println(`Config file "backend.json" is created in the current directory.`)
-		log.Println(`Update "Me" variable to your website address "https://example.com/"`)
-		log.Println(`Update "TokenEndpoint" variable to the address of your token endpoint "https://example.com/token"`)
-
-		return
+	err := runMigrations()
+	if err != nil {
+		log.Fatalf("Error with migrations: %s", err)
 	}
 
 	pool := newPool(options.RedisServer)
@@ -166,4 +183,39 @@ func main() {
 	log.Fatal(app.Run())
 
 	db.Close()
+}
+
+// Log migrations
+type Log struct {
+}
+
+// Printf for migrations logs
+func (l Log) Printf(format string, v ...interface{}) {
+	log.Printf(format, v...)
+}
+
+// Verbose returns false
+func (l Log) Verbose() bool {
+	return false
+}
+
+func runMigrations() error {
+	d, err := iofs.New(migrations, "db/migrations")
+	if err != nil {
+		return err
+	}
+	m, err := migrate.NewWithSourceInstance("iofs", d, "postgres://postgres@database/ekster?sslmode=disable&user=postgres&password=simple")
+	if err != nil {
+		return err
+	}
+	defer m.Close()
+	m.Log = &Log{}
+	log.Println("Running migrations")
+	if err = m.Up(); err != nil {
+		if err != migrate.ErrNoChange {
+			return err
+		}
+	}
+	log.Println("Migrations are up")
+	return nil
 }

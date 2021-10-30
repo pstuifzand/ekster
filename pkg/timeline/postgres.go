@@ -2,9 +2,12 @@ package timeline
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,46 +35,46 @@ func (p *postgresStream) Init() error {
 	if err != nil {
 		return fmt.Errorf("database ping failed: %w", err)
 	}
+	//
+	// 	_, err = conn.ExecContext(ctx, `
+	// CREATE TABLE IF NOT EXISTS "channels" (
+	//     "id" int primary key generated always as identity,
+	//     "name" varchar(255) unique,
+	//     "created_at" timestamp DEFAULT current_timestamp
+	// );
+	// `)
+	// 	if err != nil {
+	// 		return fmt.Errorf("create channels table failed: %w", err)
+	// 	}
+	//
+	// 	_, err = conn.ExecContext(ctx, `
+	// CREATE TABLE IF NOT EXISTS "items" (
+	//     "id" int primary key generated always as identity,
+	//     "channel_id" int references "channels" on delete cascade,
+	//     "uid" varchar(512) not null unique,
+	//     "is_read" int default 0,
+	//     "data" jsonb,
+	//     "created_at" timestamp DEFAULT current_timestamp,
+	//     "updated_at" timestamp,
+	//     "published_at" timestamp
+	// );
+	// `)
+	// 	if err != nil {
+	// 		return fmt.Errorf("create items table failed: %w", err)
+	// 	}
+	//
+	// 	_, err = conn.ExecContext(ctx, `ALTER TABLE "items" ALTER COLUMN "data" TYPE jsonb, ALTER COLUMN "uid"  TYPE varchar(1024)`)
+	// 	if err != nil {
+	// 		return fmt.Errorf("alter items table failed: %w", err)
+	// 	}
 
-	_, err = conn.ExecContext(ctx, `
-CREATE TABLE IF NOT EXISTS "channels" (
-    "id" int primary key generated always as identity,
-    "name" varchar(255) unique,
-    "created_at" timestamp DEFAULT current_timestamp
-);
-`)
-	if err != nil {
-		return fmt.Errorf("create channels table failed: %w", err)
-	}
-
-	_, err = conn.ExecContext(ctx, `
-CREATE TABLE IF NOT EXISTS "items" (
-    "id" int primary key generated always as identity,
-    "channel_id" int references "channels" on delete cascade,
-    "uid" varchar(512) not null unique,
-    "is_read" int default 0,
-    "data" jsonb,
-    "created_at" timestamp DEFAULT current_timestamp,
-    "updated_at" timestamp,
-    "published_at" timestamp
-);
-`)
-	if err != nil {
-		return fmt.Errorf("create items table failed: %w", err)
-	}
-
-	_, err = conn.ExecContext(ctx, `ALTER TABLE "items" ALTER COLUMN "data" TYPE jsonb, ALTER COLUMN "uid"  TYPE varchar(1024)`)
-	if err != nil {
-		return fmt.Errorf("alter items table failed: %w", err)
-	}
-
-	_, err = conn.ExecContext(ctx, `INSERT INTO "channels" ("name", "created_at") VALUES ($1, DEFAULT)
+	_, err = conn.ExecContext(ctx, `INSERT INTO "channels" ("uid", "name", "created_at") VALUES ($1, $1, DEFAULT)
  		ON CONFLICT DO NOTHING`, p.channel)
 	if err != nil {
 		return fmt.Errorf("create channel failed: %w", err)
 	}
 
-	row := conn.QueryRowContext(ctx, `SELECT "id" FROM "channels" WHERE "name" = $1`, p.channel)
+	row := conn.QueryRowContext(ctx, `SELECT "id" FROM "channels" WHERE "uid" = $1`, p.channel)
 	if row == nil {
 		return fmt.Errorf("fetch channel failed: %w", err)
 	}
@@ -144,7 +147,7 @@ WHERE "channel_id" = $1
 		last = publishedAt
 
 		item.Read = isRead == 1
-		item.ID = uid
+		item.ID = strconv.Itoa(id)
 		item.Published = publishedAt
 
 		tl.Items = append(tl.Items, item)
@@ -208,14 +211,23 @@ func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 		}
 		t = t2
 	}
+	if item.UID == "" {
+		h := sha256.Sum256([]byte(fmt.Sprintf("%s:%d", p.channel, time.Now().UnixNano())))
+		item.UID = hex.EncodeToString(h[:])
+	}
+
+	feedID, err := strconv.ParseInt(item.Source.ID, 10, 64)
+	if err != nil {
+		return false, fmt.Errorf("ERROR: item.Source.ID is not an integer %q: %w", item.Source.ID, err)
+	}
 
 	result, err := conn.ExecContext(context.Background(), `
-INSERT INTO "items" ("channel_id", "uid", "data", "published_at", "created_at")
-VALUES ($1, $2, $3, $4, DEFAULT)
+INSERT INTO "items" ("channel_id", "feed_id", "uid", "data", "published_at", "created_at")
+VALUES ($1, $2, $3, $4, $5, DEFAULT)
 ON CONFLICT ON CONSTRAINT "items_uid_key" DO NOTHING
-`, p.channelID, item.ID, &item, t)
+`, p.channelID, feedID, item.UID, &item, t)
 	if err != nil {
-		return false, fmt.Errorf("while adding item: %w", err)
+		return false, fmt.Errorf("insert item: %w", err)
 	}
 	c, err := result.RowsAffected()
 	if err != nil {

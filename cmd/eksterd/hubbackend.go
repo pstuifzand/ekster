@@ -126,8 +126,9 @@ func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body i
 		return err
 	}
 
+	// FIXME: feed id for incoming websub content
 	log.Printf("Updating feed %d - %s %s\n", feedID, u, channel)
-	err = h.backend.ProcessContent(channel, u, contentType, body)
+	err = h.backend.ProcessContent(channel, fmt.Sprintf("incoming:%d", feedID), u, contentType, body)
 	if err != nil {
 		log.Printf("could not process content for channel %s: %s", channel, err)
 	}
