@@ -57,17 +57,12 @@ CREATE TABLE IF NOT EXISTS "items" (
 );
 `)
 	if err != nil {
-
-		_, err = conn.ExecContext(ctx, `
-ALTER TABLE "items"
-ALTER COLUMN "data" TYPE jsonb
-ALTER COLUMN "uid"  TYPE varchar(1024);
-);
-`)
-		if err != nil {
-			return fmt.Errorf("create items table failed: %w", err)
-		}
 		return fmt.Errorf("create items table failed: %w", err)
+	}
+
+	_, err = conn.ExecContext(ctx, `ALTER TABLE "items" ALTER COLUMN "data" TYPE jsonb, ALTER COLUMN "uid"  TYPE varchar(1024)`)
+	if err != nil {
+		return fmt.Errorf("alter items table failed: %w", err)
 	}
 
 	_, err = conn.ExecContext(ctx, `INSERT INTO "channels" ("name", "created_at") VALUES ($1, DEFAULT)
