@@ -495,11 +495,11 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 	// needs to be like this, because we get a null result otherwise in the json output
 	feeds := []microsub.Feed{}
 
-	cachingFetch := WithCaching(b.pool, Fetch2)
+	cachingFetch := WithCaching(b.pool, fetch.FetcherFunc(Fetch2))
 
 	for _, u := range urls {
 		log.Println(u)
-		resp, err := cachingFetch(u)
+		resp, err := cachingFetch.Fetch(u)
 		if err != nil {
 			log.Printf("Error while fetching %s: %v\n", u, err)
 			continue
@@ -513,7 +513,7 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 			continue
 		}
 
-		feedResp, err := cachingFetch(fetchURL.String())
+		feedResp, err := cachingFetch.Fetch(fetchURL.String())
 		if err != nil {
 			log.Printf("Error in fetch of %s - %v\n", fetchURL, err)
 			continue
@@ -536,7 +536,7 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 				log.Printf("alternate found with type %s %#v\n", relURL.Type, relURL)
 
 				if strings.HasPrefix(relURL.Type, "text/html") || strings.HasPrefix(relURL.Type, "application/json") || strings.HasPrefix(relURL.Type, "application/xml") || strings.HasPrefix(relURL.Type, "text/xml") || strings.HasPrefix(relURL.Type, "application/rss+xml") || strings.HasPrefix(relURL.Type, "application/atom+xml") {
-					feedResp, err := cachingFetch(alt)
+					feedResp, err := cachingFetch.Fetch(alt)
 					if err != nil {
 						log.Printf("Error in fetch of %s - %v\n", alt, err)
 						continue
@@ -560,8 +560,8 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 }
 
 func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error) {
-	cachingFetch := WithCaching(b.pool, Fetch2)
-	resp, err := cachingFetch(previewURL)
+	cachingFetch := WithCaching(b.pool, fetch.FetcherFunc(Fetch2))
+	resp, err := cachingFetch.Fetch(previewURL)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
@@ -598,7 +598,7 @@ func (b *memoryBackend) Events() (chan sse.Message, error) {
 }
 
 // ProcessSourcedItems processes items and adds the Source
-func ProcessSourcedItems(fetcher fetch.FetcherFunc, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
+func ProcessSourcedItems(fetcher fetch.Fetcher, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
 	// When the source is available from the Header, we fill the Source of the item
 
 	bodyBytes, err := ioutil.ReadAll(body)
@@ -636,7 +636,7 @@ func ProcessSourcedItems(fetcher fetch.FetcherFunc, fetchURL, contentType string
 }
 
 func (b *memoryBackend) ProcessContent(channel, fetchURL, contentType string, body io.Reader) error {
-	cachingFetch := WithCaching(b.pool, Fetch2)
+	cachingFetch := WithCaching(b.pool, fetch.FetcherFunc(Fetch2))
 
 	items, err := ProcessSourcedItems(cachingFetch, fetchURL, contentType, body)
 	if err != nil {
@@ -827,12 +827,12 @@ func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
 	return nil
 }
 
-// WithCaching adds caching to a FetcherFunc
-func WithCaching(pool *redis.Pool, ff fetch.FetcherFunc) fetch.FetcherFunc {
-	conn := pool.Get()
-	defer conn.Close()
+// WithCaching adds caching to a fetch.Fetcher
+func WithCaching(pool *redis.Pool, ff fetch.Fetcher) fetch.Fetcher {
+	ff2 := (func(fetchURL string) (*http.Response, error) {
+		conn := pool.Get()
+		defer conn.Close()
 
-	return func(fetchURL string) (*http.Response, error) {
 		cacheKey := fmt.Sprintf("http_cache:%s", fetchURL)
 		u, err := url.Parse(fetchURL)
 		if err != nil {
@@ -850,7 +850,7 @@ func WithCaching(pool *redis.Pool, ff fetch.FetcherFunc) fetch.FetcherFunc {
 
 		log.Printf("MISS %s\n", fetchURL)
 
-		resp, err := ff(fetchURL)
+		resp, err := ff.Fetch(fetchURL)
 		if err != nil {
 			return nil, err
 		}
@@ -870,7 +870,8 @@ func WithCaching(pool *redis.Pool, ff fetch.FetcherFunc) fetch.FetcherFunc {
 
 		cachedResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cachedCopy)), req)
 		return cachedResp, err
-	}
+	})
+	return fetch.FetcherFunc(ff2)
 }
 
 // Fetch2 fetches stuff
