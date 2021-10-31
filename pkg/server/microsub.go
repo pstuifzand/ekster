@@ -69,6 +69,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if action == "channels" {
 			channels, err := h.backend.ChannelsGetList()
 			if err != nil {
+				log.Println(err)
 				http.Error(w, err.Error(), 500)
 				return
 			}
@@ -78,6 +79,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "timeline" {
 			timeline, err := h.backend.TimelineGet(values.Get("before"), values.Get("after"), values.Get("channel"))
 			if err != nil {
+				log.Println(err)
 				http.Error(w, err.Error(), 500)
 				return
 			}
@@ -85,6 +87,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "preview" {
 			timeline, err := h.backend.PreviewURL(values.Get("url"))
 			if err != nil {
+				log.Println(err)
 				http.Error(w, err.Error(), 500)
 				return
 			}
@@ -93,6 +96,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			channel := values.Get("channel")
 			following, err := h.backend.FollowGetList(channel)
 			if err != nil {
+				log.Println(err)
 				http.Error(w, err.Error(), 500)
 				return
 			}
@@ -102,6 +106,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "events" {
 			events, err := h.backend.Events()
 			if err != nil {
+				log.Println(err)
 				http.Error(w, "could not start sse connection", 500)
 			}
 
@@ -141,6 +146,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if method == "delete" {
 				err := h.backend.ChannelsDelete(uid)
 				if err != nil {
+					log.Println(err)
 					http.Error(w, err.Error(), 500)
 					return
 				}
@@ -151,6 +157,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if uid == "" {
 				channel, err := h.backend.ChannelsCreate(name)
 				if err != nil {
+					log.Println(err)
 					http.Error(w, err.Error(), 500)
 					return
 				}
@@ -158,6 +165,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			} else if name != "" {
 				channel, err := h.backend.ChannelsUpdate(uid, name)
 				if err != nil {
+					log.Println(err)
 					http.Error(w, err.Error(), 500)
 					return
 				}
