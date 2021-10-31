@@ -319,15 +319,16 @@ func (b *memoryBackend) FollowURL(uid string, url string) (microsub.Feed, error)
 		}
 	}
 
-	result, err := b.database.Exec(
-		`INSERT INTO "feeds" ("channel_id", "url") VALUES ($1, $2)`,
+	row := b.database.QueryRow(
+		`INSERT INTO "feeds" ("channel_id", "url") VALUES ($1, $2) RETURNING "id"`,
 		channelID,
 		feed.URL,
 	)
-	if err != nil {
-		return microsub.Feed{}, err
+	if row == nil {
+		return microsub.Feed{}, fmt.Errorf("no feed_id")
 	}
-	feedID, _ := result.LastInsertId()
+	var feedID int
+	_ = row.Scan(&feedID)
 
 	resp, err := b.Fetch3(uid, feed.URL)
 	if err != nil {
