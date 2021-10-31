@@ -67,6 +67,10 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 400)
 			return
 		}
+		log.Printf("Item published: %s", item.Published)
+		if item.Published == "" {
+			item.Published = time.Now().Format(time.RFC3339)
+		}
 
 		item.Read = false
 		newID, err := generateItemID(conn, channel)
