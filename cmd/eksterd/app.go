@@ -47,10 +47,14 @@ func NewApp(options AppOptions) (*App, error) {
 
 	app.backend.AuthEnabled = options.AuthEnabled
 	app.backend.baseURL = options.BaseURL
+
+	// FIXME: circular
 	app.backend.hubIncomingBackend.pool = options.pool
 	app.backend.hubIncomingBackend.baseURL = options.BaseURL
+	app.backend.hubIncomingBackend.backend = app.backend
 
 	app.hubBackend = &hubIncomingBackend{backend: app.backend, baseURL: options.BaseURL, pool: options.pool}
+	app.backend.hubIncomingBackend = *app.hubBackend
 
 	http.Handle("/micropub", &micropubHandler{
 		Backend: app.backend,
