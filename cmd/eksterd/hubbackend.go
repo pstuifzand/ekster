@@ -132,7 +132,7 @@ func (h *hubIncomingBackend) UpdateFeed(subscriptionID int64, contentType string
 	}
 
 	for rows.Next() {
-		err = rows.Scan(&topic, channel, feedID)
+		err = rows.Scan(&topic, &channel, &feedID)
 		if err != nil {
 			log.Println(err)
 			continue
