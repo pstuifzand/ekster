@@ -6,12 +6,8 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"p83.nl/go/ekster/pkg/util"
 	"p83.nl/go/ekster/pkg/websub"
 
@@ -23,9 +19,8 @@ const LeaseSeconds = 24 * 60 * 60
 
 // HubBackend handles information for the incoming handler
 type HubBackend interface {
-	GetFeeds() []Feed // Deprecated
 	Feeds() ([]Feed, error)
-	CreateFeed(url, channel string) (int64, error)
+	CreateFeed(url string) (int64, error)
 	GetSecret(feedID int64) string
 	UpdateFeed(feedID int64, contentType string, body io.Reader) error
 	FeedSetLeaseSeconds(feedID int64, leaseSeconds int64) error
@@ -40,14 +35,13 @@ type hubIncomingBackend struct {
 
 // Feed contains information about the feed subscriptions
 type Feed struct {
-	ID            int64  `redis:"id"`
-	Channel       string `redis:"channel"`
-	URL           string `redis:"url"`
-	Callback      string `redis:"callback"`
-	Hub           string `redis:"hub"`
-	Secret        string `redis:"secret"`
-	LeaseSeconds  int64  `redis:"lease_seconds"`
-	ResubscribeAt int64  `redis:"resubscribe_at"`
+	ID            int64
+	URL           string
+	Callback      string
+	Hub           string
+	Secret        string
+	LeaseSeconds  int64
+	ResubscribeAt time.Time
 }
 
 var (
@@ -59,29 +53,34 @@ func init() {
 }
 
 func (h *hubIncomingBackend) GetSecret(id int64) string {
-	conn := h.pool.Get()
-	defer conn.Close()
-	secret, err := redis.String(conn.Do("HGET", fmt.Sprintf("feed:%d", id), "secret"))
+	db := h.backend.database
+	var secret string
+	err := db.QueryRow(
+		`select "subscription_secret" from "subscriptions" where "id" = $1`,
+		id,
+	).Scan(&secret)
 	if err != nil {
 		return ""
 	}
 	return secret
 }
 
-func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, error) {
-	conn := h.pool.Get()
-	defer conn.Close()
+func (h *hubIncomingBackend) CreateFeed(topic string) (int64, error) {
+	db := h.backend.database
 
-	// TODO(peter): check if topic already is registered
-	id, err := redis.Int64(conn.Do("INCR", "feed:next_id"))
+	secret := util.RandStringBytes(32)
+	urlSecret := util.RandStringBytes(32)
+
+	var subscriptionID int
+	err := db.QueryRow(`
+INSERT INTO "subscriptions" ("topic","subscription_secret", "url_secret", "lease_seconds", "created_at")
+VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*60*24*7).Scan(&subscriptionID)
 	if err != nil {
 		return 0, err
 	}
-
-	conn.Do("HSET", fmt.Sprintf("feed:%d", id), "url", topic)
-	conn.Do("HSET", fmt.Sprintf("feed:%d", id), "channel", channel)
-	secret := util.RandStringBytes(16)
-	conn.Do("HSET", fmt.Sprintf("feed:%d", id), "secret", secret)
+	if err != nil {
+		return 0, fmt.Errorf("insert into subscriptions: %w", err)
+	}
 
 	client := &http.Client{}
 
@@ -91,136 +90,95 @@ func (h *hubIncomingBackend) CreateFeed(topic string, channel string) (int64, er
 		return 0, err
 	}
 
-	callbackURL := fmt.Sprintf("%s/incoming/%d", h.baseURL, id)
+	callbackURL := fmt.Sprintf("%s/incoming/%d", h.baseURL, subscriptionID)
 
 	log.Printf("WebSub Hub URL found for topic=%q hub=%q callback=%q\n", topic, hubURL, callbackURL)
 
 	if err == nil && hubURL != "" {
-		args := redis.Args{}.Add(fmt.Sprintf("feed:%d", id), "hub", hubURL, "callback", callbackURL)
-		_, err = conn.Do("HMSET", args...)
+		_, err := db.Exec(`UPDATE subscriptions SET hub = $1, callback = $2 WHERE id = $3`, subscriptionID, hubURL, callbackURL)
 		if err != nil {
-			return 0, errors.Wrap(err, "could not write to redis backend")
+			return 0, fmt.Errorf("save hub and callback: %w", err)
 		}
 	} else {
-		return id, nil
+		return int64(subscriptionID), nil
 	}
 
 	err = websub.Subscribe(client, hubURL, topic, callbackURL, secret, 24*3600)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("subscribe: %w", err)
 	}
 
-	return id, nil
+	return int64(subscriptionID), nil
 }
 
-func (h *hubIncomingBackend) UpdateFeed(feedID int64, contentType string, body io.Reader) error {
-	conn := h.pool.Get()
-	defer conn.Close()
-	log.Printf("updating feed %d", feedID)
-	u, err := redis.String(conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "url"))
-	if err != nil {
-		return err
-	}
-	channel, err := redis.String(conn.Do("HGET", fmt.Sprintf("feed:%d", feedID), "channel"))
+func (h *hubIncomingBackend) UpdateFeed(subscriptionID int64, contentType string, body io.Reader) error {
+	db := h.backend.database
+	var (
+		topic   string
+		channel string
+		feedID  string
+	)
+
+	// Process all channels that contains this feed
+	rows, err := db.Query(
+		`select topic, c.uid, f.id from subscriptions s inner join feeds f on f.url = s.topic inner join channels c on c.id = f.channel_id where s.id = $1`,
+		subscriptionID,
+	)
 	if err != nil {
 		return err
 	}
 
-	// FIXME: feed id for incoming websub content
-	log.Printf("Updating feed %d - %s %s\n", feedID, u, channel)
-	err = h.backend.ProcessContent(channel, fmt.Sprintf("incoming:%d", feedID), u, contentType, body)
-	if err != nil {
-		log.Printf("could not process content for channel %s: %s", channel, err)
+	for rows.Next() {
+		err = rows.Scan(&topic, channel, feedID)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		log.Printf("Updating feed %s %q in %q\n", feedID, topic, channel)
+		err = h.backend.ProcessContent(channel, feedID, topic, contentType, body)
+		if err != nil {
+			log.Printf("could not process content for channel %s: %s", channel, err)
+		}
 	}
 
 	return err
 }
 
-func (h *hubIncomingBackend) FeedSetLeaseSeconds(feedID int64, leaseSeconds int64) error {
-	conn := h.pool.Get()
-	defer conn.Close()
-	log.Printf("updating feed %d lease_seconds", feedID)
-
-	args := redis.Args{}.Add(fmt.Sprintf("feed:%d", feedID), "lease_seconds", leaseSeconds, "resubscribe_at", time.Now().Add(time.Duration(60*(leaseSeconds-15))*time.Second).Unix())
-	_, err := conn.Do("HMSET", args...)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	return nil
-}
-
-// GetFeeds is deprecated, use Feeds instead
-func (h *hubIncomingBackend) GetFeeds() []Feed {
-	log.Println("GetFeeds called, consider replacing with Feeds")
-	feeds, err := h.Feeds()
-	if err != nil {
-		log.Printf("Feeds returned an error: %v", err)
-	}
-	return feeds
+func (h *hubIncomingBackend) FeedSetLeaseSeconds(subscriptionID int64, leaseSeconds int64) error {
+	db := h.backend.database
+	_, err := db.Exec("update subscriptions set lease_seconds = $1, resubscribe_at = now() + $1 * interval '1' second where id = $2", leaseSeconds, subscriptionID)
+	return err
 }
 
 // Feeds returns a list of subscribed feeds
 func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
-	conn := h.pool.Get()
-	defer conn.Close()
-	feeds := []Feed{}
+	db := h.backend.database
+	var feeds []Feed
 
-	// FIXME(peter): replace with set of currently checked feeds
-	feedKeys, err := redis.Strings(conn.Do("KEYS", "feed:*"))
-	if err != nil {
-		return nil, errors.Wrap(err, "could not get feeds from backend")
-	}
+	rows, err := db.Query(`
+		select s.id, c.uid, topic, hub, callback, subscription_secret, lease_seconds, resubscribe_at
+		from subscriptions s
+		inner join feeds f on f.url = s.topic
+		inner join channels c on c.id = f.channel_id
+	`)
 
-	for _, feedKey := range feedKeys {
+	for rows.Next() {
 		var feed Feed
-		values, err := redis.Values(conn.Do("HGETALL", feedKey))
+
+		err = rows.Scan(
+			&feed.ID,
+			&feed.URL,
+			&feed.Hub,
+			&feed.Callback,
+			&feed.Secret,
+			&feed.LeaseSeconds,
+			&feed.ResubscribeAt,
+		)
 		if err != nil {
-			log.Printf("could not get feed info for key %s: %v", feedKey, err)
+			log.Println("Feeds: scan subscriptions:", err)
 			continue
 		}
-
-		err = redis.ScanStruct(values, &feed)
-		if err != nil {
-			log.Printf("could not scan struct for key %s: %v", feedKey, err)
-			continue
-		}
-
-		// Add feed id
-		if feed.ID == 0 {
-			parts := strings.Split(feedKey, ":")
-			if len(parts) == 2 {
-				feed.ID, _ = strconv.ParseInt(parts[1], 10, 64)
-				_, err = conn.Do("HSET", feedKey, "id", feed.ID)
-				if err != nil {
-					log.Printf("could not save id for %s: %v", feedKey, err)
-				}
-			}
-		}
-
-		// Fix the callback url
-		callbackURL, err := url.Parse(feed.Callback)
-		if err != nil || !callbackURL.IsAbs() {
-			if err != nil {
-				log.Printf("could not parse callback url %q: %v", callbackURL, err)
-			} else {
-				log.Printf("url is relative; replace with absolute url: %q", callbackURL)
-			}
-
-			feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
-			_, err = conn.Do("HSET", feedKey, "callback", feed.Callback)
-			if err != nil {
-				log.Printf("could not save id for %s: %v", feedKey, err)
-			}
-		}
-
-		// Skip feeds without a Hub
-		if feed.Hub == "" {
-			continue
-		}
-
-		log.Printf("Websub feed: %#v\n", feed)
 		feeds = append(feeds, feed)
 	}
 
@@ -245,11 +203,13 @@ func (h *hubIncomingBackend) run() error {
 
 				feeds, err := h.Feeds()
 				if err != nil {
+					log.Println("Feeds failed:", err)
+					continue
 				}
 
 				for _, feed := range feeds {
 					log.Printf("Looking at %s\n", feed.URL)
-					if feed.ResubscribeAt == 0 || time.Now().After(time.Unix(feed.ResubscribeAt, 0)) {
+					if time.Now().After(feed.ResubscribeAt) {
 						if feed.Callback == "" {
 							feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
 						}
