@@ -212,20 +212,31 @@ func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 		t = t2
 	}
 	if item.UID == "" {
+		// FIXME: This won't work when we receive the item multiple times
 		h := sha256.Sum256([]byte(fmt.Sprintf("%s:%d", p.channel, time.Now().UnixNano())))
 		item.UID = hex.EncodeToString(h[:])
 	}
 
-	feedID, err := strconv.ParseInt(item.Source.ID, 10, 64)
-	if err != nil {
-		return false, fmt.Errorf("ERROR: item.Source.ID is not an integer %q: %w", item.Source.ID, err)
+	var optFeedID sql.NullInt64
+	if item.Source == nil || item.Source.ID == "" {
+		optFeedID.Valid = false
+		optFeedID.Int64 = 0
+	} else {
+		feedID, err := strconv.ParseInt(item.Source.ID, 10, 64)
+		if err != nil {
+			optFeedID.Valid = false
+			optFeedID.Int64 = 0
+		} else {
+			optFeedID.Valid = true
+			optFeedID.Int64 = feedID
+		}
 	}
 
 	result, err := conn.ExecContext(context.Background(), `
 INSERT INTO "items" ("channel_id", "feed_id", "uid", "data", "published_at", "created_at")
 VALUES ($1, $2, $3, $4, $5, DEFAULT)
 ON CONFLICT ON CONSTRAINT "items_uid_key" DO NOTHING
-`, p.channelID, feedID, item.UID, &item, t)
+`, p.channelID, optFeedID, item.UID, &item, t)
 	if err != nil {
 		return false, fmt.Errorf("insert item: %w", err)
 	}
