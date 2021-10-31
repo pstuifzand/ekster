@@ -165,7 +165,7 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 	var feeds []Feed
 
 	rows, err := db.Query(`
-		select s.id, c.uid, topic, hub, callback, subscription_secret, lease_seconds, resubscribe_at
+		select s.id, topic, hub, callback, subscription_secret, lease_seconds, resubscribe_at
 		from subscriptions s
 		inner join feeds f on f.url = s.topic
 		inner join channels c on c.id = f.channel_id
