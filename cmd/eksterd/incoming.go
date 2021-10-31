@@ -49,11 +49,13 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			leaseSeconds, err := strconv.ParseInt(leaseStr, 10, 64)
 			if err != nil {
+				log.Printf("error in hub.lease_seconds format %q: %s", leaseSeconds, err)
 				http.Error(w, fmt.Sprintf("error in hub.lease_seconds format %q: %s", leaseSeconds, err), 400)
 				return
 			}
 			err = h.Backend.FeedSetLeaseSeconds(feed, leaseSeconds)
 			if err != nil {
+				log.Printf("error in while setting hub.lease_seconds: %s", err)
 				http.Error(w, fmt.Sprintf("error in while setting hub.lease_seconds: %s", err), 400)
 				return
 			}

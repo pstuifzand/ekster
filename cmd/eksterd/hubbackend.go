@@ -150,7 +150,12 @@ func (h *hubIncomingBackend) UpdateFeed(subscriptionID int64, contentType string
 
 func (h *hubIncomingBackend) FeedSetLeaseSeconds(subscriptionID int64, leaseSeconds int64) error {
 	db := h.backend.database
-	_, err := db.Exec("update subscriptions set lease_seconds = $1, resubscribe_at = now() + $1 * interval '1' second where id = $2", leaseSeconds, subscriptionID)
+	_, err := db.Exec(`
+update subscriptions
+set lease_seconds = $1,
+    resubscribe_at = now() + $2 * interval '1' second
+where id = $3
+`, leaseSeconds, leaseSeconds, subscriptionID)
 	return err
 }
 
