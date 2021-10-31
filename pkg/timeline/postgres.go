@@ -211,7 +211,7 @@ func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 		}
 		t = t2
 	}
-	if item.UID == "" {
+	if item.ID == "" {
 		// FIXME: This won't work when we receive the item multiple times
 		h := sha256.Sum256([]byte(fmt.Sprintf("%s:%d", p.channel, time.Now().UnixNano())))
 		item.UID = hex.EncodeToString(h[:])
@@ -236,7 +236,7 @@ func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 INSERT INTO "items" ("channel_id", "feed_id", "uid", "data", "published_at", "created_at")
 VALUES ($1, $2, $3, $4, $5, DEFAULT)
 ON CONFLICT ON CONSTRAINT "items_uid_key" DO NOTHING
-`, p.channelID, optFeedID, item.UID, &item, t)
+`, p.channelID, optFeedID, item.ID, &item, t)
 	if err != nil {
 		return false, fmt.Errorf("insert item: %w", err)
 	}
