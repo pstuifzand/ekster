@@ -63,6 +63,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// TODO: We could try to fill the Source of the Item with something, but what?
 		item, err := parseIncomingItem(r)
 		if err != nil {
+			log.Println(err)
 			http.Error(w, err.Error(), 400)
 			return
 		}
@@ -70,6 +71,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		item.Read = false
 		newID, err := generateItemID(conn, channel)
 		if err != nil {
+			log.Println(err)
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -88,6 +90,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		if err = json.NewEncoder(w).Encode(map[string]string{"ok": "1"}); err != nil {
+			log.Println(err)
 			http.Error(w, "internal server error", 500)
 		}
 
