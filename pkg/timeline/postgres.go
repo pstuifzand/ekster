@@ -147,7 +147,7 @@ WHERE "channel_id" = $1
 		last = publishedAt
 
 		item.Read = isRead == 1
-		item.ID = strconv.Itoa(id)
+		item.ID = uid
 		item.Published = publishedAt
 
 		tl.Items = append(tl.Items, item)
