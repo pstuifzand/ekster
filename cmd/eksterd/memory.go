@@ -341,8 +341,7 @@ func (b *memoryBackend) FollowURL(uid string, url string) (microsub.Feed, error)
 
 	_ = b.ProcessContent(uid, fmt.Sprintf("%d", feedID), feed.URL, resp.Header.Get("Content-Type"), resp.Body)
 
-	// FIXME: re-enable CreateFeed
-	// _, _ = b.CreateFeed(url, uid)
+	_, _ = b.CreateFeed(url)
 
 	return feed, nil
 }

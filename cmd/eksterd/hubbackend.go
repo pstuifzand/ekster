@@ -66,6 +66,7 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 }
 
 func (h *hubIncomingBackend) CreateFeed(topic string) (int64, error) {
+	log.Println("CreateFeed", topic)
 	db := h.backend.database
 
 	secret := util.RandStringBytes(32)
@@ -112,6 +113,8 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 }
 
 func (h *hubIncomingBackend) UpdateFeed(subscriptionID int64, contentType string, body io.Reader) error {
+	log.Println("UpdateFeed", subscriptionID)
+
 	db := h.backend.database
 	var (
 		topic   string
@@ -186,6 +189,7 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 }
 
 func (h *hubIncomingBackend) Subscribe(feed *Feed) error {
+	log.Println("Subscribe", feed.URL)
 	client := http.Client{}
 	return websub.Subscribe(&client, feed.Hub, feed.URL, feed.Callback, feed.Secret, LeaseSeconds)
 }
