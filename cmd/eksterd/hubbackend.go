@@ -169,6 +169,7 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 		from subscriptions s
 		inner join feeds f on f.url = s.topic
 		inner join channels c on c.id = f.channel_id
+		where hub is not null
 	`)
 
 	for rows.Next() {
