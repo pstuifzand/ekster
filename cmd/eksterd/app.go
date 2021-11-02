@@ -3,11 +3,17 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/pkg/errors"
 	"p83.nl/go/ekster/pkg/server"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 // App is the main app structure
 type App struct {
