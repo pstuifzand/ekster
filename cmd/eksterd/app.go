@@ -59,7 +59,12 @@ func NewApp(options AppOptions) (*App, error) {
 	app.backend.hubIncomingBackend.baseURL = options.BaseURL
 	app.backend.hubIncomingBackend.backend = app.backend
 
-	app.hubBackend = &hubIncomingBackend{backend: app.backend, baseURL: options.BaseURL, pool: options.pool}
+	app.hubBackend = &hubIncomingBackend{
+		backend:  app.backend,
+		baseURL:  options.BaseURL,
+		pool:     options.pool,
+		database: options.database,
+	}
 	app.backend.hubIncomingBackend = *app.hubBackend
 
 	http.Handle("/micropub", &micropubHandler{

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"expvar"
 	"fmt"
 	"io"
@@ -28,9 +29,10 @@ type HubBackend interface {
 }
 
 type hubIncomingBackend struct {
-	backend *memoryBackend
-	baseURL string
-	pool    *redis.Pool
+	backend  *memoryBackend
+	baseURL  string
+	pool     *redis.Pool
+	database *sql.DB
 }
 
 // Feed contains information about the feed subscriptions
@@ -53,7 +55,7 @@ func init() {
 }
 
 func (h *hubIncomingBackend) GetSecret(id int64) string {
-	db := h.backend.database
+	db := h.database
 	var secret string
 	err := db.QueryRow(
 		`select "subscription_secret" from "subscriptions" where "id" = $1`,
@@ -67,7 +69,7 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 
 func (h *hubIncomingBackend) CreateFeed(topic string) (int64, error) {
 	log.Println("CreateFeed", topic)
-	db := h.backend.database
+	db := h.database
 
 	secret := util.RandStringBytes(32)
 	urlSecret := util.RandStringBytes(32)
@@ -115,7 +117,7 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 func (h *hubIncomingBackend) UpdateFeed(subscriptionID int64, contentType string, body io.Reader) error {
 	log.Println("UpdateFeed", subscriptionID)
 
-	db := h.backend.database
+	db := h.database
 	var (
 		topic   string
 		channel string
@@ -149,7 +151,7 @@ func (h *hubIncomingBackend) UpdateFeed(subscriptionID int64, contentType string
 }
 
 func (h *hubIncomingBackend) FeedSetLeaseSeconds(subscriptionID int64, leaseSeconds int64) error {
-	db := h.backend.database
+	db := h.database
 	_, err := db.Exec(`
 update subscriptions
 set lease_seconds = $1,
@@ -161,7 +163,7 @@ where id = $3
 
 // Feeds returns a list of subscribed feeds
 func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
-	db := h.backend.database
+	db := h.database
 	var feeds []Feed
 
 	rows, err := db.Query(`
