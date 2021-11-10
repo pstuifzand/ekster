@@ -573,6 +573,11 @@ func ProcessSourcedItems(fetcher fetch.Fetcher, fetchURL, contentType string, bo
 	return items, nil
 }
 
+// ContentProcessor processes content for a channel and feed
+type ContentProcessor interface {
+	ProcessContent(channel, feedID, fetchURL, contentType string, body io.Reader) error
+}
+
 func (b *memoryBackend) ProcessContent(channel, feedID, fetchURL, contentType string, body io.Reader) error {
 	cachingFetch := WithCaching(b.pool, fetch.FetcherFunc(Fetch2))
 

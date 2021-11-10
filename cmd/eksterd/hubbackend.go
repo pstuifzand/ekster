@@ -23,7 +23,7 @@ type HubBackend interface {
 	Feeds() ([]Feed, error)
 	CreateFeed(url string) (int64, error)
 	GetSecret(feedID int64) string
-	UpdateFeed(feedID int64, contentType string, body io.Reader) error
+	UpdateFeed(processor ContentProcessor, feedID int64, contentType string, body io.Reader) error
 	FeedSetLeaseSeconds(feedID int64, leaseSeconds int64) error
 	Subscribe(feed *Feed) error
 }
@@ -114,7 +114,7 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 	return int64(subscriptionID), nil
 }
 
-func (h *hubIncomingBackend) UpdateFeed(subscriptionID int64, contentType string, body io.Reader) error {
+func (h *hubIncomingBackend) UpdateFeed(processor ContentProcessor, subscriptionID int64, contentType string, body io.Reader) error {
 	log.Println("UpdateFeed", subscriptionID)
 
 	db := h.database
@@ -141,7 +141,7 @@ func (h *hubIncomingBackend) UpdateFeed(subscriptionID int64, contentType string
 		}
 
 		log.Printf("Updating feed %s %q in %q\n", feedID, topic, channel)
-		err = h.backend.ProcessContent(channel, feedID, topic, contentType, body)
+		err = processor.ProcessContent(channel, feedID, topic, contentType, body)
 		if err != nil {
 			log.Printf("could not process content for channel %s: %s", channel, err)
 		}

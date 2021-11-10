@@ -13,7 +13,8 @@ import (
 )
 
 type incomingHandler struct {
-	Backend HubBackend
+	Backend   HubBackend
+	Processor ContentProcessor
 }
 
 var (
@@ -94,7 +95,7 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ct := r.Header.Get("Content-Type")
-	err = h.Backend.UpdateFeed(feed, ct, bytes.NewBuffer(feedContent))
+	err = h.Backend.UpdateFeed(h.Processor, feed, ct, bytes.NewBuffer(feedContent))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("could not update feed: %s (%s)", ct, err), 400)
 		return

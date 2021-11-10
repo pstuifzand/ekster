@@ -82,7 +82,8 @@ func NewApp(options AppOptions) (*App, error) {
 	http.Handle("/microsub", handler)
 
 	http.Handle("/incoming/", &incomingHandler{
-		Backend: app.hubBackend,
+		Backend:   app.hubBackend,
+		Processor: app.backend,
 	})
 
 	if !options.Headless {
