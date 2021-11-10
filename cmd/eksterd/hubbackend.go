@@ -29,7 +29,6 @@ type HubBackend interface {
 }
 
 type hubIncomingBackend struct {
-	backend  *memoryBackend
 	baseURL  string
 	pool     *redis.Pool
 	database *sql.DB

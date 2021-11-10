@@ -40,8 +40,6 @@ func init() {
 const DefaultPrio = 9999999
 
 type memoryBackend struct {
-	hubIncomingBackend
-
 	lock     sync.RWMutex
 	Channels map[string]microsub.Channel
 	Feeds    map[string][]microsub.Feed
@@ -56,6 +54,8 @@ type memoryBackend struct {
 	quit   chan struct{}
 
 	broker *sse.Broker
+
+	hubBackend HubBackend
 
 	pool *redis.Pool
 
@@ -377,7 +377,7 @@ func (b *memoryBackend) FollowURL(uid string, url string) (microsub.Feed, error)
 
 	_ = b.ProcessContent(uid, fmt.Sprintf("%d", feedID), feed.URL, resp.Header.Get("Content-Type"), resp.Body)
 
-	_, _ = b.CreateFeed(url)
+	_, _ = b.hubBackend.CreateFeed(url)
 
 	return feed, nil
 }
