@@ -366,13 +366,8 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					} else {
 						page.CurrentSetting = channelSetting{}
 					}
-					// FIXME: similar code is found in timeline.go
 					if page.CurrentSetting.ChannelType == "" {
-						if v.UID == "notifications" {
-							page.CurrentSetting.ChannelType = "stream"
-						} else {
-							page.CurrentSetting.ChannelType = "sorted-set"
-						}
+						page.CurrentSetting.ChannelType = "postgres-stream"
 					}
 					page.ExcludedTypeNames = map[string]string{
 						"repost":   "Reposts",
@@ -650,39 +645,34 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			w.Header().Add("Content-Type", "application/json")
-			enc := json.NewEncoder(w)
-			err = enc.Encode(&res)
-			if err != nil {
+			if err := json.NewEncoder(w).Encode(&res); err != nil {
 				log.Println(err)
-				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
 			return
 		} else if r.URL.Path == "/settings/channel" {
-			defer h.Backend.save()
-			uid := r.FormValue("uid")
-
-			if h.Backend.Settings == nil {
-				h.Backend.Settings = make(map[string]channelSetting)
-			}
-
-			excludeRegex := r.FormValue("exclude_regex")
-			includeRegex := r.FormValue("include_regex")
-			channelType := r.FormValue("type")
-
-			setting, e := h.Backend.Settings[uid]
-			if !e {
-				setting = channelSetting{}
-			}
-			setting.ExcludeRegex = excludeRegex
-			setting.IncludeRegex = includeRegex
-			setting.ChannelType = channelType
-			if values, e := r.Form["exclude_type"]; e {
-				setting.ExcludeType = values
-			}
-			h.Backend.Settings[uid] = setting
-
-			h.Backend.Debug()
+			// defer h.Backend.save()
+			// uid := r.FormValue("uid")
+			//
+			// if h.Backend.Settings == nil {
+			// 	h.Backend.Settings = make(map[string]channelSetting)
+			// }
+			//
+			// excludeRegex := r.FormValue("exclude_regex")
+			// includeRegex := r.FormValue("include_regex")
+			// channelType := r.FormValue("type")
+			//
+			// setting, e := h.Backend.Settings[uid]
+			// if !e {
+			// 	setting = channelSetting{}
+			// }
+			// setting.ExcludeRegex = excludeRegex
+			// setting.IncludeRegex = includeRegex
+			// setting.ChannelType = channelType
+			// if values, e := r.Form["exclude_type"]; e {
+			// 	setting.ExcludeType = values
+			// }
+			// h.Backend.Settings[uid] = setting
 
 			http.Redirect(w, r, "/settings", 302)
 			return

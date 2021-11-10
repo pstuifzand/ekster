@@ -1,4 +1,5 @@
 kind: pipeline
+type: docker
 name: default
 
 workspace:
@@ -20,6 +21,8 @@ steps:
 
   - name: publish-personal
     image: plugins/docker
+    depends_on:
+      - testing
     settings:
       repo: registry.stuifzandapp.com/microsub-server
       registry: registry.stuifzandapp.com
@@ -28,19 +31,23 @@ steps:
       password:
         from_secret: docker_password
 
-  - name: publish-docker
-    image: plugins/docker
-    settings:
-      repo: pstuifzand/ekster
-      tags:
-        - alpine
-      username:
-        from_secret: docker_official_username
-      password:
-        from_secret: docker_official_password
+  # - name: publish-docker
+  #   image: plugins/docker
+  #   depends_on:
+  #     - testing
+  #   settings:
+  #     repo: pstuifzand/ekster
+  #     tags:
+  #       - alpine
+  #     username:
+  #       from_secret: docker_official_username
+  #     password:
+  #       from_secret: docker_official_password
 
   - name: deploy
     image: appleboy/drone-ssh
+    depends_on:
+      - publish-personal
     settings:
       host: microsub.stuifzandapp.com
       username: microsub

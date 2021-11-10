@@ -4,7 +4,7 @@ services:
     image: "redis:5"
 
   database:
-    image: postgres
+    image: postgres:14
     volumes:
     - database-data:/var/lib/postgresql/data
     environment:
@@ -14,21 +14,16 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
 
   web:
-    image: "pstuifzand/ekster:alpine"
-    working_dir: /opt/microsub
-    links:
-      - redis:redis
+    image: ubuntu
+    working_dir: /app
     volumes:
-      - microsub-data:/opt/microsub
-      - ./templates:/app/templates
       - ./eksterd:/app/eksterd
+      - ./backend.json:/app/backend.json
     entrypoint: /app/eksterd
-    command: -auth=false -port 80 -templates templates
+    command: -auth=false -port 80
     ports:
       - 8089:80
     environment:
-      - "FEEDBIN_USER="
-      - "FEEDBIN_PASS="
       - "EKSTER_BASEURL=http://localhost:8089/"
       - "EKSTER_TEMPLATES=/app/templates"
 

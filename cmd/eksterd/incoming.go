@@ -13,7 +13,8 @@ import (
 )
 
 type incomingHandler struct {
-	Backend HubBackend
+	Backend   HubBackend
+	Processor ContentProcessor
 }
 
 var (
@@ -49,11 +50,13 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			leaseSeconds, err := strconv.ParseInt(leaseStr, 10, 64)
 			if err != nil {
+				log.Printf("error in hub.lease_seconds format %q: %s", leaseSeconds, err)
 				http.Error(w, fmt.Sprintf("error in hub.lease_seconds format %q: %s", leaseSeconds, err), 400)
 				return
 			}
 			err = h.Backend.FeedSetLeaseSeconds(feed, leaseSeconds)
 			if err != nil {
+				log.Printf("error in while setting hub.lease_seconds: %s", err)
 				http.Error(w, fmt.Sprintf("error in while setting hub.lease_seconds: %s", err), 400)
 				return
 			}
@@ -92,7 +95,7 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ct := r.Header.Get("Content-Type")
-	err = h.Backend.UpdateFeed(feed, ct, bytes.NewBuffer(feedContent))
+	err = h.Backend.UpdateFeed(h.Processor, feed, ct, bytes.NewBuffer(feedContent))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("could not update feed: %s (%s)", ct, err), 400)
 		return

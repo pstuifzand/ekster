@@ -60,15 +60,22 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// TODO: We could try to fill the Source of the Item with something, but what?
 		item, err := parseIncomingItem(r)
 		if err != nil {
+			log.Println(err)
 			http.Error(w, err.Error(), 400)
 			return
+		}
+		log.Printf("Item published: %s", item.Published)
+		if item.Published == "" {
+			item.Published = time.Now().Format(time.RFC3339)
 		}
 
 		item.Read = false
 		newID, err := generateItemID(conn, channel)
 		if err != nil {
+			log.Println(err)
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -78,6 +85,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("could not add item to channel %s: %v", channel, err)
 		}
+
 		err = h.Backend.updateChannelUnreadCount(channel)
 		if err != nil {
 			log.Printf("could not update channel unread content %s: %v", channel, err)
@@ -86,8 +94,10 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		if err = json.NewEncoder(w).Encode(map[string]string{"ok": "1"}); err != nil {
+			log.Println(err)
 			http.Error(w, "internal server error", 500)
 		}
+
 		return
 	}
 
@@ -103,40 +113,38 @@ func generateItemID(conn redis.Conn, channel string) (string, error) {
 }
 
 func parseIncomingItem(r *http.Request) (*microsub.Item, error) {
-	var item microsub.Item
-
 	contentType := r.Header.Get("content-type")
 
 	if contentType == "application/jf2+json" {
-		dec := json.NewDecoder(r.Body)
-		err := dec.Decode(&item)
-		if err != nil {
-			return nil, errors.Wrapf(err, "could not decode request body as jf2: %v", err)
+		var item microsub.Item
+		if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
+			return nil, fmt.Errorf("could not decode request body as %q: %v", contentType, err)
 		}
+		return &item, nil
 	} else if contentType == "application/json" {
 		var mfItem microformats.Microformat
-		dec := json.NewDecoder(r.Body)
-		err := dec.Decode(&mfItem)
-		if err != nil {
-			return nil, errors.Wrapf(err, "could not decode request body as json: %v", err)
+		if err := json.NewDecoder(r.Body).Decode(&mfItem); err != nil {
+			return nil, fmt.Errorf("could not decode request body as %q: %v", contentType, err)
 		}
 		author := microsub.Card{}
-		var ok bool
-		item, ok = jf2.SimplifyMicroformatItem(&mfItem, author)
+		item, ok := jf2.SimplifyMicroformatItem(&mfItem, author)
 		if !ok {
 			return nil, fmt.Errorf("could not simplify microformat item to jf2")
 		}
+		return &item, nil
 	} else if contentType == "application/x-www-form-urlencoded" {
+		// TODO: improve handling of form-urlencoded
+		var item microsub.Item
 		content := r.FormValue("content")
 		name := r.FormValue("name")
 		item.Type = "entry"
 		item.Name = name
 		item.Content = &microsub.Content{Text: content}
 		item.Published = time.Now().Format(time.RFC3339)
-	} else {
-		return nil, fmt.Errorf("content-type %s is not supported", contentType)
+		return &item, nil
 	}
-	return &item, nil
+
+	return nil, fmt.Errorf("content-type %q is not supported", contentType)
 }
 
 func getChannelFromAuthorization(r *http.Request, conn redis.Conn) (string, error) {

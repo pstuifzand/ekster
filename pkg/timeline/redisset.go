@@ -113,6 +113,12 @@ func (timeline *redisSortedSetTimeline) AddItem(item microsub.Item) (bool, error
 		item.Published = time.Now().Format(time.RFC3339)
 	}
 
+	// Fix date when it almost matches with RFC3339, except the colon in the timezone
+	format := "2006-01-02T15:04:05Z0700"
+	if parsedDate, err := time.Parse(format, item.Published); err == nil {
+		item.Published = parsedDate.Format(time.RFC3339)
+	}
+
 	data, err := json.Marshal(item)
 	if err != nil {
 		return false, fmt.Errorf("couldn't marshal item for redis: %s", err)

@@ -126,7 +126,7 @@ Usage:
 
 Commands:
 
-	connect URL                  login to Indieauth URL, e.g. your website
+	connect URL                  login to a website that supports Indieauth and Microsub
 
 	channels                     list channels
 	channels NAME                create channel with NAME
@@ -218,6 +218,26 @@ Global arguments:
 	performCommands(&c, flag.Args())
 }
 
+func channelID(sub microsub.Microsub, channelNameOrID string) (string, error) {
+	channels, err := sub.ChannelsGetList()
+	if err != nil {
+		// we encountered an error, so we are not sure if it worked
+		return channelNameOrID, err
+	}
+
+	for _, c := range channels {
+		if c.Name == channelNameOrID {
+			return c.UID, nil
+		}
+		if c.UID == channelNameOrID {
+			return c.UID, nil
+		}
+	}
+
+	// unknown?
+	return channelNameOrID, nil
+}
+
 func performCommands(sub microsub.Microsub, commands []string) {
 	if len(commands) == 0 {
 		flag.Usage()
@@ -245,15 +265,15 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	}
 
 	if len(commands) == 3 && commands[0] == "channels" {
-		uid := commands[1]
-		if uid == "-delete" {
-			uid = commands[2]
+		if commands[1] == "-delete" {
+			uid, _ := channelID(sub, commands[2])
 			err := sub.ChannelsDelete(uid)
 			if err != nil {
 				log.Fatalf("An error occurred: %s\n", err)
 			}
 			fmt.Printf("Channel %s deleted\n", uid)
 		} else {
+			uid, _ := channelID(sub, commands[1])
 			name := commands[2]
 			channel, err := sub.ChannelsUpdate(uid, name)
 			if err != nil {
@@ -264,7 +284,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	}
 
 	if len(commands) >= 2 && commands[0] == "timeline" {
-		channel := commands[1]
+		channel, _ := channelID(sub, commands[1])
 
 		var timeline microsub.Timeline
 		var err error
@@ -304,7 +324,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		query := commands[1]
 		var channel string
 		if len(commands) == 3 {
-			channel = commands[2]
+			channel, _ = channelID(sub, commands[2])
 		} else {
 			channel = "global"
 		}
@@ -331,7 +351,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	}
 
 	if len(commands) == 2 && commands[0] == "follow" {
-		uid := commands[1]
+		uid, _ := channelID(sub, commands[1])
 		feeds, err := sub.FollowGetList(uid)
 		if err != nil {
 			log.Fatalf("An error occurred: %s\n", err)
@@ -342,7 +362,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	}
 
 	if len(commands) == 3 && commands[0] == "follow" {
-		uid := commands[1]
+		uid, _ := channelID(sub, commands[1])
 		u := commands[2]
 		_, err := sub.FollowURL(uid, u)
 		if err != nil {
@@ -352,7 +372,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	}
 
 	if len(commands) == 3 && commands[0] == "unfollow" {
-		uid := commands[1]
+		uid, _ := channelID(sub, commands[1])
 		u := commands[2]
 		err := sub.UnfollowURL(uid, u)
 		if err != nil {

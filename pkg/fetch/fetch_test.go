@@ -23,7 +23,7 @@ func TestFeedHeader(t *testing.T) {
 </body>
 </html>
 `
-	feed, err := FeedHeader(fetcher, "https://example.com/", "text/html", strings.NewReader(doc))
+	feed, err := FeedHeader(FetcherFunc(fetcher), "https://example.com/", "text/html", strings.NewReader(doc))
 	if assert.NoError(t, err) {
 		assert.Equal(t, "feed", feed.Type)
 		assert.Equal(t, "Title", feed.Name)
