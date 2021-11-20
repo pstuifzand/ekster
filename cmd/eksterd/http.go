@@ -106,10 +106,6 @@ func newMainHandler(backend *memoryBackend, baseURL, templateDir string, pool *r
 	return h, nil
 }
 
-func (h *mainHandler) templateFile(filename string) string {
-	return fmt.Sprintf("%s/%s", h.TemplateDir, filename)
-}
-
 func (h *mainHandler) renderTemplate(w io.Writer, filename string, data interface{}) error {
 	fsys, err := fs.Sub(templates, "templates")
 	if err != nil {
