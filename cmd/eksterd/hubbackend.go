@@ -42,7 +42,7 @@ type Feed struct {
 	Hub           string
 	Secret        string
 	LeaseSeconds  int64
-	ResubscribeAt time.Time
+	ResubscribeAt *time.Time
 }
 
 var (
@@ -223,7 +223,7 @@ func (h *hubIncomingBackend) run() error {
 
 				for _, feed := range feeds {
 					log.Printf("Looking at %s\n", feed.URL)
-					if time.Now().After(feed.ResubscribeAt) {
+					if feed.ResubscribeAt != nil && time.Now().After(*feed.ResubscribeAt) {
 						if feed.Callback == "" {
 							feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
 						}
