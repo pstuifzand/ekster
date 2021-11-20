@@ -117,7 +117,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}()
 
 			// Listen to connection close and un-register messageChan
-			notify := w.(http.CloseNotifier).CloseNotify()
+			notify := r.Context().Done()
 
 			go func() {
 				<-notify
