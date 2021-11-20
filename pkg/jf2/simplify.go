@@ -89,6 +89,11 @@ func simplifyContent(k string, v []interface{}) *microsub.Content {
 func CleanHTML(s string) (string, error) {
 	doc, err := html.Parse(strings.NewReader(s))
 
+	whitespaceRegex, err := regexp.Compile(`white-space:\s*pre`)
+	if err != nil {
+		return "", err
+	}
+
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +106,7 @@ func CleanHTML(s string) (string, error) {
 				if a.Key != "style" {
 					continue
 				}
-				if m, err := regexp.MatchString("white-space:\\s*pre", a.Val); err == nil && m {
+				if whitespaceRegex.MatchString(a.Val) {
 					removeIndex = i
 					break
 				}
