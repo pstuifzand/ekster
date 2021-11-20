@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	entryRegex = regexp.MustCompile("^entry\\[\\d+\\]$")
+	entryRegex = regexp.MustCompile(`^entry\[\d+\]$`)
 )
 
 // Constants used for the responses
