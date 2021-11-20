@@ -1,6 +1,7 @@
+---
 kind: pipeline
 type: docker
-name: default
+name: build
 
 workspace:
   base: /go
@@ -16,13 +17,27 @@ steps:
     commands:
       - apk --no-cache add git
       - go get -d -t ./...
+      - go install honnef.co/go/tools/cmd/staticcheck@latest
       - go build p83.nl/go/ekster/cmd/eksterd
-      - go test ./...
+      - go vet ./...
+      - go test -v ./...
+      - staticcheck ./...
 
+---
+kind: pipeline
+type: docker
+name: deploy
+
+depends_on:
+  - build
+
+workspace:
+  base: /go
+  path: src/p83.nl/go/ekster
+
+steps:
   - name: publish-personal
     image: plugins/docker
-    depends_on:
-      - testing
     settings:
       repo: registry.stuifzandapp.com/microsub-server
       registry: registry.stuifzandapp.com
@@ -57,3 +72,9 @@ steps:
         - cd /home/microsub/microsub
         - docker-compose pull web
         - docker-compose up -d
+
+trigger:
+  event:
+    - promote
+  target:
+    - production
