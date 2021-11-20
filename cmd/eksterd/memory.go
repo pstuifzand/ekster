@@ -624,27 +624,22 @@ func (b *memoryBackend) channelAddItemWithMatcher(channel string, item microsub.
 					if len(item.RepostOf) > 0 {
 						return nil
 					}
-					break
 				case "like":
 					if len(item.LikeOf) > 0 {
 						return nil
 					}
-					break
 				case "bookmark":
 					if len(item.BookmarkOf) > 0 {
 						return nil
 					}
-					break
 				case "reply":
 					if len(item.InReplyTo) > 0 {
 						return nil
 					}
-					break
 				case "checkin":
 					if item.Checkin != nil {
 						return nil
 					}
-					break
 				}
 			}
 		}
