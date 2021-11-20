@@ -88,6 +88,9 @@ func simplifyContent(k string, v []interface{}) *microsub.Content {
 // CleanHTML removes white-space:pre from html
 func CleanHTML(s string) (string, error) {
 	doc, err := html.Parse(strings.NewReader(s))
+	if err != nil {
+		return "", err
+	}
 
 	whitespaceRegex, err := regexp.Compile(`white-space:\s*pre`)
 	if err != nil {

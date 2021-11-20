@@ -48,6 +48,9 @@ func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (
 				md := microformats.Parse(resp.Body, u)
 
 				author, ok = jf2.SimplifyMicroformatDataAuthor(md)
+				if !ok {
+					log.Println("Could not simplify the author")
+				}
 			}
 		}
 

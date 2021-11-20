@@ -326,6 +326,10 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
 
 			verified, authResponse, err := performIndieauthCallback(h.BaseURL, r, &sess)
 			if err != nil {
@@ -353,6 +357,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			if !isLoggedIn(h.Backend, &sess) {
 				w.WriteHeader(401)
@@ -364,7 +373,17 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.Session = sess
 			currentChannel := r.URL.Query().Get("uid")
 			page.Channels, err = h.Backend.ChannelsGetList()
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			page.Feeds, err = h.Backend.FollowGetList(currentChannel)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			for _, v := range page.Channels {
 				if v.UID == currentChannel {
@@ -409,6 +428,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			if !isLoggedIn(h.Backend, &sess) {
 				w.WriteHeader(401)
@@ -432,6 +456,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			if !isLoggedIn(h.Backend, &sess) {
 				w.WriteHeader(401)
@@ -442,6 +471,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var page settingsPage
 			page.Session = sess
 			page.Channels, err = h.Backend.ChannelsGetList()
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			// page.Feeds = h.Backend.Feeds
 
 			err = h.renderTemplate(w, "settings.html", page)
@@ -456,6 +490,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := getSessionCookie(w, r)
 
 			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			if !isLoggedIn(h.Backend, &sess) {
 				sess.NextURI = r.URL.String()
@@ -502,6 +541,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.Scope = scope
 			page.State = state
 			page.Channels, err = h.Backend.ChannelsGetList()
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			app, err := getAppInfo(clientID)
 			if err != nil {

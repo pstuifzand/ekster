@@ -775,7 +775,10 @@ func WithCaching(pool *redis.Pool, ff fetch.Fetcher) fetch.Fetcher {
 			return nil, fmt.Errorf("error parsing %s as url: %s", fetchURL, err)
 		}
 
-		req, err := http.NewRequest("GET", u.String(), nil)
+		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+		if err != nil {
+			return nil, err
+		}
 
 		data, err := redis.Bytes(conn.Do("GET", cacheKey))
 		if err == nil {
@@ -821,7 +824,10 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 		return nil, fmt.Errorf("error parsing %s as url: %s", fetchURL, err)
 	}
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	client := http.Client{}
 	resp, err := client.Do(req)

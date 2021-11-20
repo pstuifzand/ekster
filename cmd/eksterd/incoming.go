@@ -83,6 +83,11 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	feedContent, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("ERROR: %s\n", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 
 	// match signature
 	sig := r.Header.Get("X-Hub-Signature")
