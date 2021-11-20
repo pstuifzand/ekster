@@ -25,6 +25,8 @@ steps:
 
   - name: publish-personal
     image: plugins/docker
+    depends_on:
+      - testing
     settings:
       repo: registry.stuifzandapp.com/microsub-server
       registry: registry.stuifzandapp.com
