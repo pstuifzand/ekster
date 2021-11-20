@@ -105,6 +105,4 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("could not update feed: %s (%s)", ct, err), http.StatusBadRequest)
 		return
 	}
-
-	return
 }
