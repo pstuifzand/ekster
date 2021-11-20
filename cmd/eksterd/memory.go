@@ -84,12 +84,6 @@ type newItemMessage struct {
 	Channel string        `json:"channel"`
 }
 
-type fetch2 struct{}
-
-func (f *fetch2) Fetch(url string) (*http.Response, error) {
-	return Fetch2(url)
-}
-
 func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse) (bool, error) {
 	conn := b.pool.Get()
 	defer func() {
