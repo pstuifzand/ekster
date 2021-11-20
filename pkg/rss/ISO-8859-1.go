@@ -37,7 +37,7 @@ func (cs *charsetISO88591er) ReadByte() (b byte, err error) {
 
 func (cs *charsetISO88591er) Read(p []byte) (int, error) {
 	// Use ReadByte method.
-	return 0, errors.New("Use ReadByte()")
+	return 0, errors.New("use ReadByte()")
 }
 
 func isCharsetISO88591(charset string) bool {
