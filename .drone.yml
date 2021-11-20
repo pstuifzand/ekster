@@ -23,19 +23,6 @@ steps:
       - go test -v ./...
       - staticcheck ./...
 
----
-kind: pipeline
-type: docker
-name: deploy
-
-depends_on:
-  - build
-
-workspace:
-  base: /go
-  path: src/p83.nl/go/ekster
-
-steps:
   - name: publish-personal
     image: plugins/docker
     settings:
@@ -45,6 +32,11 @@ steps:
         from_secret: docker_username
       password:
         from_secret: docker_password
+    when:
+      event:
+        - promote
+      target:
+        - production
 
   # - name: publish-docker
   #   image: plugins/docker
@@ -72,9 +64,8 @@ steps:
         - cd /home/microsub/microsub
         - docker-compose pull web
         - docker-compose up -d
-
-trigger:
-  event:
-    - promote
-  target:
-    - production
+    when:
+      event:
+        - promote
+      target:
+        - production
