@@ -267,5 +267,4 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	return
 }
