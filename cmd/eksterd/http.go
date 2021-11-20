@@ -292,7 +292,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		log.Println(err)
-		http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
+		http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), http.StatusBadRequest)
 		return
 	}
 
@@ -317,10 +317,10 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/session/callback" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			} else if err != nil {
-				http.Error(w, "could not read cookie", 500)
+				http.Error(w, "could not read cookie", http.StatusInternalServerError)
 				return
 			}
 
@@ -342,9 +342,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				saveSession(sessionVar, &sess, conn)
 				log.Printf("SESSION: %#v\n", sess)
 				if sess.NextURI != "" {
-					http.Redirect(w, r, sess.NextURI, 302)
+					http.Redirect(w, r, sess.NextURI, http.StatusFound)
 				} else {
-					http.Redirect(w, r, "/", 302)
+					http.Redirect(w, r, "/", http.StatusFound)
 				}
 				return
 			}
@@ -352,7 +352,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/settings/channel" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 			sessionVar := c.Value
@@ -423,7 +423,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/logs" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 			sessionVar := c.Value
@@ -451,7 +451,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/settings" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 			sessionVar := c.Value
@@ -499,7 +499,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if !isLoggedIn(h.Backend, &sess) {
 				sess.NextURI = r.URL.String()
 				saveSession(sessionVar, &sess, conn)
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 
@@ -563,7 +563,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/session" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 
@@ -574,7 +574,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			endpoints, err := getEndpoints(me)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Bad Request: %s, %s", err.Error(), me), 400)
+				http.Error(w, fmt.Sprintf("Bad Request: %s, %s", err.Error(), me), http.StatusBadRequest)
 				return
 			}
 
@@ -584,7 +584,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sess, err := loadSession(sessionVar, conn)
 
 			if err != nil {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 
@@ -596,12 +596,12 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			err = saveSession(sessionVar, &sess, conn)
 			if err != nil {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 
 			authenticationURL := indieauth.CreateAuthenticationURL(*endpoints.AuthorizationEndpoint, endpoints.Me.String(), h.BaseURL, redirectURI, state)
-			http.Redirect(w, r, authenticationURL, 302)
+			http.Redirect(w, r, authenticationURL, http.StatusFound)
 
 			return
 		} else if r.URL.Path == "/session/logout" {
@@ -654,7 +654,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			redirectURI.RawQuery = q.Encode()
 
 			log.Println(redirectURI)
-			http.Redirect(w, r, redirectURI.String(), 302)
+			http.Redirect(w, r, redirectURI.String(), http.StatusFound)
 			return
 		} else if r.URL.Path == "/auth/token" {
 			grantType := r.FormValue("grant_type")
@@ -726,11 +726,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// }
 			// h.Backend.Settings[uid] = setting
 
-			http.Redirect(w, r, "/settings", 302)
+			http.Redirect(w, r, "/settings", http.StatusFound)
 			return
 		} else if r.URL.Path == "/refresh" {
 			h.Backend.RefreshFeeds()
-			http.Redirect(w, r, "/", 302)
+			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
 	}
@@ -741,14 +741,14 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func httpSessionLogout(r *http.Request, w http.ResponseWriter, conn redis.Conn) {
 	c, err := r.Cookie("session")
 	if err == http.ErrNoCookie {
-		http.Redirect(w, r, "/", 302)
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 	if err == nil {
 		sessionVar := c.Value
 		_, _ = conn.Do("DEL", "session:"+sessionVar)
 	}
-	http.Redirect(w, r, "/", 302)
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 type parsedEndpoints struct {

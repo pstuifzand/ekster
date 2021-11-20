@@ -51,13 +51,13 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			leaseSeconds, err := strconv.ParseInt(leaseStr, 10, 64)
 			if err != nil {
 				log.Printf("error in hub.lease_seconds format %q: %s", leaseSeconds, err)
-				http.Error(w, fmt.Sprintf("error in hub.lease_seconds format %q: %s", leaseSeconds, err), 400)
+				http.Error(w, fmt.Sprintf("error in hub.lease_seconds format %q: %s", leaseSeconds, err), http.StatusBadRequest)
 				return
 			}
 			err = h.Backend.FeedSetLeaseSeconds(feed, leaseSeconds)
 			if err != nil {
 				log.Printf("error in while setting hub.lease_seconds: %s", err)
-				http.Error(w, fmt.Sprintf("error in while setting hub.lease_seconds: %s", err), 400)
+				http.Error(w, fmt.Sprintf("error in while setting hub.lease_seconds: %s", err), http.StatusBadRequest)
 				return
 			}
 		}
@@ -70,7 +70,7 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", 405)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -78,7 +78,7 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	secret := h.Backend.GetSecret(feed)
 	if secret == "" {
 		log.Printf("missing secret for feed %d\n", feed)
-		http.Error(w, "Unknown", 400)
+		http.Error(w, "Unknown", http.StatusBadRequest)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if sig != "" {
 		if err := websub.ValidateHubSignature(sig, feedContent, []byte(secret)); err != nil {
 			log.Printf("could not validate signature: %+v", err)
-			http.Error(w, fmt.Sprintf("could not validate signature: %s", err), 400)
+			http.Error(w, fmt.Sprintf("could not validate signature: %s", err), http.StatusBadRequest)
 			return
 		}
 	}
@@ -102,7 +102,7 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ct := r.Header.Get("Content-Type")
 	err = h.Backend.UpdateFeed(h.Processor, feed, ct, bytes.NewBuffer(feedContent))
 	if err != nil {
-		http.Error(w, fmt.Sprintf("could not update feed: %s (%s)", ct, err), 400)
+		http.Error(w, fmt.Sprintf("could not update feed: %s (%s)", ct, err), http.StatusBadRequest)
 		return
 	}
 

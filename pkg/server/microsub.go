@@ -36,7 +36,7 @@ func respondJSON(w http.ResponseWriter, value interface{}) {
 	w.Header().Add("Content-Type", OutputContentType)
 	err := jw.Encode(value)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -70,7 +70,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			channels, err := h.backend.ChannelsGetList()
 			if err != nil {
 				log.Println(err)
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			respondJSON(w, map[string][]microsub.Channel{
@@ -80,7 +80,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			timeline, err := h.backend.TimelineGet(values.Get("before"), values.Get("after"), values.Get("channel"))
 			if err != nil {
 				log.Println(err)
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			respondJSON(w, timeline)
@@ -88,7 +88,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			timeline, err := h.backend.PreviewURL(values.Get("url"))
 			if err != nil {
 				log.Println(err)
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			respondJSON(w, timeline)
@@ -97,7 +97,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			following, err := h.backend.FollowGetList(channel)
 			if err != nil {
 				log.Println(err)
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			respondJSON(w, map[string][]microsub.Feed{
@@ -107,7 +107,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			events, err := h.backend.Events()
 			if err != nil {
 				log.Println(err)
-				http.Error(w, "could not start sse connection", 500)
+				http.Error(w, "could not start sse connection", http.StatusInternalServerError)
 			}
 
 			// Remove this client from the map of connected clients
@@ -127,10 +127,10 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			err = sse.WriteMessages(w, events)
 			if err != nil {
 				log.Println(err)
-				http.Error(w, "internal server error", 500)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
 			}
 		} else {
-			http.Error(w, fmt.Sprintf("unknown action %s", action), 400)
+			http.Error(w, fmt.Sprintf("unknown action %s", action), http.StatusBadRequest)
 			return
 		}
 		return
@@ -147,7 +147,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				err := h.backend.ChannelsDelete(uid)
 				if err != nil {
 					log.Println(err)
-					http.Error(w, err.Error(), 500)
+					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
 				respondJSON(w, []string{})
@@ -158,7 +158,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				channel, err := h.backend.ChannelsCreate(name)
 				if err != nil {
 					log.Println(err)
-					http.Error(w, err.Error(), 500)
+					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
 				respondJSON(w, channel)
@@ -166,7 +166,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				channel, err := h.backend.ChannelsUpdate(uid, name)
 				if err != nil {
 					log.Println(err)
-					http.Error(w, err.Error(), 500)
+					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
 				respondJSON(w, channel)
@@ -177,7 +177,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// h.HubIncomingBackend.CreateFeed(url, uid)
 			feed, err := h.backend.FollowURL(uid, url)
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			respondJSON(w, feed)
@@ -186,14 +186,14 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			url := values.Get("url")
 			err := h.backend.UnfollowURL(uid, url)
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			respondJSON(w, []string{})
 		} else if action == "preview" {
 			timeline, err := h.backend.PreviewURL(values.Get("url"))
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			respondJSON(w, timeline)
@@ -250,20 +250,20 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if len(markAsRead) > 0 {
 					err := h.backend.MarkRead(channel, markAsRead)
 					if err != nil {
-						http.Error(w, err.Error(), 500)
+						http.Error(w, err.Error(), http.StatusInternalServerError)
 						return
 					}
 				} else {
 					log.Println("No uids specified for mark read")
 				}
 			} else {
-				http.Error(w, fmt.Sprintf("unknown method in timeline %s\n", method), 500)
+				http.Error(w, fmt.Sprintf("unknown method in timeline %s\n", method), http.StatusInternalServerError)
 				return
 			}
 
 			respondJSON(w, []string{})
 		} else {
-			http.Error(w, fmt.Sprintf("unknown action %s\n", action), 400)
+			http.Error(w, fmt.Sprintf("unknown action %s\n", action), http.StatusBadRequest)
 		}
 		return
 	}

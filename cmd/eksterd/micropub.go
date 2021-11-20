@@ -40,7 +40,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err := r.ParseForm()
 	if err != nil {
-		http.Error(w, "bad request", 400)
+		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
@@ -50,13 +50,13 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		channel, err = getChannelFromAuthorization(r, conn)
 		if err != nil {
 			log.Println(err)
-			http.Error(w, "unauthorized", 401)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 
 		// no channel is found
 		if channel == "" {
-			http.Error(w, "bad request, unknown channel", 400)
+			http.Error(w, "bad request, unknown channel", http.StatusBadRequest)
 			return
 		}
 
@@ -64,7 +64,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		item, err := parseIncomingItem(r)
 		if err != nil {
 			log.Println(err)
-			http.Error(w, err.Error(), 400)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		log.Printf("Item published: %s", item.Published)
@@ -76,7 +76,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		newID, err := generateItemID(conn, channel)
 		if err != nil {
 			log.Println(err)
-			http.Error(w, err.Error(), 500)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		item.ID = newID
@@ -95,13 +95,13 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if err = json.NewEncoder(w).Encode(map[string]string{"ok": "1"}); err != nil {
 			log.Println(err)
-			http.Error(w, "internal server error", 500)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 
 		return
 	}
 
-	http.Error(w, "Method not allowed", 405)
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
 func generateItemID(conn redis.Conn, channel string) (string, error) {

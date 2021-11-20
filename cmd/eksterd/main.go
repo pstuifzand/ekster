@@ -86,13 +86,13 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 		}
 		if !authorized {
 			log.Printf("Token could not be validated")
-			http.Error(w, "Can't validate token", 403)
+			http.Error(w, "Can't validate token", http.StatusForbidden)
 			return
 		}
 
 		if token.Me != b.Me { // FIXME: Me should be part of the request
 			log.Printf("Missing \"me\" in token response: %#v\n", token)
-			http.Error(w, "Wrong me", 403)
+			http.Error(w, "Wrong me", http.StatusForbidden)
 			return
 		}
 
