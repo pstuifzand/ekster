@@ -136,10 +136,7 @@ func shouldRetryWithNewUID(err error, try int) bool {
 
 	if e, ok := err.(*pq.Error); ok {
 		if e.Code == "23505" && e.Constraint == "channels_uid_key" {
-			if try > 5 {
-				return false
-			}
-			return true
+			return try <= 5
 		}
 	}
 	return false
