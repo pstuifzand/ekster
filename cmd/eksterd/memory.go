@@ -869,13 +869,10 @@ func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
 	var c microsub.Channel
 	c.UID = channel
 
-	currentCount := c.Unread.UnreadCount
 	c.Unread = microsub.Unread{Type: microsub.UnreadCount, UnreadCount: unread}
 
 	// Sent message to Server-Sent-Events
-	if currentCount != unread {
-		b.broker.Notifier <- sse.Message{Event: "new item in channel", Object: c}
-	}
+	b.broker.Notifier <- sse.Message{Event: "new item in channel", Object: c}
 
 	return nil
 }
