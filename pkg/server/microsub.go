@@ -239,6 +239,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					})
 					return
 				}
+				log.Printf("Searching for %s in %s (%d results)", query, channel, len(items))
 				respondJSON(w, map[string]interface{}{
 					"query": query,
 					"items": items,
