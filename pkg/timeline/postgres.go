@@ -225,10 +225,11 @@ func (p *postgresStream) Count() (int, error) {
 	if row == nil {
 		return 0, nil
 	}
+
 	var count int
 	err = row.Scan(&count)
-	if err != nil {
-		return -1, err
+	if err != nil && err == sql.ErrNoRows {
+		return 0, nil
 	}
 
 	return count, nil
