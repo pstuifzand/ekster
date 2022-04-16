@@ -136,7 +136,7 @@ WHERE "channel_id" = $1
 			qb.WriteString(` AND "published_at" < $2`)
 		}
 	}
-	qb.WriteString(` ORDER BY "published_at" DESC LIMIT 10`)
+	qb.WriteString(` ORDER BY "published_at" DESC LIMIT 20`)
 
 	rows, err := conn.QueryContext(context.Background(), qb.String(), args...)
 	if err != nil {
