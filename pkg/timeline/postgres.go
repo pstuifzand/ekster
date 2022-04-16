@@ -180,8 +180,7 @@ WHERE "channel_id" = $1
 		return tl, err
 	}
 
-	// TODO: should only be set of there are more items available
-	if hasMoreBefore(conn, tl.Items[0].Published) {
+	if len(tl.Items) > 0 && hasMoreBefore(conn, tl.Items[0].Published) {
 		tl.Paging.Before = tl.Items[0].Published
 	}
 	if hasMoreAfter(conn, last) {
