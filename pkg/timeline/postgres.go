@@ -127,7 +127,7 @@ WHERE "channel_id" = $1
 			log.Println(err)
 		} else {
 			args = append(args, b)
-			qb.WriteString(` AND "published_at" >= $2`)
+			qb.WriteString(` AND "published_at" > $2`)
 		}
 	} else if after != "" {
 		b, err := time.Parse(time.RFC3339, after)
@@ -196,7 +196,7 @@ WHERE "channel_id" = $1
 }
 
 func hasMoreBefore(conn *sql.Conn, before string) bool {
-	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "published_at" >= $1`, before)
+	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "published_at" > $1`, before)
 	var count int
 	if err := row.Scan(&count); err == sql.ErrNoRows {
 		return false
