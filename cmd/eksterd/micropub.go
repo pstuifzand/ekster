@@ -99,7 +99,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		item.ID = newID
 
-		err = h.Backend.channelAddItemWithMatcher(channel, *item)
+		_, err = h.Backend.channelAddItemWithMatcher(channel, *item)
 		if err != nil {
 			log.Printf("could not add item to channel %s: %v", channel, err)
 		}
