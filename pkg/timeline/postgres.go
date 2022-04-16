@@ -181,8 +181,8 @@ WHERE "channel_id" = $1
 	}
 
 	// TODO: should only be set of there are more items available
-	tl.Paging.Before = last
-	// tl.Paging.After = last
+	// tl.Paging.Before = last
+	tl.Paging.After = last
 
 	if tl.Items == nil {
 		tl.Items = []microsub.Item{}
