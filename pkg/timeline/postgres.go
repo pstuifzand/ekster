@@ -127,13 +127,13 @@ WHERE "channel_id" = $1
 			log.Println(err)
 		} else {
 			args = append(args, b)
-			qb.WriteString(` AND "published_at" < $2`)
+			qb.WriteString(` AND "published_at" >= $2`)
 		}
 	} else if after != "" {
 		b, err := time.Parse(time.RFC3339, after)
 		if err == nil {
 			args = append(args, b)
-			qb.WriteString(` AND "published_at" > $2`)
+			qb.WriteString(` AND "published_at" < $2`)
 		}
 	}
 	qb.WriteString(` ORDER BY "published_at" DESC LIMIT 10`)
@@ -181,14 +181,36 @@ WHERE "channel_id" = $1
 	}
 
 	// TODO: should only be set of there are more items available
-	// tl.Paging.Before = last
-	tl.Paging.After = last
+	if hasMoreBefore(conn, tl.Items[0].Published) {
+		tl.Paging.Before = tl.Items[0].Published
+	}
+	if hasMoreAfter(conn, last) {
+		tl.Paging.After = last
+	}
 
 	if tl.Items == nil {
 		tl.Items = []microsub.Item{}
 	}
 
 	return tl, nil
+}
+
+func hasMoreBefore(conn *sql.Conn, before string) bool {
+	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "published_at" >= $1`, before)
+	var count int
+	if err := row.Scan(&count); err == sql.ErrNoRows {
+		return false
+	}
+	return count > 0
+}
+
+func hasMoreAfter(conn *sql.Conn, after string) bool {
+	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "published_at" < $1`, after)
+	var count int
+	if err := row.Scan(&count); err == sql.ErrNoRows {
+		return false
+	}
+	return count > 0
 }
 
 // Count
