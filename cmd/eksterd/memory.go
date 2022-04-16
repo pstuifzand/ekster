@@ -186,7 +186,7 @@ func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 	for {
 		varMicrosub.Add("ChannelsCreate.RandStringBytes", 1)
 		channel.UID = util.RandStringBytes(24)
-		result, err := b.database.Exec(`insert into "channels" ("uid", "name", "created_at") values($1, $2, DEFAULT)`, channel.UID, channel.Name)
+		result, err := b.database.Exec(`insert into "channels" ("uid", "name", "created_at") values ($1, $2, DEFAULT)`, channel.UID, channel.Name)
 		if err != nil {
 			log.Println("channels insert", err)
 			if !shouldRetryWithNewUID(err, try) {
@@ -195,7 +195,7 @@ func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 			try++
 			continue
 		}
-		if n, err := result.RowsAffected(); err != nil {
+		if n, err := result.RowsAffected(); err == nil {
 			if n > 0 {
 				b.broker.Notifier <- sse.Message{Event: "new channel", Object: channelMessage{1, channel}}
 			}
