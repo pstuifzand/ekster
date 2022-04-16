@@ -158,7 +158,7 @@ func (h *hubIncomingBackend) UpdateFeed(processor ContentProcessor, subscription
 		}
 
 		log.Printf("Updating feed %s %q in %q\n", feedID, topic, channel)
-		err = processor.ProcessContent(channel, feedID, topic, contentType, body)
+		_, err = processor.ProcessContent(channel, feedID, topic, contentType, body)
 		if err != nil {
 			log.Printf("could not process content for channel %s: %s", channel, err)
 		}
@@ -223,22 +223,24 @@ func (h *hubIncomingBackend) Subscribe(feed *Feed) error {
 }
 
 func (h *hubIncomingBackend) run() error {
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(1 * time.Minute)
 	quit := make(chan struct{})
 
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-				log.Println("Getting feeds for WebSub")
+				log.Println("Getting feeds for WebSub started")
 				varWebsub.Add("runs", 1)
 
 				feeds, err := h.Feeds()
 				if err != nil {
 					log.Println("Feeds failed:", err)
+					log.Println("Getting feeds for WebSub completed")
 					continue
 				}
 
+				log.Printf("Found %d feeds", len(feeds))
 				for _, feed := range feeds {
 					log.Printf("Looking at %s\n", feed.URL)
 					if feed.ResubscribeAt != nil && time.Now().After(*feed.ResubscribeAt) {
@@ -254,6 +256,8 @@ func (h *hubIncomingBackend) run() error {
 						}
 					}
 				}
+
+				log.Println("Getting feeds for WebSub completed")
 			case <-quit:
 				ticker.Stop()
 				return
