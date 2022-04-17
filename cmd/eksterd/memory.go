@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/pkg/errors"
 	"p83.nl/go/ekster/pkg/auth"
 	"p83.nl/go/ekster/pkg/fetch"
 	"p83.nl/go/ekster/pkg/microsub"
@@ -409,9 +410,12 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Tim
 		return microsub.Timeline{Items: []microsub.Item{}}, err
 	}
 
-	timelineBackend := b.getTimeline(channel)
+	timelineBackend, err := b.getTimeline(channel)
+	if err != nil {
+		return microsub.Timeline{}, err
+	}
 
-	_ = b.updateChannelUnreadCount(channel)
+	// _ = b.updateChannelUnreadCount(channel)
 
 	return timelineBackend.Items(before, after)
 }
@@ -617,15 +621,16 @@ func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error)
 }
 
 func (b *memoryBackend) MarkRead(channel string, uids []string) error {
-	tl := b.getTimeline(channel)
-	err := tl.MarkRead(uids)
-
+	tl, err := b.getTimeline(channel)
 	if err != nil {
 		return err
 	}
 
-	err = b.updateChannelUnreadCount(channel)
-	if err != nil {
+	if err = tl.MarkRead(uids); err != nil {
+		return err
+	}
+
+	if err = b.updateChannelUnreadCount(channel); err != nil {
 		return err
 	}
 
@@ -845,7 +850,11 @@ func matchItemText(item microsub.Item, re *regexp.Regexp) bool {
 }
 
 func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) (bool, error) {
-	timelineBackend := b.getTimeline(channel)
+	timelineBackend, err := b.getTimeline(channel)
+	if err != nil {
+		return false, err
+	}
+
 	added, err := timelineBackend.AddItem(item)
 	if err != nil {
 		return added, err
@@ -859,17 +868,27 @@ func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) (bool
 	return added, err
 }
 
+// ErrNotUpdated is used when the unread count is not updated
+var ErrNotUpdated = errors.New("timeline unread count not updated")
+
+// ErrNotFound is used when the timeline is not found
+var ErrNotFound = errors.New("timeline not found")
+
 func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
-	tl := b.getTimeline(channel)
-	unread, err := tl.Count()
+	tl, err := b.getTimeline(channel)
 	if err != nil {
 		return err
 	}
 
-	var c microsub.Channel
-	c.UID = channel
+	unread, err := tl.Count()
+	if err != nil {
+		return ErrNotUpdated
+	}
 
-	c.Unread = microsub.Unread{Type: microsub.UnreadCount, UnreadCount: unread}
+	var c = microsub.Channel{
+		UID:    channel,
+		Unread: microsub.Unread{Type: microsub.UnreadCount, UnreadCount: unread},
+	}
 
 	// Sent message to Server-Sent-Events
 	b.broker.Notifier <- sse.Message{Event: "new item in channel", Object: c}
@@ -952,15 +971,12 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	return resp, err
 }
 
-func (b *memoryBackend) getTimeline(channel string) timeline.Backend {
+func (b *memoryBackend) getTimeline(channel string) (timeline.Backend, error) {
 	// Set a default timeline type if not set
 	timelineType := "postgres-stream"
-	// if setting, ok := b.Settings[channel]; ok && setting.ChannelType != "" {
-	// 	timelineType = setting.ChannelType
-	// }
 	tl := timeline.Create(channel, timelineType, b.pool, b.database)
 	if tl == nil {
-		log.Printf("no timeline found with name %q and type %q", channel, timelineType)
+		return tl, fmt.Errorf("timeline id %q: %w", channel, ErrNotFound)
 	}
-	return tl
+	return tl, nil
 }
