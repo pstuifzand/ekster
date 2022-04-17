@@ -53,52 +53,11 @@ func (p *postgresStream) Init() error {
 	if err != nil {
 		return fmt.Errorf("database ping failed: %w", err)
 	}
-	//
-	// 	_, err = conn.ExecContext(ctx, `
-	// CREATE TABLE IF NOT EXISTS "channels" (
-	//     "id" int primary key generated always as identity,
-	//     "name" varchar(255) unique,
-	//     "created_at" timestamp DEFAULT current_timestamp
-	// );
-	// `)
-	// 	if err != nil {
-	// 		return fmt.Errorf("create channels table failed: %w", err)
-	// 	}
-	//
-	// 	_, err = conn.ExecContext(ctx, `
-	// CREATE TABLE IF NOT EXISTS "items" (
-	//     "id" int primary key generated always as identity,
-	//     "channel_id" int references "channels" on delete cascade,
-	//     "uid" varchar(512) not null unique,
-	//     "is_read" int default 0,
-	//     "data" jsonb,
-	//     "created_at" timestamp DEFAULT current_timestamp,
-	//     "updated_at" timestamp,
-	//     "published_at" timestamp
-	// );
-	// `)
-	// 	if err != nil {
-	// 		return fmt.Errorf("create items table failed: %w", err)
-	// 	}
-	//
-	// 	_, err = conn.ExecContext(ctx, `ALTER TABLE "items" ALTER COLUMN "data" TYPE jsonb, ALTER COLUMN "uid"  TYPE varchar(1024)`)
-	// 	if err != nil {
-	// 		return fmt.Errorf("alter items table failed: %w", err)
-	// 	}
-
-	_, err = conn.ExecContext(ctx, `INSERT INTO "channels" ("uid", "name", "created_at") VALUES ($1, $1, DEFAULT)
- 		ON CONFLICT DO NOTHING`, p.channel)
-	if err != nil {
-		return fmt.Errorf("create channel failed: %w", err)
-	}
 
 	row := conn.QueryRowContext(ctx, `SELECT "id" FROM "channels" WHERE "uid" = $1`, p.channel)
-	if row == nil {
-		return fmt.Errorf("fetch channel failed: %w", err)
-	}
 	err = row.Scan(&p.channelID)
-	if err != nil {
-		return fmt.Errorf("fetch channel failed while scanning: %w", err)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("channel %s not found: %w", p.channel, err)
 	}
 
 	return nil
@@ -220,17 +179,12 @@ func (p *postgresStream) Count() (int, error) {
 		return -1, err
 	}
 	defer conn.Close()
-	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM items WHERE channel_id = $1 AND "is_read" = 0`, p.channelID)
-	if row == nil {
-		return 0, nil
-	}
-
 	var count int
+	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM items WHERE channel_id = $1 AND "is_read" = 0`, p.channelID)
 	err = row.Scan(&count)
 	if err != nil && err == sql.ErrNoRows {
 		return 0, nil
 	}
-
 	return count, nil
 }
 
