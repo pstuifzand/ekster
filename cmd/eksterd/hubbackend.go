@@ -135,15 +135,14 @@ func (h *hubIncomingBackend) UpdateFeed(processor ContentProcessor, subscription
 	log.Println("UpdateFeed", subscriptionID)
 
 	db := h.database
-	var (
-		topic   string
-		channel string
-		feedID  string
-	)
-
 	// Process all channels that contains this feed
-	rows, err := db.Query(
-		`select topic, c.uid, f.id from subscriptions s inner join feeds f on f.url = s.topic inner join channels c on c.id = f.channel_id where s.id = $1`,
+	rows, err := db.Query(`
+select topic, c.uid, f.id, c.name
+from subscriptions s
+inner join feeds f    on f.url = s.topic
+inner join channels c on c.id = f.channel_id
+where s.id = $1
+`,
 		subscriptionID,
 	)
 	if err != nil {
@@ -151,16 +150,18 @@ func (h *hubIncomingBackend) UpdateFeed(processor ContentProcessor, subscription
 	}
 
 	for rows.Next() {
-		err = rows.Scan(&topic, &channel, &feedID)
+		var topic, channel, feedID, channelName string
+
+		err = rows.Scan(&topic, &channel, &feedID, &channelName)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
 
-		log.Printf("Updating feed %s %q in %q\n", feedID, topic, channel)
+		log.Printf("Updating feed %s %q in %q (%s)\n", feedID, topic, channelName, channel)
 		_, err = processor.ProcessContent(channel, feedID, topic, contentType, body)
 		if err != nil {
-			log.Printf("could not process content for channel %s: %s", channel, err)
+			log.Printf("could not process content for channel %s: %s", channelName, err)
 		}
 	}
 
