@@ -701,7 +701,7 @@ func (b *memoryBackend) ProcessContent(channel, feedID, fetchURL, contentType st
 		if err != nil {
 			log.Printf("ERROR: (feedID=%s) %s\n", feedID, err)
 		}
-		changed = changed && added
+		changed = changed || added
 	}
 
 	err = b.updateChannelUnreadCount(channel)
