@@ -20,6 +20,7 @@ package main
 
 import (
 	"crypto/sha1"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -65,7 +66,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var channel string
 
-		channel, err = getChannelFromAuthorization(r, conn)
+		channel, err = getChannelFromAuthorization(r, conn, h.Backend.database)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -165,15 +166,21 @@ func parseIncomingItem(r *http.Request) (*microsub.Item, error) {
 	return nil, fmt.Errorf("content-type %q is not supported", contentType)
 }
 
-func getChannelFromAuthorization(r *http.Request, conn redis.Conn) (string, error) {
+func getChannelFromAuthorization(r *http.Request, conn redis.Conn, database *sql.DB) (string, error) {
 	// backward compatible
 	sourceID := r.URL.Query().Get("source_id")
 	if sourceID != "" {
-		channel, err := redis.String(conn.Do("HGET", "sources", sourceID))
-		if err != nil {
+		row := database.QueryRow(`
+SELECT c.uid
+FROM "sources" AS "s"
+INNER JOIN "channels" AS "c" ON s.channel_id = c.id
+WHERE "auth_code" = $1
+`, sourceID)
+
+		var channel string
+		if err := row.Scan(&channel); err == sql.ErrNoRows {
 			return "", errors.Wrapf(err, "could not get channel for sourceID: %s", sourceID)
 		}
-
 		return channel, nil
 	}
 

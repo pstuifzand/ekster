@@ -7,6 +7,17 @@ workspace:
   base: /go
   path: src/p83.nl/go/ekster
 
+services:
+  - name: redis
+    image: redis:5
+  - name: database
+    image: postgres:14
+    environment:
+      POSTGRES_DB: ekster_testing
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: simple
+      POSTGRES_HOST_AUTH_METHOD: trust
+
 steps:
   - name: testing
     image: golang:1.18-alpine
@@ -18,11 +29,9 @@ steps:
       - go version
       - apk --no-cache add git
       - go get -d -t ./...
-      - go install honnef.co/go/tools/cmd/staticcheck@latest
-      - go build p83.nl/go/ekster/cmd/eksterd
+      - go build -buildvcs=false p83.nl/go/ekster/cmd/eksterd
       - go vet ./...
       - go test -v ./...
-      - staticcheck ./...
 
   - name: publish-personal
     image: plugins/docker

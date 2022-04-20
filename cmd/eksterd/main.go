@@ -167,8 +167,8 @@ func main() {
 	// }
 
 	// TODO(peter): automatically gather this information from login or otherwise
-
-	err := runMigrations()
+	databaseURL := "postgres://postgres@database/ekster?sslmode=disable&user=postgres&password=simple"
+	err := runMigrations(databaseURL)
 	if err != nil {
 		log.Fatalf("Error with migrations: %s", err)
 	}
@@ -205,12 +205,12 @@ func (l Log) Verbose() bool {
 	return false
 }
 
-func runMigrations() error {
+func runMigrations(databaseURL string) error {
 	d, err := iofs.New(migrations, "db/migrations")
 	if err != nil {
 		return err
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", d, "postgres://postgres@database/ekster?sslmode=disable&user=postgres&password=simple")
+	m, err := migrate.NewWithSourceInstance("iofs", d, databaseURL)
 	if err != nil {
 		return err
 	}
