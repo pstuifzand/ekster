@@ -1,11 +1,15 @@
 ---
 kind: pipeline
 type: docker
-name: build
+name: build and test
 
 workspace:
   base: /go
   path: src/p83.nl/go/ekster
+
+trigger:
+  event:
+    - push
 
 services:
   - name: redis
@@ -49,7 +53,7 @@ trigger:
     - production
 
 steps:
-  - name: testing
+  - name: build
     image: golang:1.18-alpine
     environment:
       CGO_ENABLED: 0
@@ -64,7 +68,7 @@ steps:
   - name: publish-personal
     image: plugins/docker
     depends_on:
-      - testing
+      - build
     settings:
       repo: registry.stuifzandapp.com/microsub-server
       registry: registry.stuifzandapp.com
