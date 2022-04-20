@@ -33,6 +33,34 @@ steps:
       - go vet ./...
       - go test -v ./...
 
+---
+kind: pipeline
+type: docker
+name: move to production
+
+workspace:
+  base: /go
+  path: src/p83.nl/go/ekster
+
+trigger:
+  event:
+    - promote
+  target:
+    - production
+
+steps:
+  - name: testing
+    image: golang:1.18-alpine
+    environment:
+      CGO_ENABLED: 0
+      GOOS: linux
+      GOARCH: amd64
+    commands:
+      - go version
+      - apk --no-cache add git
+      - go get -d -t ./...
+      - go build -buildvcs=false p83.nl/go/ekster/cmd/eksterd
+
   - name: publish-personal
     image: plugins/docker
     depends_on:
@@ -44,24 +72,6 @@ steps:
         from_secret: docker_username
       password:
         from_secret: docker_password
-    when:
-      event:
-        - promote
-      target:
-        - production
-
-  # - name: publish-docker
-  #   image: plugins/docker
-  #   depends_on:
-  #     - testing
-  #   settings:
-  #     repo: pstuifzand/ekster
-  #     tags:
-  #       - alpine
-  #     username:
-  #       from_secret: docker_official_username
-  #     password:
-  #       from_secret: docker_official_password
 
   - name: deploy
     image: appleboy/drone-ssh
@@ -76,8 +86,3 @@ steps:
         - cd /home/microsub/microsub
         - docker-compose pull web
         - docker-compose up -d
-    when:
-      event:
-        - promote
-      target:
-        - production
