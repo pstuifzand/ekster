@@ -66,7 +66,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var channel string
 
-		channel, err = getChannelFromAuthorization(r, conn, h.Backend.database)
+		sourceID, channel, err := getChannelFromAuthorization(r, conn, h.Backend.database)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -99,6 +99,11 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		item.ID = newID
+
+		item.Source = &microsub.Source{
+			ID:   fmt.Sprintf("micropub:%d", sourceID),
+			Name: fmt.Sprintf("Source %d", sourceID),
+		}
 
 		_, err = h.Backend.channelAddItemWithMatcher(channel, *item)
 		if err != nil {
@@ -166,22 +171,23 @@ func parseIncomingItem(r *http.Request) (*microsub.Item, error) {
 	return nil, fmt.Errorf("content-type %q is not supported", contentType)
 }
 
-func getChannelFromAuthorization(r *http.Request, conn redis.Conn, database *sql.DB) (string, error) {
+func getChannelFromAuthorization(r *http.Request, conn redis.Conn, database *sql.DB) (int, string, error) {
 	// backward compatible
 	sourceID := r.URL.Query().Get("source_id")
 	if sourceID != "" {
 		row := database.QueryRow(`
-SELECT c.uid
+SELECT s.id as source_id, c.uid
 FROM "sources" AS "s"
 INNER JOIN "channels" AS "c" ON s.channel_id = c.id
 WHERE "auth_code" = $1
 `, sourceID)
 
 		var channel string
-		if err := row.Scan(&channel); err == sql.ErrNoRows {
-			return "", errors.Wrapf(err, "could not get channel for sourceID: %s", sourceID)
+		var sourceID int
+		if err := row.Scan(&sourceID, &channel); err == sql.ErrNoRows {
+			return 0, "", errors.New("channel not found")
 		}
-		return channel, nil
+		return sourceID, channel, nil
 	}
 
 	// full micropub with indieauth
@@ -190,11 +196,11 @@ WHERE "auth_code" = $1
 		token := authHeader[7:]
 		channel, err := redis.String(conn.Do("HGET", "token:"+token, "channel"))
 		if err != nil {
-			return "", errors.Wrap(err, "could not get channel for token")
+			return 0, "", errors.Wrap(err, "could not get channel for token")
 		}
 
-		return channel, nil
+		return 0, channel, nil
 	}
 
-	return "", fmt.Errorf("could not get channel from authorization")
+	return 0, "", fmt.Errorf("could not get channel from authorization")
 }
