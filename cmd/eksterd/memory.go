@@ -156,6 +156,9 @@ GROUP BY c.id;
 		}})
 	}
 
+	util.StablePartition(channels, 0, len(channels), func(i int) bool {
+		return channels[i].Unread.HasUnread()
+	})
 	return channels, nil
 }
 
