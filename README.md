@@ -8,7 +8,7 @@ There are two methods for installing and running ekster.
 
 ### Method 1: From binaries
 
-Download the binaries from the [latest release](https://github.cGom/pstuifzand/ekster/releases/) on Github.
+Download the binaries from the [latest release](https://github.com/pstuifzand/ekster/releases/) on Github.
 
 ### Method 2: Install ekster from source with Go
 
