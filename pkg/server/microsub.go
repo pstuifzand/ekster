@@ -29,8 +29,8 @@ import (
 	"net/http"
 	"regexp"
 
-	"p83.nl/go/ekster/pkg/microsub"
-	"p83.nl/go/ekster/pkg/sse"
+	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/sse"
 )
 
 var (

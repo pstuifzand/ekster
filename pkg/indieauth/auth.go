@@ -29,9 +29,9 @@ import (
 	"net/url"
 	"strings"
 
-	"p83.nl/go/ekster/pkg/linkheader"
+	"github.com/pstuifzand/ekster/pkg/linkheader"
 
-	"p83.nl/go/ekster/pkg/util"
+	"github.com/pstuifzand/ekster/pkg/util"
 	"willnorris.com/go/microformats"
 )
 

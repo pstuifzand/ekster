@@ -31,7 +31,7 @@ import (
 	"os"
 	"time"
 
-	"p83.nl/go/ekster/pkg/auth"
+	"github.com/pstuifzand/ekster/pkg/auth"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -107,7 +107,7 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 }
 
 func main() {
-	log.Println("eksterd - microsub server")
+	log.Println("eksterd - microsub server", BuildVersion())
 
 	var options AppOptions
 

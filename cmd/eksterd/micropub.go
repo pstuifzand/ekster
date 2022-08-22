@@ -28,8 +28,8 @@ import (
 	"strings"
 	"time"
 
-	"p83.nl/go/ekster/pkg/jf2"
-	"p83.nl/go/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/jf2"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/pkg/errors"

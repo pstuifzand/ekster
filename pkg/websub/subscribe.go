@@ -27,11 +27,11 @@ import (
 	"net/url"
 	"strings"
 
-	"p83.nl/go/ekster/pkg/rss"
+	"github.com/pstuifzand/ekster/pkg/rss"
 
-	"p83.nl/go/ekster/pkg/linkheader"
+	"github.com/pstuifzand/ekster/pkg/linkheader"
 
-	"p83.nl/go/ekster/pkg/jsonfeed"
+	"github.com/pstuifzand/ekster/pkg/jsonfeed"
 	"willnorris.com/go/microformats"
 )
 

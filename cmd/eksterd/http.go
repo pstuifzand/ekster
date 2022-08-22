@@ -32,9 +32,9 @@ import (
 	"strings"
 	"time"
 
-	"p83.nl/go/ekster/pkg/indieauth"
-	"p83.nl/go/ekster/pkg/microsub"
-	"p83.nl/go/ekster/pkg/util"
+	"github.com/pstuifzand/ekster/pkg/indieauth"
+	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/util"
 
 	"github.com/gomodule/redigo/redis"
 	"willnorris.com/go/microformats"

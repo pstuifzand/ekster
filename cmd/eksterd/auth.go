@@ -29,7 +29,7 @@ import (
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/pkg/errors"
-	"p83.nl/go/ekster/pkg/auth"
+	"github.com/pstuifzand/ekster/pkg/auth"
 )
 
 var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")

@@ -1,4 +1,4 @@
-module p83.nl/go/ekster
+module github.com/pstuifzand/ekster
 
 go 1.16
 

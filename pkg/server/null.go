@@ -19,8 +19,8 @@
 package server
 
 import (
-	"p83.nl/go/ekster/pkg/microsub"
-	"p83.nl/go/ekster/pkg/sse"
+	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/sse"
 )
 
 // NullBackend is the simplest possible backend

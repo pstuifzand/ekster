@@ -21,7 +21,7 @@ package jf2
 import (
 	"reflect"
 
-	"p83.nl/go/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 	"willnorris.com/go/microformats"
 )
 

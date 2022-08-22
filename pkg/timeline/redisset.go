@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
-	"p83.nl/go/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 )
 
 type redisSortedSetTimeline struct {

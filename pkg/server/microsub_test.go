@@ -26,9 +26,9 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/pstuifzand/ekster/pkg/client"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 	"github.com/stretchr/testify/assert"
-	"p83.nl/go/ekster/pkg/client"
-	"p83.nl/go/ekster/pkg/microsub"
 )
 
 func init() {

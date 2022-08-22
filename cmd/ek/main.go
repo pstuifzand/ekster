@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/gilliek/go-opml/opml"
-	"p83.nl/go/ekster/pkg/client"
-	"p83.nl/go/ekster/pkg/indieauth"
-	"p83.nl/go/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/client"
+	"github.com/pstuifzand/ekster/pkg/indieauth"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 )
 
 const (

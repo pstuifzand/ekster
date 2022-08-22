@@ -28,8 +28,8 @@ import (
 	"net/url"
 	"strings"
 
-	"p83.nl/go/ekster/pkg/microsub"
-	"p83.nl/go/ekster/pkg/sse"
+	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/sse"
 )
 
 // Client is a HTTP client for Microsub

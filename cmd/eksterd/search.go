@@ -23,7 +23,7 @@ import (
 	"os"
 
 	"github.com/blevesearch/bleve/v2"
-	"p83.nl/go/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 )
 
 var index bleve.Index

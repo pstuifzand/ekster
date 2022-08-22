@@ -27,7 +27,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"p83.nl/go/ekster/pkg/websub"
+	"github.com/pstuifzand/ekster/pkg/websub"
 )
 
 type incomingHandler struct {

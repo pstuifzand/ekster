@@ -24,8 +24,8 @@ import (
 	"os"
 	"testing"
 
-	"p83.nl/go/ekster/pkg/jf2"
-	"p83.nl/go/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/jf2"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 
 	"github.com/stretchr/testify/assert"
 	"willnorris.com/go/microformats"

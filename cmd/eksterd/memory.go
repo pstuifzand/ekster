@@ -38,12 +38,12 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
-	"p83.nl/go/ekster/pkg/auth"
-	"p83.nl/go/ekster/pkg/fetch"
-	"p83.nl/go/ekster/pkg/microsub"
-	"p83.nl/go/ekster/pkg/sse"
-	"p83.nl/go/ekster/pkg/timeline"
-	"p83.nl/go/ekster/pkg/util"
+	"github.com/pstuifzand/ekster/pkg/auth"
+	"github.com/pstuifzand/ekster/pkg/fetch"
+	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/sse"
+	"github.com/pstuifzand/ekster/pkg/timeline"
+	"github.com/pstuifzand/ekster/pkg/util"
 
 	"github.com/gomodule/redigo/redis"
 	"willnorris.com/go/microformats"

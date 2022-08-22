@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"p83.nl/go/ekster/pkg/sse"
+	"github.com/pstuifzand/ekster/pkg/sse"
 )
 
 /*

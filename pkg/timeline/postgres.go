@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	"p83.nl/go/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 
 	// load pq for postgres
 	"github.com/lib/pq"

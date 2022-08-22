@@ -28,7 +28,7 @@ import (
 	"encoding/json"
 	"log"
 
-	"p83.nl/go/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 
 	"github.com/gomodule/redigo/redis"
 )

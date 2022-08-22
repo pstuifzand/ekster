@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"os"
 
-	"p83.nl/go/ekster/pkg/fetch"
+	"github.com/pstuifzand/ekster/pkg/fetch"
 )
 
 func init() {

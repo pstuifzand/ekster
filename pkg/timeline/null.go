@@ -18,7 +18,7 @@
 
 package timeline
 
-import "p83.nl/go/ekster/pkg/microsub"
+import "github.com/pstuifzand/ekster/pkg/microsub"
 
 type nullTimeline struct {
 	channel string

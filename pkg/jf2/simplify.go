@@ -25,8 +25,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/pstuifzand/ekster/pkg/microsub"
 	"golang.org/x/net/html"
-	"p83.nl/go/ekster/pkg/microsub"
 
 	"willnorris.com/go/microformats"
 )

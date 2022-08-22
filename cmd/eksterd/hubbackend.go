@@ -27,8 +27,8 @@ import (
 	"net/http"
 	"time"
 
-	"p83.nl/go/ekster/pkg/util"
-	"p83.nl/go/ekster/pkg/websub"
+	"github.com/pstuifzand/ekster/pkg/util"
+	"github.com/pstuifzand/ekster/pkg/websub"
 
 	"github.com/gomodule/redigo/redis"
 )

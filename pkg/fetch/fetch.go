@@ -34,10 +34,10 @@ import (
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 
-	"p83.nl/go/ekster/pkg/jf2"
-	"p83.nl/go/ekster/pkg/jsonfeed"
-	"p83.nl/go/ekster/pkg/microsub"
-	"p83.nl/go/ekster/pkg/rss"
+	"github.com/pstuifzand/ekster/pkg/jf2"
+	"github.com/pstuifzand/ekster/pkg/jsonfeed"
+	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/rss"
 
 	"willnorris.com/go/microformats"
 )

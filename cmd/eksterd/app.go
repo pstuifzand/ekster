@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"p83.nl/go/ekster/pkg/server"
+	"github.com/pstuifzand/ekster/pkg/server"
 )
 
 func init() {
