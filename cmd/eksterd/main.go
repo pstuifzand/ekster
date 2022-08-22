@@ -31,6 +31,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/pstuifzand/ekster/pkg/auth"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -166,13 +167,6 @@ func main() {
 	// 	return
 	// }
 
-	// TODO(peter): automatically gather this information from login or otherwise
-	databaseURL := "postgres://postgres@database/ekster?sslmode=disable&user=postgres&password=simple"
-	err := runMigrations(databaseURL)
-	if err != nil {
-		log.Fatalf("Error with migrations: %s", err)
-	}
-
 	pool := newPool(options.RedisServer)
 	options.pool = pool
 	db, err := sql.Open("postgres", "host=database user=postgres password=simple dbname=ekster sslmode=disable")
@@ -181,6 +175,10 @@ func main() {
 	}
 	options.database = db
 
+	err = runMigrations(db)
+	if err != nil {
+		log.Fatalf("Error with migrations: %s", err)
+	}
 	app, err := NewApp(options)
 	if err != nil {
 		log.Fatal(err)
@@ -205,12 +203,16 @@ func (l Log) Verbose() bool {
 	return false
 }
 
-func runMigrations(databaseURL string) error {
+func runMigrations(db *sql.DB) error {
 	d, err := iofs.New(migrations, "db/migrations")
 	if err != nil {
 		return err
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", d, databaseURL)
+	databaseInstance, err := postgres.WithInstance(db, &postgres.Config{})
+	if err != nil {
+		return err
+	}
+	m, err := migrate.NewWithInstance("iofs", d, "database", databaseInstance)
 	if err != nil {
 		return err
 	}
