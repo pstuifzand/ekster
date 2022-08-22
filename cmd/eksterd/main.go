@@ -48,6 +48,7 @@ type AppOptions struct {
 	RedisServer string
 	BaseURL     string
 	TemplateDir string
+	DatabaseURL string
 	pool        *redis.Pool
 	database    *sql.DB
 }
@@ -118,6 +119,7 @@ func main() {
 	flag.StringVar(&options.RedisServer, "redis", "redis:6379", "redis server")
 	flag.StringVar(&options.BaseURL, "baseurl", "", "http server baseurl")
 	flag.StringVar(&options.TemplateDir, "templates", "./templates", "template directory")
+	flag.StringVar(&options.DatabaseURL, "db", "host=database user=postgres password=simple dbname=ekster sslmode=disable", "database url")
 
 	flag.Parse()
 
@@ -169,7 +171,7 @@ func main() {
 
 	pool := newPool(options.RedisServer)
 	options.pool = pool
-	db, err := sql.Open("postgres", "host=database user=postgres password=simple dbname=ekster sslmode=disable")
+	db, err := sql.Open("postgres", options.DatabaseURL)
 	if err != nil {
 		log.Fatalf("database open failed: %s", err)
 	}
