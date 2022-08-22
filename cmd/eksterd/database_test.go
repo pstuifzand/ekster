@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 /*
  *  Ekster is a microsub server
  *  Copyright (c) 2022 The Ekster authors
@@ -15,7 +18,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package main
 
 import (
