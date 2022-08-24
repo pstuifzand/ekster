@@ -44,6 +44,7 @@ import (
 	"github.com/pstuifzand/ekster/pkg/microsub"
 	"github.com/pstuifzand/ekster/pkg/sse"
 	"github.com/pstuifzand/ekster/pkg/timeline"
+	"github.com/pstuifzand/ekster/pkg/userid"
 	"github.com/pstuifzand/ekster/pkg/util"
 
 	"github.com/gomodule/redigo/redis"
@@ -134,12 +135,16 @@ func (b *memoryBackend) ChannelsGetList(ctx context.Context) ([]microsub.Channel
 	conn := b.pool.Get()
 	defer conn.Close()
 
+	userID, _ := userid.FromContext(ctx)
+
 	var channels []microsub.Channel
 	rows, err := b.database.Query(`
-SELECT c.uid, c.name, count(i.channel_id)
-FROM "channels" "c" left join items i on c.id = i.channel_id and i.is_read = 0
-GROUP BY c.id;
-`)
+		SELECT c.uid, c.name, count(i.channel_id) as unread
+		FROM "channels" "c" left join items i on c.id = i.channel_id and i.is_read = 0
+		WHERE "c"."user_id" = $1
+		GROUP BY c.id;
+	`, userID)
+
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +182,9 @@ func shouldRetryWithNewUID(err error, try int) bool {
 // ChannelsCreate creates a channels
 func (b *memoryBackend) ChannelsCreate(ctx context.Context, name string) (microsub.Channel, error) {
 	varMicrosub.Add("ChannelsCreate", 1)
+
+	userID, _ := userid.FromContext(ctx)
+
 	/*
 	 * try 5 times to generate a uid for a channel.
 	 * If we get a database error we retry.
@@ -189,7 +197,12 @@ func (b *memoryBackend) ChannelsCreate(ctx context.Context, name string) (micros
 	for {
 		varMicrosub.Add("ChannelsCreate.RandStringBytes", 1)
 		channel.UID = util.RandStringBytes(24)
-		result, err := b.database.Exec(`insert into "channels" ("uid", "name", "created_at") values ($1, $2, DEFAULT)`, channel.UID, channel.Name)
+		result, err := b.database.Exec(
+			`insert into "channels" ("uid", "name", "user_id", "created_at") values ($1, $2, $3, DEFAULT)`,
+			channel.UID,
+			channel.Name,
+			userID,
+		)
 		if err != nil {
 			log.Println("channels insert", err)
 			if !shouldRetryWithNewUID(err, try) {
