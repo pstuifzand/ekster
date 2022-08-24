@@ -35,6 +35,7 @@ import (
 
 	"github.com/pstuifzand/ekster/pkg/indieauth"
 	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/userid"
 	"github.com/pstuifzand/ekster/pkg/util"
 
 	"github.com/gomodule/redigo/redis"
@@ -302,6 +303,14 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), http.StatusBadRequest)
 		return
+	}
+
+	// TODO: can this be done with a wrapped handler?
+	if c, err := r.Cookie("session"); err == nil {
+		if sess, err := loadSession(c.Value, conn); err == nil {
+			ctx := userid.NewContext(r.Context(), sess.UserID)
+			r = r.WithContext(ctx)
+		}
 	}
 
 	if r.Method == http.MethodGet {
