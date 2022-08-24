@@ -5,6 +5,9 @@ COPY cmd /src/cmd/
 COPY pkg /src/pkg/
 WORKDIR /src
 RUN ls -lr
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+ENV GOARCH=amd64
 RUN go build ./cmd/eksterd
 
 FROM scratch
