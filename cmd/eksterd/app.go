@@ -65,10 +65,6 @@ func NewApp(options AppOptions) (*App, error) {
 	}
 	app.backend = backend
 
-	// FIXME: load from database
-	app.backend.TokenEndpoint = "https://p83.nl/authtoken"
-	app.backend.Me = "https://p83.nl/"
-
 	app.backend.AuthEnabled = options.AuthEnabled
 
 	app.hubBackend = &hubIncomingBackend{
@@ -90,7 +86,7 @@ func NewApp(options AppOptions) (*App, error) {
 
 	app.backend.broker = broker
 
-	http.Handle("/microsub", handler)
+	http.Handle("/microsub/", handler)
 
 	http.Handle("/incoming/", &incomingHandler{
 		Backend:   app.hubBackend,

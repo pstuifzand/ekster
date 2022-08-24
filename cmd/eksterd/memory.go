@@ -67,9 +67,7 @@ type memoryBackend struct {
 	Settings map[string]channelSetting
 	NextUID  int
 
-	Me            string // FIXME: should be removed
-	TokenEndpoint string // FIXME: should be removed
-	AuthEnabled   bool
+	AuthEnabled bool
 
 	ticker *time.Ticker
 	quit   chan struct{}
@@ -114,7 +112,7 @@ type feed struct {
 	NextFetchAt time.Time
 }
 
-func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse) (bool, error) {
+func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse, endpoint string) (bool, error) {
 	conn := b.pool.Get()
 	defer func() {
 		err := conn.Close()
@@ -122,7 +120,7 @@ func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse) 
 			log.Printf("could not close redis connection: %v", err)
 		}
 	}()
-	return cachedCheckAuthToken(conn, header, b.TokenEndpoint, r)
+	return cachedCheckAuthToken(conn, header, endpoint, r)
 }
 
 func loadMemoryBackend(pool *redis.Pool, database *sql.DB) (*memoryBackend, error) {
