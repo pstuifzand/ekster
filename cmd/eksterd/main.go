@@ -50,7 +50,6 @@ type AppOptions struct {
 	Headless    bool
 	RedisServer string
 	BaseURL     string
-	TemplateDir string
 	DatabaseURL string
 	pool        *redis.Pool
 	database    *sql.DB
@@ -142,7 +141,6 @@ func main() {
 	flag.BoolVar(&options.Headless, "headless", false, "disable frontend")
 	flag.StringVar(&options.RedisServer, "redis", "redis:6379", "redis server")
 	flag.StringVar(&options.BaseURL, "baseurl", "", "http server baseurl")
-	flag.StringVar(&options.TemplateDir, "templates", "./templates", "template directory")
 	flag.StringVar(&options.DatabaseURL, "db", "host=database user=postgres password=simple dbname=ekster sslmode=disable", "database url")
 
 	flag.Parse()
@@ -161,13 +159,6 @@ func main() {
 		}
 	}
 
-	if options.TemplateDir == "" {
-		if envVar, e := os.LookupEnv("EKSTER_TEMPLATES"); e {
-			options.TemplateDir = envVar
-		} else {
-			log.Fatal("EKSTER_TEMPLATES environment variable not found, use env var or -templates dir option")
-		}
-	}
 	//
 	// createBackend := false
 	// args := flag.Args()

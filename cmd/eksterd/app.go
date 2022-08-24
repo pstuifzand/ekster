@@ -94,7 +94,7 @@ func NewApp(options AppOptions) (*App, error) {
 	})
 
 	if !options.Headless {
-		handler, err := newMainHandler(app.backend, options.BaseURL, options.TemplateDir, options.pool)
+		handler, err := newMainHandler(app.backend, options.BaseURL, options.pool)
 		if err != nil {
 			return nil, errors.Wrap(err, "could not create main handler")
 		}
