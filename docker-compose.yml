@@ -1,5 +1,13 @@
 version: '2'
 services:
+  web:
+    image: ghcr.io/pstuifzand/ekster:dev
+    command: -auth=false -port 80
+    ports:
+      - 8089:80
+    environment:
+      - "EKSTER_BASEURL=http://localhost:8089/"
+
   redis:
     image: "redis:5"
 
@@ -13,31 +21,6 @@ services:
       POSTGRES_PASSWORD: simple
       POSTGRES_HOST_AUTH_METHOD: trust
 
-  web:
-    build: dev
-    working_dir: /app
-    volumes:
-      - ./eksterd:/app/eksterd
-      - ./backend.json:/app/backend.json
-    entrypoint: /app/eksterd
-    command: -auth=false -port 80
-    ports:
-      - 8089:80
-    environment:
-      - "EKSTER_BASEURL=http://localhost:8089/"
-      - "EKSTER_TEMPLATES=/app/templates"
-      - "APP_SECRET=YP*GF6enU*autED3FUkePW*Mdx667H-z"
-
-  test:
-    image: 'golang:1.18'
-    command: go test -v ./...
-    volumes:
-      - .:/go/src/github.com/pstuifzand/ekster
-      - golang-cache:/go/pkg/mod
-    working_dir: /go/src/github.com/pstuifzand/ekster/cmd/eksterd
-
 
 volumes:
     database-data:
-    microsub-data:
-    golang-cache:
