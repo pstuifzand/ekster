@@ -19,6 +19,7 @@
 package server
 
 import (
+	"context"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -57,7 +58,9 @@ func TestServer_ChannelsGetList(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
 
-	channels, err := c.ChannelsGetList()
+	ctx := context.Background()
+
+	channels, err := c.ChannelsGetList(ctx)
 
 	if assert.NoError(t, err) {
 		assert.Equal(t, 2, len(channels), "should return 2 channels")
@@ -76,7 +79,8 @@ func TestServer_ChannelsCreate(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
 
-	channel, err := c.ChannelsCreate("test")
+	ctx := context.Background()
+	channel, err := c.ChannelsCreate(ctx, "test")
 
 	if assert.NoError(t, err) {
 		assert.Equal(t, "test", channel.Name)
@@ -86,21 +90,24 @@ func TestServer_ChannelsCreate(t *testing.T) {
 func TestServer_ChannelsDelete(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
-	err := c.ChannelsDelete("0001")
+	ctx := context.Background()
+	err := c.ChannelsDelete(ctx, "0001")
 	assert.NoError(t, err)
 }
 
 func TestServer_ChannelsUpdate(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
-	_, err := c.ChannelsUpdate("0001", "newname")
+	ctx := context.Background()
+	_, err := c.ChannelsUpdate(ctx, "0001", "newname")
 	assert.NoError(t, err)
 }
 
 func TestServer_TimelineGet(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
-	timeline, err := c.TimelineGet("", "", "0001")
+	ctx := context.Background()
+	timeline, err := c.TimelineGet(ctx, "", "", "0001")
 	if assert.NoError(t, err) {
 		assert.Equal(t, 0, len(timeline.Items))
 	}
@@ -109,7 +116,8 @@ func TestServer_TimelineGet(t *testing.T) {
 func TestServer_FollowGetList(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
-	feeds, err := c.FollowGetList("0001")
+	ctx := context.Background()
+	feeds, err := c.FollowGetList(ctx, "0001")
 	if assert.NoError(t, err) {
 		assert.Equal(t, 1, len(feeds))
 		assert.Equal(t, "test", feeds[0].Name)
@@ -121,7 +129,8 @@ func TestServer_FollowGetList(t *testing.T) {
 func TestServer_FollowURL(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
-	feed, err := c.FollowURL("0001", "https://example.com/")
+	ctx := context.Background()
+	feed, err := c.FollowURL(ctx, "0001", "https://example.com/")
 	if assert.NoError(t, err) {
 		assert.Equal(t, "feed", feed.Type)
 		assert.Equal(t, "https://example.com/", feed.URL)
@@ -131,14 +140,16 @@ func TestServer_FollowURL(t *testing.T) {
 func TestServer_UnFollowURL(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
-	err := c.UnfollowURL("0001", "https://example.com/")
+	ctx := context.Background()
+	err := c.UnfollowURL(ctx, "0001", "https://example.com/")
 	assert.NoError(t, err)
 }
 
 func TestServer_PreviewURL(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
-	timeline, err := c.PreviewURL("https://example.com/")
+	ctx := context.Background()
+	timeline, err := c.PreviewURL(ctx, "https://example.com/")
 	if assert.NoError(t, err) {
 		assert.Equal(t, 0, len(timeline.Items))
 	}
@@ -147,7 +158,8 @@ func TestServer_PreviewURL(t *testing.T) {
 func TestServer_Search(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
-	feeds, err := c.Search("https://example.com/")
+	ctx := context.Background()
+	feeds, err := c.Search(ctx, "https://example.com/")
 	if assert.NoError(t, err) {
 		assert.Equal(t, 1, len(feeds))
 		assert.Equal(t, "feed", feeds[0].Type)
@@ -161,7 +173,8 @@ func TestServer_Search(t *testing.T) {
 func TestServer_MarkRead(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
-	err := c.MarkRead("0001", []string{"test"})
+	ctx := context.Background()
+	err := c.MarkRead(ctx, "0001", []string{"test"})
 	assert.NoError(t, err)
 }
 

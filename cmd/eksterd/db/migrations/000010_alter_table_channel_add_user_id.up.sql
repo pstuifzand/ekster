@@ -1,6 +1,6 @@
 /*
  *  Ekster is a microsub server
- *  Copyright (c) 2021 The Ekster authors
+ *  Copyright (c) 2022 The Ekster authors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-INSERT INTO "channels" ("uid", "name")
-VALUES
-    ('home', 'Home'),
-    ('notifications', 'Notifications');
+ALTER TABLE "channels"
+    ADD COLUMN "user_id" INT NOT NULL default 1 references "channels" on delete NO ACTION;

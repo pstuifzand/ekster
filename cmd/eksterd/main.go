@@ -29,10 +29,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/pstuifzand/ekster/pkg/auth"
+	"github.com/pstuifzand/ekster/pkg/userid"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -76,6 +79,24 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 			return
 		}
 
+		// Get user id from microsub url
+		userIDStr := strings.TrimPrefix(r.URL.Path, "/microsub/")
+		userID, err := strconv.Atoi(userIDStr)
+		if err != nil {
+			log.Println(r.URL.Path, "does not contain a user id")
+			http.Error(w, "No user id found in url", http.StatusBadRequest)
+			return
+		}
+
+		var me, tokenEndpoint string
+		row := b.database.QueryRow(`SELECT "url", "token_endpoint" FROM "users" WHERE "id" = $1`, userID)
+		err = row.Scan(&me, &tokenEndpoint)
+		if err == sql.ErrNoRows {
+			log.Println("no user found with id", userID)
+			http.Error(w, "No user found with id", http.StatusBadRequest)
+			return
+		}
+
 		authorization := ""
 
 		values := r.URL.Query()
@@ -88,7 +109,7 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 
 		var token auth.TokenResponse
 
-		authorized, err := b.AuthTokenAccepted(authorization, &token)
+		authorized, err := b.AuthTokenAccepted(authorization, &token, tokenEndpoint)
 		if err != nil {
 			log.Printf("token not accepted: %v", err)
 		}
@@ -98,11 +119,14 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 			return
 		}
 
-		if token.Me != b.Me { // FIXME: Me should be part of the request
+		if token.Me != me {
 			log.Printf("Missing \"me\" in token response: %#v\n", token)
 			http.Error(w, "Wrong me", http.StatusForbidden)
 			return
 		}
+
+		ctx := userid.NewContext(r.Context(), userID)
+		r = r.WithContext(ctx)
 
 		handler.ServeHTTP(w, r)
 	})
@@ -181,6 +205,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error with migrations: %s", err)
 	}
+	db, err = sql.Open("postgres", options.DatabaseURL)
+	if err != nil {
+		log.Fatalf("database open failed: %s", err)
+	}
+	options.database = db
 	app, err := NewApp(options)
 	if err != nil {
 		log.Fatal(err)

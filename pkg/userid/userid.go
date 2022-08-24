@@ -1,6 +1,6 @@
 /*
  *  Ekster is a microsub server
- *  Copyright (c) 2021 The Ekster authors
+ *  Copyright (c) 2022 The Ekster authors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-INSERT INTO "channels" ("uid", "name")
-VALUES
-    ('home', 'Home'),
-    ('notifications', 'Notifications');
+package userid
+
+import "context"
+
+type key int
+
+const userIDKey key = 0
+
+// NewContext creates a new context with the userID as a value
+func NewContext(ctx context.Context, userID int) context.Context {
+	return context.WithValue(ctx, userIDKey, userID)
+}
+
+// FromContext retrieves the userID from the context
+func FromContext(ctx context.Context) (int, bool) {
+	userID, ok := ctx.Value(userIDKey).(int)
+	return userID, ok
+}

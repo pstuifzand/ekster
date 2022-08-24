@@ -19,10 +19,12 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"expvar"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
@@ -149,6 +151,13 @@ where s.id = $1
 		return err
 	}
 
+	b, err := ioutil.ReadAll(body)
+	if err != nil {
+		return err
+	}
+
+	buf := bytes.NewReader(b)
+
 	for rows.Next() {
 		var topic, channel, feedID, channelName string
 
@@ -159,10 +168,13 @@ where s.id = $1
 		}
 
 		log.Printf("Updating feed %s %q in %q (%s)\n", feedID, topic, channelName, channel)
-		_, err = processor.ProcessContent(channel, feedID, topic, contentType, body)
+		_, err = processor.ProcessContent(channel, feedID, topic, contentType, buf)
 		if err != nil {
 			log.Printf("could not process content for channel %s: %s", channelName, err)
 		}
+
+		// Reader#Seek never fails when whence exists
+		_, _ = buf.Seek(0, io.SeekStart)
 	}
 
 	return err

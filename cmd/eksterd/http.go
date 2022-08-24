@@ -19,6 +19,7 @@
 package main
 
 import (
+	"database/sql"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -57,6 +58,7 @@ type session struct {
 	State                 string `redis:"state"`
 	LoggedIn              bool   `redis:"logged_in"`
 	NextURI               string `redis:"next_uri"`
+	UserID                int    `redis:"user_id"`
 }
 
 type authResponse struct {
@@ -71,8 +73,9 @@ type authTokenResponse struct {
 }
 
 type indexPage struct {
-	Session session
-	Baseurl string
+	Session     session
+	Baseurl     string
+	MicrosubURL string
 }
 type settingsPage struct {
 	Session session
@@ -239,10 +242,6 @@ func isLoggedIn(backend *memoryBackend, sess *session) bool {
 		return true
 	}
 
-	if sess.Me != backend.Me {
-		return false
-	}
-
 	return true
 }
 
@@ -322,6 +321,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var page indexPage
 			page.Session = sess
 			page.Baseurl = strings.TrimRight(h.BaseURL, "/")
+			page.MicrosubURL = fmt.Sprintf("%s/microsub/%d", strings.TrimRight(h.BaseURL, "/"), sess.UserID)
 
 			err = h.renderTemplate(w, "index.html", page)
 			if err != nil {
@@ -352,6 +352,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			if verified {
 				sess.Me = authResponse.Me
+
 				sess.LoggedIn = true
 				saveSession(sessionVar, &sess, conn)
 				log.Printf("SESSION: %#v\n", sess)
@@ -386,13 +387,13 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var page settingsPage
 			page.Session = sess
 			currentChannel := r.URL.Query().Get("uid")
-			page.Channels, err = h.Backend.ChannelsGetList()
+			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
 				log.Printf("ERROR: %s\n", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
-			page.Feeds, err = h.Backend.FollowGetList(currentChannel)
+			page.Feeds, err = h.Backend.FollowGetList(r.Context(), currentChannel)
 			if err != nil {
 				log.Printf("ERROR: %s\n", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -484,7 +485,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page settingsPage
 			page.Session = sess
-			page.Channels, err = h.Backend.ChannelsGetList()
+			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
 				log.Printf("ERROR: %s\n", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -554,7 +555,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.RedirectURI = redirectURI
 			page.Scope = scope
 			page.State = state
-			page.Channels, err = h.Backend.ChannelsGetList()
+			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
 				log.Printf("ERROR: %s\n", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -592,6 +593,22 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			row := h.Backend.database.QueryRow(`SELECT "id" FROM "users" WHERE "url" = $1`, me)
+			var userID int
+			err = row.Scan(&userID)
+			if err == sql.ErrNoRows {
+				row = h.Backend.database.QueryRow(
+					`INSERT INTO "users" ("url", "me", "token_endpoint") VALUES ($1, $2, $3) RETURNING "id"`,
+					me,
+					endpoints.Me.String(),
+					endpoints.TokenEndpoint.String(),
+				)
+				err = row.Scan(&userID)
+				if err != nil {
+					log.Println("error while scanning after creating user", err)
+				}
+			}
+
 			state := util.RandStringBytes(16)
 			redirectURI := fmt.Sprintf("%s/session/callback", h.BaseURL)
 
@@ -607,6 +624,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sess.State = state
 			sess.RedirectURI = redirectURI
 			sess.LoggedIn = false
+			sess.UserID = userID
 
 			err = saveSession(sessionVar, &sess, conn)
 			if err != nil {

@@ -19,6 +19,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -41,7 +42,7 @@ type Client struct {
 	Logging bool
 }
 
-func (c *Client) microsubGetRequest(action string, args map[string]string) (*http.Response, error) {
+func (c *Client) microsubGetRequest(ctx context.Context, action string, args map[string]string) (*http.Response, error) {
 	client := http.Client{}
 
 	u := *c.MicrosubEndpoint
@@ -52,7 +53,7 @@ func (c *Client) microsubGetRequest(action string, args map[string]string) (*htt
 	}
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (c *Client) microsubGetRequest(action string, args map[string]string) (*htt
 	return res, err
 }
 
-func (c *Client) microsubPostRequest(action string, args map[string]string) (*http.Response, error) {
+func (c *Client) microsubPostRequest(ctx context.Context, action string, args map[string]string) (*http.Response, error) {
 	client := http.Client{}
 
 	u := *c.MicrosubEndpoint
@@ -85,7 +86,7 @@ func (c *Client) microsubPostRequest(action string, args map[string]string) (*ht
 	}
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +113,7 @@ func (c *Client) microsubPostRequest(action string, args map[string]string) (*ht
 	return res, err
 }
 
-func (c *Client) microsubPostFormRequest(action string, args map[string]string, data url.Values) (*http.Response, error) {
+func (c *Client) microsubPostFormRequest(ctx context.Context, action string, args map[string]string, data url.Values) (*http.Response, error) {
 	client := http.Client{}
 
 	u := *c.MicrosubEndpoint
@@ -123,7 +124,7 @@ func (c *Client) microsubPostFormRequest(action string, args map[string]string, 
 	}
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -141,9 +142,9 @@ func (c *Client) microsubPostFormRequest(action string, args map[string]string, 
 }
 
 // ChannelsGetList gets the channels from a Microsub server
-func (c *Client) ChannelsGetList() ([]microsub.Channel, error) {
+func (c *Client) ChannelsGetList(ctx context.Context) ([]microsub.Channel, error) {
 	args := make(map[string]string)
-	res, err := c.microsubGetRequest("channels", args)
+	res, err := c.microsubGetRequest(ctx, "channels", args)
 	if err != nil {
 		return []microsub.Channel{}, err
 	}
@@ -168,12 +169,12 @@ func (c *Client) ChannelsGetList() ([]microsub.Channel, error) {
 }
 
 // TimelineGet gets a timeline from a Microsub server
-func (c *Client) TimelineGet(before, after, channel string) (microsub.Timeline, error) {
+func (c *Client) TimelineGet(ctx context.Context, before, after, channel string) (microsub.Timeline, error) {
 	args := make(map[string]string)
 	args["after"] = after
 	args["before"] = before
 	args["channel"] = channel
-	res, err := c.microsubGetRequest("timeline", args)
+	res, err := c.microsubGetRequest(ctx, "timeline", args)
 	if err != nil {
 		return microsub.Timeline{}, err
 	}
@@ -195,10 +196,10 @@ func (c *Client) TimelineGet(before, after, channel string) (microsub.Timeline, 
 }
 
 // PreviewURL gets a Timeline for a url from a Microsub server
-func (c *Client) PreviewURL(url string) (microsub.Timeline, error) {
+func (c *Client) PreviewURL(ctx context.Context, url string) (microsub.Timeline, error) {
 	args := make(map[string]string)
 	args["url"] = url
-	res, err := c.microsubPostRequest("preview", args)
+	res, err := c.microsubPostRequest(ctx, "preview", args)
 	if err != nil {
 		return microsub.Timeline{}, err
 	}
@@ -221,10 +222,10 @@ func (c *Client) PreviewURL(url string) (microsub.Timeline, error) {
 }
 
 // FollowGetList gets the list of followed feeds.
-func (c *Client) FollowGetList(channel string) ([]microsub.Feed, error) {
+func (c *Client) FollowGetList(ctx context.Context, channel string) ([]microsub.Feed, error) {
 	args := make(map[string]string)
 	args["channel"] = channel
-	res, err := c.microsubGetRequest("follow", args)
+	res, err := c.microsubGetRequest(ctx, "follow", args)
 	if err != nil {
 		return []microsub.Feed{}, nil
 	}
@@ -249,10 +250,10 @@ func (c *Client) FollowGetList(channel string) ([]microsub.Feed, error) {
 }
 
 // ChannelsCreate creates and new channel on a microsub server.
-func (c *Client) ChannelsCreate(name string) (microsub.Channel, error) {
+func (c *Client) ChannelsCreate(ctx context.Context, name string) (microsub.Channel, error) {
 	args := make(map[string]string)
 	args["name"] = name
-	res, err := c.microsubPostRequest("channels", args)
+	res, err := c.microsubPostRequest(ctx, "channels", args)
 	if err != nil {
 		return microsub.Channel{}, nil
 	}
@@ -267,11 +268,11 @@ func (c *Client) ChannelsCreate(name string) (microsub.Channel, error) {
 }
 
 // ChannelsUpdate updates a channel.
-func (c *Client) ChannelsUpdate(uid, name string) (microsub.Channel, error) {
+func (c *Client) ChannelsUpdate(ctx context.Context, uid, name string) (microsub.Channel, error) {
 	args := make(map[string]string)
 	args["name"] = name
 	args["channel"] = uid
-	res, err := c.microsubPostRequest("channels", args)
+	res, err := c.microsubPostRequest(ctx, "channels", args)
 	if err != nil {
 		return microsub.Channel{}, err
 	}
@@ -286,11 +287,11 @@ func (c *Client) ChannelsUpdate(uid, name string) (microsub.Channel, error) {
 }
 
 // ChannelsDelete deletes a channel.
-func (c *Client) ChannelsDelete(uid string) error {
+func (c *Client) ChannelsDelete(ctx context.Context, uid string) error {
 	args := make(map[string]string)
 	args["channel"] = uid
 	args["method"] = "delete"
-	res, err := c.microsubPostRequest("channels", args)
+	res, err := c.microsubPostRequest(ctx, "channels", args)
 	if err != nil {
 		return err
 	}
@@ -299,11 +300,11 @@ func (c *Client) ChannelsDelete(uid string) error {
 }
 
 // FollowURL follows a url.
-func (c *Client) FollowURL(channel, url string) (microsub.Feed, error) {
+func (c *Client) FollowURL(ctx context.Context, channel, url string) (microsub.Feed, error) {
 	args := make(map[string]string)
 	args["channel"] = channel
 	args["url"] = url
-	res, err := c.microsubPostRequest("follow", args)
+	res, err := c.microsubPostRequest(ctx, "follow", args)
 	if err != nil {
 		return microsub.Feed{}, err
 	}
@@ -318,11 +319,11 @@ func (c *Client) FollowURL(channel, url string) (microsub.Feed, error) {
 }
 
 // UnfollowURL unfollows a url in a channel.
-func (c *Client) UnfollowURL(channel, url string) error {
+func (c *Client) UnfollowURL(ctx context.Context, channel, url string) error {
 	args := make(map[string]string)
 	args["channel"] = channel
 	args["url"] = url
-	res, err := c.microsubPostRequest("unfollow", args)
+	res, err := c.microsubPostRequest(ctx, "unfollow", args)
 	if err != nil {
 		return err
 	}
@@ -331,10 +332,10 @@ func (c *Client) UnfollowURL(channel, url string) error {
 }
 
 // Search asks the server to search for the query.
-func (c *Client) Search(query string) ([]microsub.Feed, error) {
+func (c *Client) Search(ctx context.Context, query string) ([]microsub.Feed, error) {
 	args := make(map[string]string)
 	args["query"] = query
-	res, err := c.microsubPostRequest("search", args)
+	res, err := c.microsubPostRequest(ctx, "search", args)
 	if err != nil {
 		return []microsub.Feed{}, err
 	}
@@ -352,11 +353,11 @@ func (c *Client) Search(query string) ([]microsub.Feed, error) {
 }
 
 // ItemSearch send a search request to the server
-func (c *Client) ItemSearch(channel, query string) ([]microsub.Item, error) {
+func (c *Client) ItemSearch(ctx context.Context, channel, query string) ([]microsub.Item, error) {
 	args := make(map[string]string)
 	args["query"] = query
 	args["channel"] = channel
-	res, err := c.microsubPostRequest("search", args)
+	res, err := c.microsubPostRequest(ctx, "search", args)
 	if err != nil {
 		return []microsub.Item{}, err
 	}
@@ -374,7 +375,7 @@ func (c *Client) ItemSearch(channel, query string) ([]microsub.Item, error) {
 }
 
 // MarkRead marks an item read on the server.
-func (c *Client) MarkRead(channel string, uids []string) error {
+func (c *Client) MarkRead(ctx context.Context, channel string, uids []string) error {
 	args := make(map[string]string)
 	args["channel"] = channel
 	args["method"] = "mark_read"
@@ -384,7 +385,7 @@ func (c *Client) MarkRead(channel string, uids []string) error {
 		data.Add("entry[]", uid)
 	}
 
-	res, err := c.microsubPostFormRequest("timeline", args, data)
+	res, err := c.microsubPostFormRequest(ctx, "timeline", args, data)
 	if err != nil {
 		return err
 	}
@@ -393,14 +394,14 @@ func (c *Client) MarkRead(channel string, uids []string) error {
 }
 
 // Events open an event channel to the server.
-func (c *Client) Events() (chan sse.Message, error) {
+func (c *Client) Events(ctx context.Context) (chan sse.Message, error) {
 
 	ch := make(chan sse.Message)
 
 	errorCounter := 0
 	go func() {
 		for {
-			res, err := c.microsubGetRequest("events", nil)
+			res, err := c.microsubGetRequest(ctx, "events", nil)
 			if err != nil {
 				log.Printf("could not request events: %+v", err)
 				errorCounter++

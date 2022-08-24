@@ -10,9 +10,9 @@
 <link rel="token_endpoint" href="{{ .Baseurl }}/auth/token" />
 </head>
 <body>
-    <section class="section">
-        <div class="container">
-            <nav class="navbar" role="navigation" aria-label="main navigation">
+<div class="container">
+  <section class="section">
+            <nav class="navbar is-light" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">
                     <a class="navbar-item" href="/">
                         Ekster
@@ -40,15 +40,23 @@
                 {{ end }}
             </nav>
 
+          <div class="content">
             <h1 class="title">Ekster - Microsub server</h1>
 
             {{ if .Session.LoggedIn }}
-                <h2 class="title">Logout</h2>
-                <form action="/session/logout" method="post">
-                    <button type="submit" class="button is-info">Logout</button>
-                </form>
+
+                    <h2>Configuration</h2>
+                       <p>To configure Ekster with you own Indieweb website, you need to add to "microsub" endpoint as
+                       a header or <code>&lt;link&gt;</code>.</p>
+
+<pre>&lt;link rel=&quot;microsub&quot; href=&quot;{{.MicrosubURL}}&quot;&gt;</pre>
+
+                    <h2>Logout</h2>
+                    <form action="/session/logout" method="post">
+                        <button type="submit" class="button is-info">Logout</button>
+                    </form>
             {{ else }}
-                <h2 class="title">Sign in to Ekster</h2>
+                <h2>Sign in to Ekster</h2>
                 <form action="/session" method="post">
                     <div class="field">
                         <label class="label" for="url"></label>
@@ -64,11 +72,14 @@
                 </form>
             {{ end }}
 
-            <p>Copyright (C) 2018 The Ekster authors.<br>
+        </div>
+        <div class="footer">
+          <p>Copyright (C) 2018 The Ekster authors.<br>
             This program comes with ABSOLUTELY NO WARRANTY. This is free software,
             and you are welcome to redistribute it under certain conditions.
             See <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">Licence</a> for more details.</p>
         </div>
     </section>
+    </div>
 </body>
 </html>
