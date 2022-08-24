@@ -159,31 +159,6 @@ func main() {
 		}
 	}
 
-	//
-	// createBackend := false
-	// args := flag.Args()
-	//
-	// if len(args) >= 1 {
-	// 	if args[0] == "new" {
-	// 		createBackend = true
-	// 	}
-	// }
-	//
-	// if createBackend {
-	// 	err := createMemoryBackend()
-	// 	if err != nil {
-	// 		log.Fatalf("Error while saving backend.json: %s", err)
-	// 	}
-	//
-	// TODO(peter): automatically gather this information from login or otherwise
-	//
-	// 	log.Println(`Config file "backend.json" is created in the current directory.`)
-	// 	log.Println(`Update "Me" variable to your website address "https://example.com/"`)
-	// 	log.Println(`Update "TokenEndpoint" variable to the address of your token endpoint "https://example.com/token"`)
-	//
-	// 	return
-	// }
-
 	pool := newPool(options.RedisServer)
 	options.pool = pool
 	db, err := sql.Open("postgres", options.DatabaseURL)
