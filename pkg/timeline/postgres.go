@@ -56,9 +56,9 @@ func (p *postgresStream) Init() error {
 
 	row := conn.QueryRowContext(ctx, `SELECT "id" FROM "channels" WHERE "uid" = $1`, p.channel)
 	err = row.Scan(&p.channelID)
-	if err == sql.ErrNoRows {
-		return fmt.Errorf("channel %s not found: %w", p.channel, err)
-	}
+	// if err == sql.ErrNoRows {
+	// 	return fmt.Errorf("channel %s not found: %w", p.channel, err)
+	// }
 
 	return nil
 }
@@ -255,4 +255,38 @@ func (p *postgresStream) MarkRead(uids []string) error {
 		return fmt.Errorf("while marking as read: %w", err)
 	}
 	return nil
+}
+
+// Item returns the item with id for this channel
+func (p *postgresStream) ItemsByUID(uids []string) ([]microsub.Item, error) {
+
+	var items []microsub.Item
+
+	for _, uid := range uids {
+		var item microsub.Item
+		var createdAt time.Time
+		var isRead int
+		var publishedAt string
+
+		row := p.database.QueryRow(`
+			SELECT  "data", "created_at", "is_read", "published_at"
+			FROM "items"
+			WHERE "uid" = $1
+		`, uid)
+
+		err := row.Scan(&item, &createdAt, &isRead, &publishedAt)
+		if err == sql.ErrNoRows {
+			return nil, ErrItemNotFound
+		} else if err != nil {
+			log.Println("Scan failed", err)
+			return nil, err
+		}
+
+		item.Read = isRead == 1
+		item.ID = uid
+		item.Published = publishedAt
+		items = append(items, item)
+	}
+
+	return items, nil
 }

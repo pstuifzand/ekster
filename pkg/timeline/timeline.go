@@ -41,6 +41,7 @@ type Backend interface {
 
 	AddItem(item microsub.Item) (bool, error)
 	MarkRead(uids []string) error
+	ItemsByUID(uid []string) ([]microsub.Item, error)
 
 	// Not used at the moment
 	// MarkUnread(uids []string) error
@@ -49,24 +50,6 @@ type Backend interface {
 // Create creates a channel of the specified type. Return nil when the type
 // is not known.
 func Create(channel, timelineType string, pool *redis.Pool, db *sql.DB) Backend {
-	if timelineType == "sorted-set" {
-		timeline := &redisSortedSetTimeline{channel: channel, pool: pool}
-		err := timeline.Init()
-		if err != nil {
-			return nil
-		}
-		return timeline
-	}
-
-	if timelineType == "stream" {
-		timeline := &redisStreamTimeline{channel: channel, pool: pool}
-		err := timeline.Init()
-		if err != nil {
-			return nil
-		}
-		return timeline
-	}
-
 	if timelineType == "null" {
 		timeline := &nullTimeline{channel: channel}
 		err := timeline.Init()

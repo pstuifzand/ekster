@@ -544,7 +544,16 @@ func getPossibleURLs(query string) []string {
 }
 
 func (b *memoryBackend) ItemSearch(ctx context.Context, channel, query string) ([]microsub.Item, error) {
-	return querySearch(channel, query)
+	ids, err := querySearch(channel, query)
+	if err != nil {
+		return nil, fmt.Errorf("querySearch failed: %w", err)
+	}
+
+	tl, err := b.getTimeline(channel)
+	if err != nil {
+		return nil, fmt.Errorf("querySearch failed: %w", err)
+	}
+	return tl.ItemsByUID(ids)
 }
 
 func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Feed, error) {

@@ -18,7 +18,14 @@
 
 package timeline
 
-import "github.com/pstuifzand/ekster/pkg/microsub"
+import (
+	"errors"
+
+	"github.com/pstuifzand/ekster/pkg/microsub"
+)
+
+// ErrItemNotFound is an error for when an item is not found
+var ErrItemNotFound = errors.New("Item not found")
 
 type nullTimeline struct {
 	channel string
@@ -42,4 +49,7 @@ func (timeline *nullTimeline) Count() (int, error) {
 
 func (timeline *nullTimeline) MarkRead(uids []string) error {
 	return nil
+}
+func (timeline *nullTimeline) ItemsByUID(uid []string) ([]microsub.Item, error) {
+	return nil, ErrItemNotFound
 }

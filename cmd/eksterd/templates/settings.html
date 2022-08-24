@@ -45,17 +45,30 @@
             <h2 class="subtitle">Channels</h2>
 
             <div class="channels">
-                {{ range .Channels }}
-                    <div class="channel box">
-                        <div class="name">
-                            <a href="/settings/channel?uid={{ .UID }}">
-                                {{ .Name }}
-                            </a>
-                        </div>
-                    </div>
-                {{ else }}
-                    <div class="no-channels">No channels</div>
-                {{ end }}
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>UID</th>
+                            <th>Name</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{ range .Channels }}
+                            <tr>
+                                <td>
+                                    {{.UID}}
+                                </td>
+                                <td>
+                                    <a href="/settings/channel?uid={{ .UID }}">{{ .Name }}</a>
+                                </td>
+                            </tr>
+                        {{ else }}
+                            <tr>
+                                <td colspan="2">No channels</td>
+                            </tr>
+                        {{ end }}
+                    </tbody>
+                </table>
             </div>
         </div>
     </section>
