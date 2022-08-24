@@ -73,8 +73,9 @@ type authTokenResponse struct {
 }
 
 type indexPage struct {
-	Session session
-	Baseurl string
+	Session     session
+	Baseurl     string
+	MicrosubURL string
 }
 type settingsPage struct {
 	Session session
@@ -320,6 +321,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var page indexPage
 			page.Session = sess
 			page.Baseurl = strings.TrimRight(h.BaseURL, "/")
+			page.MicrosubURL = fmt.Sprintf("%s/microsub/%d", strings.TrimRight(h.BaseURL, "/"), sess.UserID)
 
 			err = h.renderTemplate(w, "index.html", page)
 			if err != nil {
