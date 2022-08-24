@@ -21,6 +21,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"database/sql"
 	"expvar"
 	"fmt"
@@ -129,7 +130,7 @@ func loadMemoryBackend(pool *redis.Pool, database *sql.DB) (*memoryBackend, erro
 }
 
 // ChannelsGetList gets channels
-func (b *memoryBackend) ChannelsGetList() ([]microsub.Channel, error) {
+func (b *memoryBackend) ChannelsGetList(ctx context.Context) ([]microsub.Channel, error) {
 	conn := b.pool.Get()
 	defer conn.Close()
 
@@ -174,7 +175,7 @@ func shouldRetryWithNewUID(err error, try int) bool {
 }
 
 // ChannelsCreate creates a channels
-func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
+func (b *memoryBackend) ChannelsCreate(ctx context.Context, name string) (microsub.Channel, error) {
 	varMicrosub.Add("ChannelsCreate", 1)
 	/*
 	 * try 5 times to generate a uid for a channel.
@@ -207,7 +208,7 @@ func (b *memoryBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 }
 
 // ChannelsUpdate updates a channels
-func (b *memoryBackend) ChannelsUpdate(uid, name string) (microsub.Channel, error) {
+func (b *memoryBackend) ChannelsUpdate(ctx context.Context, uid, name string) (microsub.Channel, error) {
 	_, err := b.database.Exec(`UPDATE "channels" SET "name" = $1 WHERE "uid" = $2`, name, uid)
 	if err != nil {
 		return microsub.Channel{}, err
@@ -224,7 +225,7 @@ func (b *memoryBackend) ChannelsUpdate(uid, name string) (microsub.Channel, erro
 }
 
 // ChannelsDelete deletes a channel
-func (b *memoryBackend) ChannelsDelete(uid string) error {
+func (b *memoryBackend) ChannelsDelete(ctx context.Context, uid string) error {
 	_, err := b.database.Exec(`delete from "channels" where "uid" = $1`, uid)
 	if err != nil {
 		return err
@@ -402,11 +403,11 @@ func (b *memoryBackend) addNotification(name string, feed feed, err error) {
 	}
 }
 
-func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Timeline, error) {
+func (b *memoryBackend) TimelineGet(ctx context.Context, before, after, channel string) (microsub.Timeline, error) {
 	log.Printf("TimelineGet %s\n", channel)
 
 	// Check if feed exists
-	_, err := b.FollowGetList(channel)
+	_, err := b.FollowGetList(ctx, channel)
 	if err != nil {
 		return microsub.Timeline{Items: []microsub.Item{}}, err
 	}
@@ -421,7 +422,7 @@ func (b *memoryBackend) TimelineGet(before, after, channel string) (microsub.Tim
 	return timelineBackend.Items(before, after)
 }
 
-func (b *memoryBackend) FollowGetList(uid string) ([]microsub.Feed, error) {
+func (b *memoryBackend) FollowGetList(ctx context.Context, uid string) ([]microsub.Feed, error) {
 	rows, err := b.database.Query(`SELECT "f"."url" FROM "feeds" AS "f" INNER JOIN channels c on c.id = f.channel_id WHERE c.uid = $1`, uid)
 	if err != nil {
 		return nil, err
@@ -442,7 +443,7 @@ func (b *memoryBackend) FollowGetList(uid string) ([]microsub.Feed, error) {
 	return feeds, nil
 }
 
-func (b *memoryBackend) FollowURL(uid string, url string) (microsub.Feed, error) {
+func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (microsub.Feed, error) {
 	subFeed := microsub.Feed{Type: "feed", URL: url}
 
 	var channelID int
@@ -488,7 +489,7 @@ func (b *memoryBackend) FollowURL(uid string, url string) (microsub.Feed, error)
 	return subFeed, nil
 }
 
-func (b *memoryBackend) UnfollowURL(uid string, url string) error {
+func (b *memoryBackend) UnfollowURL(ctx context.Context, uid string, url string) error {
 	_, err := b.database.Exec(`DELETE FROM "feeds" "f" USING "channels" "c" WHERE "c"."id" = "f"."channel_id" AND f.url = $1 AND c.uid = $2`, url, uid)
 	return err
 }
@@ -529,11 +530,11 @@ func getPossibleURLs(query string) []string {
 	return urls
 }
 
-func (b *memoryBackend) ItemSearch(channel, query string) ([]microsub.Item, error) {
+func (b *memoryBackend) ItemSearch(ctx context.Context, channel, query string) ([]microsub.Item, error) {
 	return querySearch(channel, query)
 }
 
-func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
+func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Feed, error) {
 	urls := getPossibleURLs(query)
 
 	// needs to be like this, because we get a null result otherwise in the json output
@@ -603,7 +604,7 @@ func (b *memoryBackend) Search(query string) ([]microsub.Feed, error) {
 	return feeds, nil
 }
 
-func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error) {
+func (b *memoryBackend) PreviewURL(ctx context.Context, previewURL string) (microsub.Timeline, error) {
 	cachingFetch := WithCaching(b.pool, fetch.FetcherFunc(Fetch2))
 	resp, err := cachingFetch.Fetch(previewURL)
 	if err != nil {
@@ -621,7 +622,7 @@ func (b *memoryBackend) PreviewURL(previewURL string) (microsub.Timeline, error)
 	}, nil
 }
 
-func (b *memoryBackend) MarkRead(channel string, uids []string) error {
+func (b *memoryBackend) MarkRead(ctx context.Context, channel string, uids []string) error {
 	tl, err := b.getTimeline(channel)
 	if err != nil {
 		return err
@@ -638,7 +639,7 @@ func (b *memoryBackend) MarkRead(channel string, uids []string) error {
 	return nil
 }
 
-func (b *memoryBackend) Events() (chan sse.Message, error) {
+func (b *memoryBackend) Events(ctx context.Context) (chan sse.Message, error) {
 	return sse.StartConnection(b.broker)
 }
 

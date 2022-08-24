@@ -385,13 +385,13 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var page settingsPage
 			page.Session = sess
 			currentChannel := r.URL.Query().Get("uid")
-			page.Channels, err = h.Backend.ChannelsGetList()
+			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
 				log.Printf("ERROR: %s\n", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
-			page.Feeds, err = h.Backend.FollowGetList(currentChannel)
+			page.Feeds, err = h.Backend.FollowGetList(r.Context(), currentChannel)
 			if err != nil {
 				log.Printf("ERROR: %s\n", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -483,7 +483,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page settingsPage
 			page.Session = sess
-			page.Channels, err = h.Backend.ChannelsGetList()
+			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
 				log.Printf("ERROR: %s\n", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -553,7 +553,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.RedirectURI = redirectURI
 			page.Scope = scope
 			page.State = state
-			page.Channels, err = h.Backend.ChannelsGetList()
+			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
 				log.Printf("ERROR: %s\n", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)

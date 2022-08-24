@@ -20,6 +20,7 @@
 package microsub
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -135,26 +136,26 @@ type Feed struct {
 
 // Microsub is the main protocol that should be implemented by a backend
 type Microsub interface {
-	ChannelsGetList() ([]Channel, error)
-	ChannelsCreate(name string) (Channel, error)
-	ChannelsUpdate(uid, name string) (Channel, error)
-	ChannelsDelete(uid string) error
+	ChannelsGetList(ctx context.Context) ([]Channel, error)
+	ChannelsCreate(ctx context.Context, name string) (Channel, error)
+	ChannelsUpdate(ctx context.Context, uid, name string) (Channel, error)
+	ChannelsDelete(ctx context.Context, uid string) error
 
-	TimelineGet(before, after, channel string) (Timeline, error)
+	TimelineGet(ctx context.Context, before, after, channel string) (Timeline, error)
 
-	MarkRead(channel string, entry []string) error
+	MarkRead(ctx context.Context, channel string, entry []string) error
 
-	FollowGetList(uid string) ([]Feed, error)
-	FollowURL(uid string, url string) (Feed, error)
+	FollowGetList(ctx context.Context, uid string) ([]Feed, error)
+	FollowURL(ctx context.Context, uid string, url string) (Feed, error)
 
-	UnfollowURL(uid string, url string) error
+	UnfollowURL(ctx context.Context, uid string, url string) error
 
-	Search(query string) ([]Feed, error)
-	PreviewURL(url string) (Timeline, error)
+	Search(ctx context.Context, query string) ([]Feed, error)
+	PreviewURL(ctx context.Context, url string) (Timeline, error)
 
-	ItemSearch(channel, query string) ([]Item, error)
+	ItemSearch(ctx context.Context, channel, query string) ([]Item, error)
 
-	Events() (chan sse.Message, error)
+	Events(ctx context.Context) (chan sse.Message, error)
 }
 
 // MarshalJSON encodes an Unread value as JSON

@@ -85,7 +85,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		values := r.URL.Query()
 		action := values.Get("action")
 		if action == "channels" {
-			channels, err := h.backend.ChannelsGetList()
+			channels, err := h.backend.ChannelsGetList(r.Context())
 			if err != nil {
 				log.Println(err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -95,7 +95,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"channels": channels,
 			})
 		} else if action == "timeline" {
-			timeline, err := h.backend.TimelineGet(values.Get("before"), values.Get("after"), values.Get("channel"))
+			timeline, err := h.backend.TimelineGet(r.Context(), values.Get("before"), values.Get("after"), values.Get("channel"))
 			if err != nil {
 				log.Println(err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -103,7 +103,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			respondJSON(w, timeline)
 		} else if action == "preview" {
-			timeline, err := h.backend.PreviewURL(values.Get("url"))
+			timeline, err := h.backend.PreviewURL(r.Context(), values.Get("url"))
 			if err != nil {
 				log.Println(err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -112,7 +112,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respondJSON(w, timeline)
 		} else if action == "follow" {
 			channel := values.Get("channel")
-			following, err := h.backend.FollowGetList(channel)
+			following, err := h.backend.FollowGetList(r.Context(), channel)
 			if err != nil {
 				log.Println(err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -122,7 +122,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"items": following,
 			})
 		} else if action == "events" {
-			events, err := h.backend.Events()
+			events, err := h.backend.Events(r.Context())
 			if err != nil {
 				log.Println(err)
 				http.Error(w, "could not start sse connection", http.StatusInternalServerError)
@@ -162,7 +162,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			method := values.Get("method")
 			uid := values.Get("channel")
 			if method == "delete" {
-				err := h.backend.ChannelsDelete(uid)
+				err := h.backend.ChannelsDelete(r.Context(), uid)
 				if err != nil {
 					log.Println(err)
 					http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -173,7 +173,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if uid == "" {
-				channel, err := h.backend.ChannelsCreate(name)
+				channel, err := h.backend.ChannelsCreate(r.Context(), name)
 				if err != nil {
 					log.Println(err)
 					http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -181,7 +181,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				respondJSON(w, channel)
 			} else if name != "" {
-				channel, err := h.backend.ChannelsUpdate(uid, name)
+				channel, err := h.backend.ChannelsUpdate(r.Context(), uid, name)
 				if err != nil {
 					log.Println(err)
 					http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -193,7 +193,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			uid := values.Get("channel")
 			url := values.Get("url")
 			// h.HubIncomingBackend.CreateFeed(url, uid)
-			feed, err := h.backend.FollowURL(uid, url)
+			feed, err := h.backend.FollowURL(r.Context(), uid, url)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -202,14 +202,14 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "unfollow" {
 			uid := values.Get("channel")
 			url := values.Get("url")
-			err := h.backend.UnfollowURL(uid, url)
+			err := h.backend.UnfollowURL(r.Context(), uid, url)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			respondJSON(w, []string{})
 		} else if action == "preview" {
-			timeline, err := h.backend.PreviewURL(values.Get("url"))
+			timeline, err := h.backend.PreviewURL(r.Context(), values.Get("url"))
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -219,7 +219,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			query := values.Get("query")
 			channel := values.Get("channel")
 			if channel == "" {
-				feeds, err := h.backend.Search(query)
+				feeds, err := h.backend.Search(r.Context(), query)
 				if err != nil {
 					respondJSON(w, map[string]interface{}{
 						"query": query,
@@ -231,7 +231,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"results": feeds,
 				})
 			} else {
-				items, err := h.backend.ItemSearch(channel, query)
+				items, err := h.backend.ItemSearch(r.Context(), channel, query)
 				if err != nil {
 					respondJSON(w, map[string]interface{}{
 						"query": query,
@@ -267,7 +267,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if len(markAsRead) > 0 {
-					err := h.backend.MarkRead(channel, markAsRead)
+					err := h.backend.MarkRead(r.Context(), channel, markAsRead)
 					if err != nil {
 						http.Error(w, err.Error(), http.StatusInternalServerError)
 						return

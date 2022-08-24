@@ -19,6 +19,8 @@
 package server
 
 import (
+	"context"
+
 	"github.com/pstuifzand/ekster/pkg/microsub"
 	"github.com/pstuifzand/ekster/pkg/sse"
 )
@@ -28,7 +30,7 @@ type NullBackend struct {
 }
 
 // ChannelsGetList gets no channels
-func (b *NullBackend) ChannelsGetList() ([]microsub.Channel, error) {
+func (b *NullBackend) ChannelsGetList(ctx context.Context) ([]microsub.Channel, error) {
 	return []microsub.Channel{
 		{UID: "0001", Name: "notifications", Unread: microsub.Unread{Type: microsub.UnreadBool, Unread: false}},
 		{UID: "0000", Name: "default", Unread: microsub.Unread{Type: microsub.UnreadCount, UnreadCount: 0}},
@@ -36,7 +38,7 @@ func (b *NullBackend) ChannelsGetList() ([]microsub.Channel, error) {
 }
 
 // ChannelsCreate creates no channels
-func (b *NullBackend) ChannelsCreate(name string) (microsub.Channel, error) {
+func (b *NullBackend) ChannelsCreate(ctx context.Context, name string) (microsub.Channel, error) {
 	return microsub.Channel{
 		UID:  "1234",
 		Name: name,
@@ -44,7 +46,7 @@ func (b *NullBackend) ChannelsCreate(name string) (microsub.Channel, error) {
 }
 
 // ChannelsUpdate updates no channels
-func (b *NullBackend) ChannelsUpdate(uid, name string) (microsub.Channel, error) {
+func (b *NullBackend) ChannelsUpdate(ctx context.Context, uid, name string) (microsub.Channel, error) {
 	return microsub.Channel{
 		UID:  uid,
 		Name: name,
@@ -52,12 +54,12 @@ func (b *NullBackend) ChannelsUpdate(uid, name string) (microsub.Channel, error)
 }
 
 // ChannelsDelete delets no channels
-func (b *NullBackend) ChannelsDelete(uid string) error {
+func (b *NullBackend) ChannelsDelete(ctx context.Context, uid string) error {
 	return nil
 }
 
 // TimelineGet gets no timeline
-func (b *NullBackend) TimelineGet(before, after, channel string) (microsub.Timeline, error) {
+func (b *NullBackend) TimelineGet(ctx context.Context, before, after, channel string) (microsub.Timeline, error) {
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
 		Items:  []microsub.Item{},
@@ -65,36 +67,36 @@ func (b *NullBackend) TimelineGet(before, after, channel string) (microsub.Timel
 }
 
 // FollowGetList implements the follow list command
-func (b *NullBackend) FollowGetList(uid string) ([]microsub.Feed, error) {
+func (b *NullBackend) FollowGetList(ctx context.Context, uid string) ([]microsub.Feed, error) {
 	return []microsub.Feed{
 		{Name: "test", Type: "feed", URL: "https://example.com/"},
 	}, nil
 }
 
 // FollowURL follows a new url
-func (b *NullBackend) FollowURL(uid string, url string) (microsub.Feed, error) {
+func (b *NullBackend) FollowURL(ctx context.Context, uid string, url string) (microsub.Feed, error) {
 	return microsub.Feed{Type: "feed", URL: url}, nil
 }
 
 // UnfollowURL unfollows a url
-func (b *NullBackend) UnfollowURL(uid string, url string) error {
+func (b *NullBackend) UnfollowURL(ctx context.Context, uid string, url string) error {
 	return nil
 }
 
 // Search search for a query and return an example list of feeds
-func (b *NullBackend) Search(query string) ([]microsub.Feed, error) {
+func (b *NullBackend) Search(ctx context.Context, query string) ([]microsub.Feed, error) {
 	return []microsub.Feed{
 		{Type: "feed", URL: "https://example.com/", Name: "Example", Photo: "test.jpg", Description: "test"},
 	}, nil
 }
 
 // ItemSearch returns a list of zero items
-func (b *NullBackend) ItemSearch(channel, query string) ([]microsub.Item, error) {
+func (b *NullBackend) ItemSearch(ctx context.Context, channel, query string) ([]microsub.Item, error) {
 	return []microsub.Item{}, nil
 }
 
 // PreviewURL shows an empty feed
-func (b *NullBackend) PreviewURL(url string) (microsub.Timeline, error) {
+func (b *NullBackend) PreviewURL(ctx context.Context, url string) (microsub.Timeline, error) {
 	return microsub.Timeline{
 		Paging: microsub.Pagination{},
 		Items:  []microsub.Item{},
@@ -102,12 +104,12 @@ func (b *NullBackend) PreviewURL(url string) (microsub.Timeline, error) {
 }
 
 // MarkRead marks no items as read
-func (b *NullBackend) MarkRead(channel string, uids []string) error {
+func (b *NullBackend) MarkRead(ctx context.Context, channel string, uids []string) error {
 	return nil
 }
 
 // Events returns a closed channel.
-func (b *NullBackend) Events() (chan sse.Message, error) {
+func (b *NullBackend) Events(ctx context.Context) (chan sse.Message, error) {
 	ch := make(chan sse.Message)
 	close(ch)
 	return ch, nil

@@ -35,6 +35,7 @@ import (
 
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/pstuifzand/ekster/pkg/auth"
+	"github.com/pstuifzand/ekster/pkg/userid"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -123,6 +124,9 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 			http.Error(w, "Wrong me", http.StatusForbidden)
 			return
 		}
+
+		ctx := userid.NewContext(r.Context(), userID)
+		r = r.WithContext(ctx)
 
 		handler.ServeHTTP(w, r)
 	})
