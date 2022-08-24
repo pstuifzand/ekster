@@ -5,7 +5,6 @@ go 1.16
 require (
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
 	github.com/blevesearch/bleve/v2 v2.0.3
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gilliek/go-opml v1.0.0
 	github.com/golang-migrate/migrate/v4 v4.15.1
 	github.com/gomodule/redigo v1.8.2
