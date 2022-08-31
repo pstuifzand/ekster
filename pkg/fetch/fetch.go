@@ -298,6 +298,9 @@ func parseContentMentions(fetcher Fetcher, s string) ([]mention, error) {
 			continue
 		}
 		mentions = append(mentions, newMentions...)
+		if len(mentions) >= 1 {
+			return mentions, nil
+		}
 	}
 
 	return mentions, nil
@@ -369,6 +372,9 @@ func parseContentMentionsRec(fetcher Fetcher, node *html.Node) ([]mention, error
 			mentions = append(mentions, mention)
 		}
 	}
+	if len(mentions) >= 1 {
+		return mentions, nil
+	}
 
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
 		newMentions, err := parseContentMentionsRec(fetcher, c)
@@ -377,6 +383,9 @@ func parseContentMentionsRec(fetcher Fetcher, node *html.Node) ([]mention, error
 			continue
 		}
 		mentions = append(mentions, newMentions...)
+		if len(mentions) >= 1 {
+			return mentions, nil
+		}
 	}
 	return mentions, nil
 }
