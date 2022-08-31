@@ -968,6 +968,9 @@ func WithCaching(pool *redis.Pool, ff fetch.Fetcher) fetch.Fetcher {
 	return fetch.FetcherFunc(ff2)
 }
 
+// ErrBlackList returned when Url is not something we should fetch
+var ErrBlackList = errors.New("Blacklisted URL")
+
 // Fetch2 fetches stuff
 func Fetch2(fetchURL string) (*http.Response, error) {
 	if !strings.HasPrefix(fetchURL, "http") {
@@ -977,6 +980,15 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	u, err := url.Parse(fetchURL)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing %s as url: %s", fetchURL, err)
+	}
+
+	if strings.Contains(u.Host, "twitter.com") {
+		if !strings.Contains(u.Path, "/status/") {
+			return nil, ErrBlackList
+		}
+	}
+	if strings.Contains(u.Host, "reddit.com") {
+		return nil, ErrBlackList
 	}
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)

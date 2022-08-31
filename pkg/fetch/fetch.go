@@ -310,10 +310,6 @@ func parseContentMentionProcessLink(fetcher Fetcher, node *html.Node) (mention, 
 	if href == nil {
 		return mention{}, ErrNoMention
 	}
-	if strings.HasPrefix(*href, "https://twitter.com/search") {
-		return mention{}, ErrNoMention
-	}
-
 	log.Println("Processing mentions:", *href)
 
 	var hrefURL *url.URL
