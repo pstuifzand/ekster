@@ -353,7 +353,10 @@ func (b *memoryBackend) RefreshFeeds() {
 }
 
 func (b *memoryBackend) refreshFeed(feed feed) error {
-	resp, err := b.Fetch3(feed.UID, feed.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := b.Fetch3(ctx, feed.UID, feed.URL)
 	if err != nil {
 		return fmt.Errorf("while Fetch3 of %s: %w", feed.URL, err)
 	}
@@ -488,7 +491,7 @@ func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (
 		Unmodified:  0,
 		NextFetchAt: time.Now(),
 	}
-	resp, err := b.Fetch3(uid, subFeed.URL)
+	resp, err := b.Fetch3(ctx, uid, subFeed.URL)
 	if err != nil {
 		log.Println(err)
 		b.addNotification("Error while fetching feed", newFeed, err)
@@ -739,9 +742,9 @@ func (b *memoryBackend) ProcessContent(channel, feedID, fetchURL, contentType st
 }
 
 // Fetch3 fills stuff
-func (b *memoryBackend) Fetch3(channel, fetchURL string) (*http.Response, error) {
+func (b *memoryBackend) Fetch3(ctx context.Context, channel, fetchURL string) (*http.Response, error) {
 	log.Printf("Fetching channel=%s fetchURL=%s\n", channel, fetchURL)
-	return Fetch2(fetchURL)
+	return Fetch2(ctx, fetchURL)
 }
 
 func (b *memoryBackend) channelAddItemWithMatcher(channel string, item microsub.Item) (bool, error) {
@@ -920,7 +923,7 @@ func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
 
 // WithCaching adds caching to a fetch.Fetcher
 func WithCaching(pool *redis.Pool, ff fetch.Fetcher) fetch.Fetcher {
-	ff2 := (func(fetchURL string) (*http.Response, error) {
+	ff2 := (func(ctx context.Context, fetchURL string) (*http.Response, error) {
 		conn := pool.Get()
 		defer conn.Close()
 
@@ -930,7 +933,7 @@ func WithCaching(pool *redis.Pool, ff fetch.Fetcher) fetch.Fetcher {
 			return nil, fmt.Errorf("error parsing %s as url: %s", fetchURL, err)
 		}
 
-		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		if err != nil {
 			return nil, err
 		}
@@ -944,7 +947,7 @@ func WithCaching(pool *redis.Pool, ff fetch.Fetcher) fetch.Fetcher {
 
 		log.Printf("MISS %s\n", fetchURL)
 
-		resp, err := ff.Fetch(fetchURL)
+		resp, err := ff.FetchWithContext(ctx, fetchURL)
 		if err != nil {
 			return nil, err
 		}
@@ -972,7 +975,7 @@ func WithCaching(pool *redis.Pool, ff fetch.Fetcher) fetch.Fetcher {
 var ErrBlackList = errors.New("Blacklisted URL")
 
 // Fetch2 fetches stuff
-func Fetch2(fetchURL string) (*http.Response, error) {
+func Fetch2(ctx context.Context, fetchURL string) (*http.Response, error) {
 	if !strings.HasPrefix(fetchURL, "http") {
 		return nil, fmt.Errorf("error parsing %s as url, has no http(s) prefix", fetchURL)
 	}

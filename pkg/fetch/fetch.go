@@ -21,6 +21,7 @@ package fetch
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -318,7 +319,10 @@ func parseContentMentionProcessLink(fetcher Fetcher, node *html.Node) (mention, 
 		return mention{}, err
 	}
 
-	resp, err := fetcher.Fetch(*href)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := fetcher.FetchWithContext(ctx, *href)
 	if err != nil {
 		return mention{}, err
 	}

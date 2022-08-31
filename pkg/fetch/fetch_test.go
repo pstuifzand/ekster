@@ -19,6 +19,7 @@
 package fetch
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -26,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func fetcher(fetchURL string) (*http.Response, error) {
+func fetcher(ctx context.Context, fetchURL string) (*http.Response, error) {
 	return nil, nil
 }
 

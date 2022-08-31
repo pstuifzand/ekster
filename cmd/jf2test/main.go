@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -36,8 +37,13 @@ func init() {
 }
 
 // Fetch calls http.Get
-func Fetch(url string) (*http.Response, error) {
-	return http.Get(url)
+func Fetch(ctx context.Context, url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	cl := http.Client{}
+	return cl.Do(req)
 }
 
 func main() {
