@@ -30,6 +30,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -407,14 +408,17 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			for _, v := range page.Channels {
 				if v.UID == currentChannel {
 					page.CurrentChannel = v
-					if setting, e := h.Backend.Settings[v.UID]; e {
-						page.CurrentSetting = setting
-					} else {
-						page.CurrentSetting = channelSetting{}
+
+					setting, err := h.Backend.loadSetting(v.UID)
+					if err != nil {
+						log.Println(err)
 					}
+					page.CurrentSetting = setting
+
 					if page.CurrentSetting.ChannelType == "" {
 						page.CurrentSetting.ChannelType = "postgres-stream"
 					}
+
 					page.ExcludedTypeNames = map[string]string{
 						"repost":   "Reposts",
 						"like":     "Likes",
@@ -740,27 +744,49 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		} else if r.URL.Path == "/settings/channel" {
 			// defer h.Backend.save()
-			// uid := r.FormValue("uid")
-			//
-			// if h.Backend.Settings == nil {
-			// 	h.Backend.Settings = make(map[string]channelSetting)
-			// }
-			//
-			// excludeRegex := r.FormValue("exclude_regex")
-			// includeRegex := r.FormValue("include_regex")
-			// channelType := r.FormValue("type")
-			//
-			// setting, e := h.Backend.Settings[uid]
-			// if !e {
-			// 	setting = channelSetting{}
-			// }
-			// setting.ExcludeRegex = excludeRegex
-			// setting.IncludeRegex = includeRegex
-			// setting.ChannelType = channelType
-			// if values, e := r.Form["exclude_type"]; e {
-			// 	setting.ExcludeType = values
-			// }
-			// h.Backend.Settings[uid] = setting
+			uid := r.FormValue("uid")
+
+			setting, err := h.Backend.loadSetting(uid)
+			if err != nil {
+				log.Println("loadSetting", uid, err)
+				http.Redirect(w, r, "/settings", http.StatusFound)
+				return
+			}
+
+			excludeRegex := r.FormValue("exclude_regex")
+			includeRegex := r.FormValue("include_regex")
+
+			if excludeRegex != "" {
+				_, err = regexp.Compile(excludeRegex)
+				if err != nil {
+					log.Println("exclude_regex is not a regex", excludeRegex, err)
+					http.Redirect(w, r, "/settings/channel?uid="+uid, http.StatusFound)
+					return
+				}
+			}
+
+			if includeRegex != "" {
+				_, err = regexp.Compile(includeRegex)
+				if err != nil {
+					log.Println("include_regex is not a regex", includeRegex, err)
+					http.Redirect(w, r, "/settings/channel?uid="+uid, http.StatusFound)
+					return
+				}
+			}
+
+			channelType := r.FormValue("type")
+
+			setting.ExcludeRegex = excludeRegex
+			setting.IncludeRegex = includeRegex
+			setting.ChannelType = channelType
+			if values, e := r.Form["exclude_type"]; e {
+				setting.ExcludeType = values
+			}
+
+			err = h.Backend.saveSetting(uid, setting)
+			if err != nil {
+				log.Println("saveSetting", uid, setting, err)
+			}
 
 			http.Redirect(w, r, "/settings", http.StatusFound)
 			return

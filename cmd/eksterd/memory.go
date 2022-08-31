@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"io"
@@ -750,64 +752,35 @@ func (b *memoryBackend) channelAddItemWithMatcher(channel string, item microsub.
 
 	var updatedChannels []string
 
-	b.lock.RLock()
-	settings := b.Settings
-	b.lock.RUnlock()
+	// FIXME: implement include regex
+	// for channelKey, setting := range settings {
+	// 	if setting.IncludeRegex != "" {
+	// 		re, err := regexp.Compile(setting.IncludeRegex)
+	// 		if err != nil {
+	// 			log.Printf("error in regexp: %q, %s\n", setting.IncludeRegex, err)
+	// 			return false, nil
+	// 		}
+	//
+	// 		if matchItem(item, re) {
+	// 			log.Printf("Included %#v\n", item)
+	// 			added, err := b.channelAddItem(channelKey, item)
+	// 			if err != nil {
+	// 				continue
+	// 			}
+	//
+	// 			err = addToSearch(item, channel)
+	// 			if err != nil {
+	// 				return added, fmt.Errorf("addToSearch in channelAddItemWithMatcher: %v", err)
+	// 			}
+	//
+	// 			if added {
+	// 				updatedChannels = append(updatedChannels, channelKey)
+	// 			}
+	// 		}
+	// 	}
+	// }
 
-	for channelKey, setting := range settings {
-		if len(setting.ExcludeType) > 0 {
-			for _, v := range setting.ExcludeType {
-				switch v {
-				case "repost":
-					if len(item.RepostOf) > 0 {
-						return false, nil
-					}
-				case "like":
-					if len(item.LikeOf) > 0 {
-						return false, nil
-					}
-				case "bookmark":
-					if len(item.BookmarkOf) > 0 {
-						return false, nil
-					}
-				case "reply":
-					if len(item.InReplyTo) > 0 {
-						return false, nil
-					}
-				case "checkin":
-					if item.Checkin != nil {
-						return false, nil
-					}
-				}
-			}
-		}
-		if setting.IncludeRegex != "" {
-			re, err := regexp.Compile(setting.IncludeRegex)
-			if err != nil {
-				log.Printf("error in regexp: %q, %s\n", setting.IncludeRegex, err)
-				return false, nil
-			}
-
-			if matchItem(item, re) {
-				log.Printf("Included %#v\n", item)
-				added, err := b.channelAddItem(channelKey, item)
-				if err != nil {
-					continue
-				}
-
-				err = addToSearch(item, channel)
-				if err != nil {
-					return added, fmt.Errorf("addToSearch in channelAddItemWithMatcher: %v", err)
-				}
-
-				if added {
-					updatedChannels = append(updatedChannels, channelKey)
-				}
-			}
-		}
-	}
-
-	// Update all channels that have added items, because of the include matching
+	// Update all channels that have added items, because the include_regex matches
 	for _, value := range updatedChannels {
 		err := b.updateChannelUnreadCount(value)
 		if err != nil {
@@ -817,11 +790,36 @@ func (b *memoryBackend) channelAddItemWithMatcher(channel string, item microsub.
 	}
 
 	// Check for the exclude regex
-	b.lock.RLock()
-	setting, exists := b.Settings[channel]
-	b.lock.RUnlock()
+	setting, _ := b.loadSetting(channel)
 
-	if exists && setting.ExcludeRegex != "" {
+	if len(setting.ExcludeType) > 0 {
+		for _, v := range setting.ExcludeType {
+			switch v {
+			case "repost":
+				if len(item.RepostOf) > 0 {
+					return false, nil
+				}
+			case "like":
+				if len(item.LikeOf) > 0 {
+					return false, nil
+				}
+			case "bookmark":
+				if len(item.BookmarkOf) > 0 {
+					return false, nil
+				}
+			case "reply":
+				if len(item.InReplyTo) > 0 {
+					return false, nil
+				}
+			case "checkin":
+				if item.Checkin != nil {
+					return false, nil
+				}
+			}
+		}
+	}
+
+	if setting.ExcludeRegex != "" {
 		excludeRegex, err := regexp.Compile(setting.ExcludeRegex)
 		if err != nil {
 			log.Printf("error in regexp: %q\n", excludeRegex)
@@ -995,6 +993,49 @@ func Fetch2(fetchURL string) (*http.Response, error) {
 	return resp, err
 }
 
+func (b *memoryBackend) loadSetting(uid string) (channelSetting, error) {
+	row := b.database.QueryRow(`SELECT "id" FROM "channels" WHERE "uid" = $1`, uid)
+	var channelID int
+	err := row.Scan(&channelID)
+	if err != nil {
+		return channelSetting{}, err
+	}
+
+	var settingsID int
+	var setting channelSetting
+
+	row = b.database.QueryRow(`SELECT "id", "settings" FROM "channel_settings" WHERE "channel_id" = $1`, channelID)
+
+	err = row.Scan(&settingsID, &setting)
+	if err == sql.ErrNoRows {
+		return channelSetting{}, nil
+	}
+	if err != nil {
+		return channelSetting{}, err
+	}
+
+	return setting, nil
+}
+
+func (b *memoryBackend) saveSetting(uid string, setting channelSetting) error {
+	row := b.database.QueryRow(`SELECT "id" FROM "channels" WHERE "uid" = $1`, uid)
+	var channelID int
+	err := row.Scan(&channelID)
+	if err != nil {
+		return err
+	}
+
+	_, err = b.database.Exec(`
+INSERT INTO "channel_settings" (channel_id, settings, created_at)
+VALUES ($1, $2, now())
+ON CONFLICT (channel_id) DO UPDATE
+  SET settings = excluded.settings,
+      updated_at = now()
+`, channelID, &setting)
+
+	return err
+}
+
 func (b *memoryBackend) getTimeline(channel string) (timeline.Backend, error) {
 	// Set a default timeline type if not set
 	timelineType := "postgres-stream"
@@ -1003,4 +1044,19 @@ func (b *memoryBackend) getTimeline(channel string) (timeline.Backend, error) {
 		return tl, fmt.Errorf("timeline id %q: %w", channel, ErrNotFound)
 	}
 	return tl, nil
+}
+
+// Scan helps to scan json data from database
+func (item *channelSetting) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+
+	return json.Unmarshal(b, &item)
+}
+
+// Value helps to add json data to database
+func (item *channelSetting) Value() (driver.Value, error) {
+	return json.Marshal(item)
 }
