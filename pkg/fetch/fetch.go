@@ -261,6 +261,10 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 				continue
 			}
 
+			if v.Refs == nil {
+				v.Refs = make(map[string]microsub.Item)
+			}
+
 			for _, m := range mentions {
 				v.Refs[m.Href] = m.Item
 				v.MentionOf = append(v.MentionOf, m.Href)
