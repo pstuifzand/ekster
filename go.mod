@@ -9,6 +9,7 @@ require (
 	github.com/blevesearch/bleve/v2 v2.3.4
 	github.com/blevesearch/geo v0.1.14 // indirect
 	github.com/gilliek/go-opml v1.0.0
+	github.com/go-shiori/go-readability v0.0.0-20220215145315-dd6828d2f09b
 	github.com/golang-migrate/migrate/v4 v4.15.1
 	github.com/gomodule/redigo v1.8.2
 	github.com/json-iterator/go v1.1.12 // indirect

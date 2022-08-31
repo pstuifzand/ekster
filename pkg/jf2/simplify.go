@@ -151,6 +151,8 @@ func itemPtr(item *microsub.Item, key string) *[]string {
 		return &item.LikeOf
 	} else if key == "in-reply-to" {
 		return &item.InReplyTo
+	} else if key == "mention-of" {
+		return &item.MentionOf
 	} else if key == "photo" {
 		return &item.Photo
 	} else if key == "category" {
