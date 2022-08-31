@@ -93,6 +93,7 @@ type Item struct {
 	BookmarkOf []string        `json:"bookmark-of,omitempty" mf2:"bookmark-of"`
 	RepostOf   []string        `json:"repost-of,omitempty" mf2:"repost-of"`
 	InReplyTo  []string        `json:"in-reply-to,omitempty" mf2:"in-reply-to"`
+	MentionOf  []string        `json:"mention-of,omitempty" mf2:"mention-of"`
 	Content    *Content        `json:"content,omitempty" mf2:"content"`
 	Summary    string          `json:"summary,omitempty" mf2:"summary"`
 	Latitude   string          `json:"latitude,omitempty" mf2:"latitude"`

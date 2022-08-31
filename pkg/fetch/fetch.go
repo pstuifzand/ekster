@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -40,6 +41,8 @@ import (
 	"github.com/pstuifzand/ekster/pkg/rss"
 
 	"willnorris.com/go/microformats"
+
+	readability "github.com/go-shiori/go-readability"
 )
 
 // FeedHeader returns a new microsub.Feed with the information parsed from body.
@@ -249,7 +252,124 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 		}
 	}
 
+	for i, v := range items {
+		// Process mentions inside the content
+		if v.Content.HTML != "" {
+			mentions, err := parseContentMentions(fetcher, v.Content.HTML)
+			if err != nil {
+				log.Println("parseContentMentions", err)
+				continue
+			}
+
+			for _, m := range mentions {
+				v.Refs[m.Href] = m.Item
+				v.MentionOf = append(v.MentionOf, m.Href)
+			}
+
+			items[i] = v
+		}
+	}
+
 	return items, nil
+}
+
+type mention struct {
+	Href string
+	Item microsub.Item
+}
+
+func parseContentMentions(fetcher Fetcher, s string) ([]mention, error) {
+	node, err := html.Parse(strings.NewReader(s))
+	if err != nil {
+		return nil, err
+	}
+
+	var mentions []mention
+
+	for c := node.FirstChild; c != nil; c = c.NextSibling {
+		newMentions, err := parseContentMentionsRec(fetcher, c)
+		if err != nil {
+			log.Println("parseContentMentionsRec", err)
+			continue
+		}
+		mentions = append(mentions, newMentions...)
+	}
+
+	return mentions, nil
+}
+
+// ErrNoMention is used when not mention was found
+var ErrNoMention = errors.New("No mention")
+
+func parseContentMentionProcessLink(fetcher Fetcher, node *html.Node) (mention, error) {
+	href := getAttrPtr(node, "href")
+	if href == nil {
+		return mention{}, ErrNoMention
+	}
+	log.Println("Processing mentions:", *href)
+
+	var hrefURL *url.URL
+	var err error
+	if hrefURL, err = url.Parse(*href); err != nil {
+		return mention{}, err
+	}
+
+	resp, err := fetcher.Fetch(*href)
+	if err != nil {
+		return mention{}, err
+	}
+	defer resp.Body.Close()
+
+	article, err := readability.FromReader(resp.Body, hrefURL)
+	if err != nil {
+		return mention{}, err
+	}
+
+	var item microsub.Item
+
+	item.Type = "entry"
+	item.Name = article.Title
+	item.Content = &microsub.Content{
+		Text: article.TextContent,
+		HTML: article.Content,
+	}
+	if article.Image != "" {
+		item.Photo = []string{article.Image}
+	}
+
+	item.Summary = article.Excerpt
+	if article.Byline != "" {
+		item.Author = &microsub.Card{
+			Name: article.Byline,
+		}
+	}
+
+	return mention{
+		Href: *href,
+		Item: item,
+	}, nil
+}
+
+func parseContentMentionsRec(fetcher Fetcher, node *html.Node) ([]mention, error) {
+	var mentions []mention
+	if isAtom(node, atom.A) {
+		mention, err := parseContentMentionProcessLink(fetcher, node)
+		if err != nil {
+			log.Println("parseContentMentionProcessLink", err)
+		} else {
+			mentions = append(mentions, mention)
+		}
+	}
+
+	for c := node.FirstChild; c != nil; c = c.NextSibling {
+		newMentions, err := parseContentMentionsRec(fetcher, c)
+		if err != nil {
+			log.Println("parseContentMentionsRec", err)
+			continue
+		}
+		mentions = append(mentions, newMentions...)
+	}
+	return mentions, nil
 }
 
 // expandHref expands relative URLs in a.href and img.src attributes to be absolute URLs.
