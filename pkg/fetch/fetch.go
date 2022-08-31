@@ -254,7 +254,7 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 
 	for i, v := range items {
 		// Process mentions inside the content
-		if v.Content.HTML != "" {
+		if v.Content != nil && v.Content.HTML != "" {
 			mentions, err := parseContentMentions(fetcher, v.Content.HTML)
 			if err != nil {
 				log.Println("parseContentMentions", err)
@@ -347,6 +347,7 @@ func parseContentMentionProcessLink(fetcher Fetcher, node *html.Node) (mention, 
 			Name: article.Byline,
 		}
 	}
+	item.URL = *href
 
 	return mention{
 		Href: *href,
