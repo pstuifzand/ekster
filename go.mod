@@ -17,9 +17,9 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.1
 	go.etcd.io/bbolt v1.3.6 // indirect
-	golang.org/x/net v0.0.0-20211013171255-e13a2654a71e
+	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
 	golang.org/x/sys v0.0.0-20220823224334-20c2bfdbfe24 // indirect
-	golang.org/x/text v0.3.7
+	golang.org/x/text v0.3.8
 	google.golang.org/protobuf v1.28.1 // indirect
 	willnorris.com/go/microformats v1.1.0
 )
