@@ -1,14 +1,20 @@
-// Copyright (C) 2018 Peter Stuifzand
-//
-// This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-// License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any
-// later version.
-//
-// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
-// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License along with this program. If not,
-// see <http://www.gnu.org/licenses/>.
+/*
+ *  Ekster is a microsub server
+ *  Copyright (c) 2021 The Ekster authors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 /*
 Eksterd is a microsub server that is extendable.
@@ -17,18 +23,20 @@ package main
 
 import (
 	"database/sql"
+	"embed"
+	_ "expvar"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
-	"github.com/pkg/errors"
 	"p83.nl/go/ekster/pkg/auth"
 
-	"p83.nl/go/ekster/pkg/server"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/gomodule/redigo/redis"
 )
 
 // AppOptions are options for the app
@@ -42,6 +50,9 @@ type AppOptions struct {
 	pool        *redis.Pool
 	database    *sql.DB
 }
+
+//go:embed db/migrations/*.sql
+var migrations embed.FS
 
 func init() {
 	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
@@ -81,85 +92,18 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 		}
 		if !authorized {
 			log.Printf("Token could not be validated")
-			http.Error(w, "Can't validate token", 403)
+			http.Error(w, "Can't validate token", http.StatusForbidden)
 			return
 		}
 
 		if token.Me != b.Me { // FIXME: Me should be part of the request
 			log.Printf("Missing \"me\" in token response: %#v\n", token)
-			http.Error(w, "Wrong me", 403)
+			http.Error(w, "Wrong me", http.StatusForbidden)
 			return
 		}
 
 		handler.ServeHTTP(w, r)
 	})
-}
-
-// App is the main app structure
-type App struct {
-	options    AppOptions
-	backend    *memoryBackend
-	hubBackend *hubIncomingBackend
-}
-
-// Run runs the app
-func (app *App) Run() error {
-	err := initSearch()
-	if err != nil {
-		return fmt.Errorf("while starting app: %v", err)
-	}
-	app.backend.run()
-	app.hubBackend.run()
-
-	log.Printf("Listening on port %d\n", app.options.Port)
-	return http.ListenAndServe(fmt.Sprintf(":%d", app.options.Port), nil)
-}
-
-// NewApp initializes the App
-func NewApp(options AppOptions) (*App, error) {
-	app := &App{
-		options: options,
-	}
-
-	backend, err := loadMemoryBackend(options.pool, options.database)
-	if err != nil {
-		return nil, err
-	}
-	app.backend = backend
-	app.backend.AuthEnabled = options.AuthEnabled
-	app.backend.baseURL = options.BaseURL
-	app.backend.hubIncomingBackend.pool = options.pool
-	app.backend.hubIncomingBackend.baseURL = options.BaseURL
-
-	app.hubBackend = &hubIncomingBackend{backend: app.backend, baseURL: options.BaseURL, pool: options.pool}
-
-	http.Handle("/micropub", &micropubHandler{
-		Backend: app.backend,
-		pool:    options.pool,
-	})
-
-	handler, broker := server.NewMicrosubHandler(app.backend)
-	if options.AuthEnabled {
-		handler = WithAuth(handler, app.backend)
-	}
-
-	app.backend.broker = broker
-
-	http.Handle("/microsub", handler)
-
-	http.Handle("/incoming/", &incomingHandler{
-		Backend: app.hubBackend,
-	})
-
-	if !options.Headless {
-		handler, err := newMainHandler(app.backend, options.BaseURL, options.TemplateDir, options.pool)
-		if err != nil {
-			return nil, errors.Wrap(err, "could not create main handler")
-		}
-		http.Handle("/", handler)
-	}
-
-	return app, nil
 }
 
 func main() {
@@ -197,28 +141,36 @@ func main() {
 			log.Fatal("EKSTER_TEMPLATES environment variable not found, use env var or -templates dir option")
 		}
 	}
+	//
+	// createBackend := false
+	// args := flag.Args()
+	//
+	// if len(args) >= 1 {
+	// 	if args[0] == "new" {
+	// 		createBackend = true
+	// 	}
+	// }
+	//
+	// if createBackend {
+	// 	err := createMemoryBackend()
+	// 	if err != nil {
+	// 		log.Fatalf("Error while saving backend.json: %s", err)
+	// 	}
+	//
+	// TODO(peter): automatically gather this information from login or otherwise
+	//
+	// 	log.Println(`Config file "backend.json" is created in the current directory.`)
+	// 	log.Println(`Update "Me" variable to your website address "https://example.com/"`)
+	// 	log.Println(`Update "TokenEndpoint" variable to the address of your token endpoint "https://example.com/token"`)
+	//
+	// 	return
+	// }
 
-	createBackend := false
-	args := flag.Args()
-
-	if len(args) >= 1 {
-		if args[0] == "new" {
-			createBackend = true
-		}
-	}
-
-	if createBackend {
-		err := createMemoryBackend()
-		if err != nil {
-			log.Fatalf("Error while saving backend.json: %s", err)
-		}
-
-		// TODO(peter): automatically gather this information from login or otherwise
-		log.Println(`Config file "backend.json" is created in the current directory.`)
-		log.Println(`Update "Me" variable to your website address "https://example.com/"`)
-		log.Println(`Update "TokenEndpoint" variable to the address of your token endpoint "https://example.com/token"`)
-
-		return
+	// TODO(peter): automatically gather this information from login or otherwise
+	databaseURL := "postgres://postgres@database/ekster?sslmode=disable&user=postgres&password=simple"
+	err := runMigrations(databaseURL)
+	if err != nil {
+		log.Fatalf("Error with migrations: %s", err)
 	}
 
 	pool := newPool(options.RedisServer)
@@ -237,4 +189,39 @@ func main() {
 	log.Fatal(app.Run())
 
 	db.Close()
+}
+
+// Log migrations
+type Log struct {
+}
+
+// Printf for migrations logs
+func (l Log) Printf(format string, v ...interface{}) {
+	log.Printf(format, v...)
+}
+
+// Verbose returns false
+func (l Log) Verbose() bool {
+	return false
+}
+
+func runMigrations(databaseURL string) error {
+	d, err := iofs.New(migrations, "db/migrations")
+	if err != nil {
+		return err
+	}
+	m, err := migrate.NewWithSourceInstance("iofs", d, databaseURL)
+	if err != nil {
+		return err
+	}
+	defer m.Close()
+	m.Log = &Log{}
+	log.Println("Running migrations")
+	if err = m.Up(); err != nil {
+		if err != migrate.ErrNoChange {
+			return err
+		}
+	}
+	log.Println("Migrations are up")
+	return nil
 }

@@ -1,3 +1,21 @@
+/*
+ *  Ekster is a microsub server
+ *  Copyright (c) 2021 The Ekster authors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package main
 
 import (
@@ -104,10 +122,6 @@ func newMainHandler(backend *memoryBackend, baseURL, templateDir string, pool *r
 	h.pool = pool
 
 	return h, nil
-}
-
-func (h *mainHandler) templateFile(filename string) string {
-	return fmt.Sprintf("%s/%s", h.TemplateDir, filename)
 }
 
 func (h *mainHandler) renderTemplate(w io.Writer, filename string, data interface{}) error {
@@ -292,7 +306,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		log.Println(err)
-		http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), 400)
+		http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), http.StatusBadRequest)
 		return
 	}
 
@@ -317,15 +331,19 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/session/callback" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			} else if err != nil {
-				http.Error(w, "could not read cookie", 500)
+				http.Error(w, "could not read cookie", http.StatusInternalServerError)
 				return
 			}
 
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %q\n", err)
+				return
+			}
 
 			verified, authResponse, err := performIndieauthCallback(h.BaseURL, r, &sess)
 			if err != nil {
@@ -338,9 +356,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				saveSession(sessionVar, &sess, conn)
 				log.Printf("SESSION: %#v\n", sess)
 				if sess.NextURI != "" {
-					http.Redirect(w, r, sess.NextURI, 302)
+					http.Redirect(w, r, sess.NextURI, http.StatusFound)
 				} else {
-					http.Redirect(w, r, "/", 302)
+					http.Redirect(w, r, "/", http.StatusFound)
 				}
 				return
 			}
@@ -348,11 +366,16 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/settings/channel" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			if !isLoggedIn(h.Backend, &sess) {
 				w.WriteHeader(401)
@@ -364,7 +387,17 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.Session = sess
 			currentChannel := r.URL.Query().Get("uid")
 			page.Channels, err = h.Backend.ChannelsGetList()
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			page.Feeds, err = h.Backend.FollowGetList(currentChannel)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			for _, v := range page.Channels {
 				if v.UID == currentChannel {
@@ -404,11 +437,16 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/logs" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			if !isLoggedIn(h.Backend, &sess) {
 				w.WriteHeader(401)
@@ -427,11 +465,16 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/settings" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			if !isLoggedIn(h.Backend, &sess) {
 				w.WriteHeader(401)
@@ -442,6 +485,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var page settingsPage
 			page.Session = sess
 			page.Channels, err = h.Backend.ChannelsGetList()
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			// page.Feeds = h.Backend.Feeds
 
 			err = h.renderTemplate(w, "settings.html", page)
@@ -456,11 +504,16 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := getSessionCookie(w, r)
 
 			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			if !isLoggedIn(h.Backend, &sess) {
 				sess.NextURI = r.URL.String()
 				saveSession(sessionVar, &sess, conn)
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 
@@ -502,6 +555,11 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.Scope = scope
 			page.State = state
 			page.Channels, err = h.Backend.ChannelsGetList()
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 
 			app, err := getAppInfo(clientID)
 			if err != nil {
@@ -519,7 +577,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/session" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 
@@ -530,7 +588,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			endpoints, err := getEndpoints(me)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("Bad Request: %s, %s", err.Error(), me), 400)
+				http.Error(w, fmt.Sprintf("Bad Request: %s, %s", err.Error(), me), http.StatusBadRequest)
 				return
 			}
 
@@ -540,7 +598,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sess, err := loadSession(sessionVar, conn)
 
 			if err != nil {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 
@@ -552,12 +610,12 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			err = saveSession(sessionVar, &sess, conn)
 			if err != nil {
-				http.Redirect(w, r, "/", 302)
+				http.Redirect(w, r, "/", http.StatusFound)
 				return
 			}
 
 			authenticationURL := indieauth.CreateAuthenticationURL(*endpoints.AuthorizationEndpoint, endpoints.Me.String(), h.BaseURL, redirectURI, state)
-			http.Redirect(w, r, authenticationURL, 302)
+			http.Redirect(w, r, authenticationURL, http.StatusFound)
 
 			return
 		} else if r.URL.Path == "/session/logout" {
@@ -610,7 +668,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			redirectURI.RawQuery = q.Encode()
 
 			log.Println(redirectURI)
-			http.Redirect(w, r, redirectURI.String(), 302)
+			http.Redirect(w, r, redirectURI.String(), http.StatusFound)
 			return
 		} else if r.URL.Path == "/auth/token" {
 			grantType := r.FormValue("grant_type")
@@ -659,36 +717,34 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		} else if r.URL.Path == "/settings/channel" {
-			defer h.Backend.save()
-			uid := r.FormValue("uid")
+			// defer h.Backend.save()
+			// uid := r.FormValue("uid")
+			//
+			// if h.Backend.Settings == nil {
+			// 	h.Backend.Settings = make(map[string]channelSetting)
+			// }
+			//
+			// excludeRegex := r.FormValue("exclude_regex")
+			// includeRegex := r.FormValue("include_regex")
+			// channelType := r.FormValue("type")
+			//
+			// setting, e := h.Backend.Settings[uid]
+			// if !e {
+			// 	setting = channelSetting{}
+			// }
+			// setting.ExcludeRegex = excludeRegex
+			// setting.IncludeRegex = includeRegex
+			// setting.ChannelType = channelType
+			// if values, e := r.Form["exclude_type"]; e {
+			// 	setting.ExcludeType = values
+			// }
+			// h.Backend.Settings[uid] = setting
 
-			if h.Backend.Settings == nil {
-				h.Backend.Settings = make(map[string]channelSetting)
-			}
-
-			excludeRegex := r.FormValue("exclude_regex")
-			includeRegex := r.FormValue("include_regex")
-			channelType := r.FormValue("type")
-
-			setting, e := h.Backend.Settings[uid]
-			if !e {
-				setting = channelSetting{}
-			}
-			setting.ExcludeRegex = excludeRegex
-			setting.IncludeRegex = includeRegex
-			setting.ChannelType = channelType
-			if values, e := r.Form["exclude_type"]; e {
-				setting.ExcludeType = values
-			}
-			h.Backend.Settings[uid] = setting
-
-			h.Backend.Debug()
-
-			http.Redirect(w, r, "/settings", 302)
+			http.Redirect(w, r, "/settings", http.StatusFound)
 			return
 		} else if r.URL.Path == "/refresh" {
 			h.Backend.RefreshFeeds()
-			http.Redirect(w, r, "/", 302)
+			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
 	}
@@ -699,14 +755,14 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func httpSessionLogout(r *http.Request, w http.ResponseWriter, conn redis.Conn) {
 	c, err := r.Cookie("session")
 	if err == http.ErrNoCookie {
-		http.Redirect(w, r, "/", 302)
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 	if err == nil {
 		sessionVar := c.Value
 		_, _ = conn.Do("DEL", "session:"+sessionVar)
 	}
-	http.Redirect(w, r, "/", 302)
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 type parsedEndpoints struct {

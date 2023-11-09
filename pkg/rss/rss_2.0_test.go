@@ -1,7 +1,6 @@
 package rss
 
 import (
-	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -77,7 +76,7 @@ func TestParseItemDateOK(t *testing.T) {
 			t.Fatalf("Parsing %s: %v", name, err)
 		}
 
-		if fmt.Sprintf("%s", feed.Items[0].Date) != want {
+		if feed.Items[0].Date.String() != want {
 			t.Errorf("%s: got %q, want %q", name, feed.Items[0].Date, want)
 		}
 	}
@@ -100,7 +99,7 @@ func TestParseItemDateFailure(t *testing.T) {
 			t.Fatalf("Parsing %s: %v", name, err)
 		}
 
-		if fmt.Sprintf("%s", feed.Items[1].Date) != want {
+		if feed.Items[1].Date.String() != want {
 			t.Errorf("%s: got %q, want %q", name, feed.Items[1].Date, want)
 		}
 

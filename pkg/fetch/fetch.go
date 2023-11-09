@@ -1,3 +1,21 @@
+/*
+ *  Ekster is a microsub server
+ *  Copyright (c) 2021 The Ekster authors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 // Package fetch provides an API for fetching information about urls.
 package fetch
 
@@ -25,7 +43,7 @@ import (
 )
 
 // FeedHeader returns a new microsub.Feed with the information parsed from body.
-func FeedHeader(fetcher FetcherFunc, fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
+func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
 
@@ -38,7 +56,7 @@ func FeedHeader(fetcher FetcherFunc, fetchURL, contentType string, body io.Reade
 		author, ok := jf2.SimplifyMicroformatDataAuthor(data)
 		if !ok {
 			if strings.HasPrefix(author.URL, "http") {
-				resp, err := fetcher(author.URL)
+				resp, err := fetcher.Fetch(author.URL)
 				if err != nil {
 					return feed, err
 				}
@@ -48,6 +66,9 @@ func FeedHeader(fetcher FetcherFunc, fetchURL, contentType string, body io.Reade
 				md := microformats.Parse(resp.Body, u)
 
 				author, ok = jf2.SimplifyMicroformatDataAuthor(md)
+				if !ok {
+					log.Println("Could not simplify the author")
+				}
 			}
 		}
 
@@ -108,7 +129,7 @@ func FeedHeader(fetcher FetcherFunc, fetchURL, contentType string, body io.Reade
 }
 
 // FeedItems returns the items from the url, parsed from body.
-func FeedItems(fetcher FetcherFunc, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
+func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
 

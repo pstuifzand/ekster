@@ -303,7 +303,7 @@ type Enclosure struct {
 // Get uses http.Get to fetch an enclosure.
 func (e *Enclosure) Get() (io.ReadCloser, error) {
 	if e == nil || e.URL == "" {
-		return nil, errors.New("No enclosure")
+		return nil, errors.New("no enclosure")
 	}
 
 	res, err := http.Get(e.URL)
@@ -325,7 +325,7 @@ type Image struct {
 // Get uses http.Get to fetch an image.
 func (i *Image) Get() (io.ReadCloser, error) {
 	if i == nil || i.URL == "" {
-		return nil, errors.New("No image")
+		return nil, errors.New("no image")
 	}
 
 	res, err := http.Get(i.URL)

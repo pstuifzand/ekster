@@ -1,10 +1,31 @@
+/*
+ *  Ekster is a microsub server
+ *  Copyright (c) 2021 The Ekster authors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package timeline
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,46 +54,10 @@ func (p *postgresStream) Init() error {
 		return fmt.Errorf("database ping failed: %w", err)
 	}
 
-	_, err = conn.ExecContext(ctx, `
-CREATE TABLE IF NOT EXISTS "channels" (
-    "id" int primary key generated always as identity,
-    "name" varchar(255) unique,
-    "created_at" timestamp DEFAULT current_timestamp
-);
-`)
-	if err != nil {
-		return fmt.Errorf("create channels table failed: %w", err)
-	}
-
-	_, err = conn.ExecContext(ctx, `
-CREATE TABLE IF NOT EXISTS "items" (
-    "id" int primary key generated always as identity,
-    "channel_id" int references "channels" on delete cascade,
-    "uid" varchar(512) not null unique,
-    "is_read" int default 0,
-    "data" json,
-    "created_at" timestamp DEFAULT current_timestamp,
-    "updated_at" timestamp,
-    "published_at" timestamp
-);
-`)
-	if err != nil {
-		return fmt.Errorf("create items table failed: %w", err)
-	}
-
-	_, err = conn.ExecContext(ctx, `INSERT INTO "channels" ("name", "created_at") VALUES ($1, DEFAULT)
- 		ON CONFLICT DO NOTHING`, p.channel)
-	if err != nil {
-		return fmt.Errorf("create channel failed: %w", err)
-	}
-
-	row := conn.QueryRowContext(ctx, `SELECT "id" FROM "channels" WHERE "name" = $1`, p.channel)
-	if row == nil {
-		return fmt.Errorf("fetch channel failed: %w", err)
-	}
+	row := conn.QueryRowContext(ctx, `SELECT "id" FROM "channels" WHERE "uid" = $1`, p.channel)
 	err = row.Scan(&p.channelID)
-	if err != nil {
-		return fmt.Errorf("fetch channel failed while scanning: %w", err)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("channel %s not found: %w", p.channel, err)
 	}
 
 	return nil
@@ -101,16 +86,16 @@ WHERE "channel_id" = $1
 			log.Println(err)
 		} else {
 			args = append(args, b)
-			qb.WriteString(` AND "published_at" < $2`)
+			qb.WriteString(` AND "published_at" > $2`)
 		}
 	} else if after != "" {
 		b, err := time.Parse(time.RFC3339, after)
 		if err == nil {
 			args = append(args, b)
-			qb.WriteString(` AND "published_at" > $2`)
+			qb.WriteString(` AND "published_at" < $2`)
 		}
 	}
-	qb.WriteString(` ORDER BY "published_at" DESC LIMIT 10`)
+	qb.WriteString(` ORDER BY "published_at" DESC LIMIT 20`)
 
 	rows, err := conn.QueryContext(context.Background(), qb.String(), args...)
 	if err != nil {
@@ -154,15 +139,36 @@ WHERE "channel_id" = $1
 		return tl, err
 	}
 
-	// TODO: should only be set of there are more items available
-	tl.Paging.Before = last
-	// tl.Paging.After = last
+	if len(tl.Items) > 0 && hasMoreBefore(conn, tl.Items[0].Published) {
+		tl.Paging.Before = tl.Items[0].Published
+	}
+	if hasMoreAfter(conn, last) {
+		tl.Paging.After = last
+	}
 
 	if tl.Items == nil {
 		tl.Items = []microsub.Item{}
 	}
 
 	return tl, nil
+}
+
+func hasMoreBefore(conn *sql.Conn, before string) bool {
+	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "published_at" > $1`, before)
+	var count int
+	if err := row.Scan(&count); err == sql.ErrNoRows {
+		return false
+	}
+	return count > 0
+}
+
+func hasMoreAfter(conn *sql.Conn, after string) bool {
+	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "published_at" < $1`, after)
+	var count int
+	if err := row.Scan(&count); err == sql.ErrNoRows {
+		return false
+	}
+	return count > 0
 }
 
 // Count
@@ -173,16 +179,12 @@ func (p *postgresStream) Count() (int, error) {
 		return -1, err
 	}
 	defer conn.Close()
+	var count int
 	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM items WHERE channel_id = $1 AND "is_read" = 0`, p.channelID)
-	if row == nil {
+	err = row.Scan(&count)
+	if err != nil && err == sql.ErrNoRows {
 		return 0, nil
 	}
-	var count int
-	err = row.Scan(&count)
-	if err != nil {
-		return -1, err
-	}
-
 	return count, nil
 }
 
@@ -203,14 +205,34 @@ func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 		}
 		t = t2
 	}
+	if item.ID == "" {
+		// FIXME: This won't work when we receive the item multiple times
+		h := sha256.Sum256([]byte(fmt.Sprintf("%s:%d", p.channel, time.Now().UnixNano())))
+		item.UID = hex.EncodeToString(h[:])
+	}
+
+	var optFeedID sql.NullInt64
+	if item.Source == nil || item.Source.ID == "" {
+		optFeedID.Valid = false
+		optFeedID.Int64 = 0
+	} else {
+		feedID, err := strconv.ParseInt(item.Source.ID, 10, 64)
+		if err != nil {
+			optFeedID.Valid = false
+			optFeedID.Int64 = 0
+		} else {
+			optFeedID.Valid = true
+			optFeedID.Int64 = feedID
+		}
+	}
 
 	result, err := conn.ExecContext(context.Background(), `
-INSERT INTO "items" ("channel_id", "uid", "data", "published_at", "created_at")
-VALUES ($1, $2, $3, $4, DEFAULT)
+INSERT INTO "items" ("channel_id", "feed_id", "uid", "data", "published_at", "created_at")
+VALUES ($1, $2, $3, $4, $5, DEFAULT)
 ON CONFLICT ON CONSTRAINT "items_uid_key" DO NOTHING
-`, p.channelID, item.ID, &item, t)
+`, p.channelID, optFeedID, item.ID, &item, t)
 	if err != nil {
-		return false, fmt.Errorf("while adding item: %w", err)
+		return false, fmt.Errorf("insert item: %w", err)
 	}
 	c, err := result.RowsAffected()
 	if err != nil {

@@ -5,8 +5,10 @@ import (
 	"encoding/xml"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func parseRSS1(data []byte) (*Feed, error) {
@@ -29,6 +31,8 @@ func parseRSS1(data []byte) (*Feed, error) {
 	out.Description = channel.Description
 	out.Link = channel.Link
 	out.Image = channel.Image.Image()
+
+	titleCaser := cases.Title(language.English)
 	if channel.MinsToLive != 0 {
 		sort.Ints(channel.SkipHours)
 		next := time.Now().Add(time.Duration(channel.MinsToLive) * time.Minute)
@@ -41,7 +45,7 @@ func parseRSS1(data []byte) (*Feed, error) {
 		for trying {
 			trying = false
 			for _, day := range channel.SkipDays {
-				if strings.Title(day) == next.Weekday().String() {
+				if titleCaser.String(day) == next.Weekday().String() {
 					next.Add(time.Duration(24-next.Hour()) * time.Hour)
 					trying = true
 					break
