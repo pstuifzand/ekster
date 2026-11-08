@@ -135,9 +135,6 @@ func loadMemoryBackend(pool *redis.Pool, database *sql.DB) (*memoryBackend, erro
 
 // ChannelsGetList gets channels
 func (b *memoryBackend) ChannelsGetList(ctx context.Context) ([]microsub.Channel, error) {
-	conn := b.pool.Get()
-	defer conn.Close()
-
 	userID, _ := userid.FromContext(ctx)
 
 	var channels []microsub.Channel
