@@ -139,10 +139,10 @@ WHERE "channel_id" = $1
 		return tl, err
 	}
 
-	if len(tl.Items) > 0 && hasMoreBefore(conn, tl.Items[0].Published) {
+	if len(tl.Items) > 0 && p.hasMoreBefore(conn, tl.Items[0].Published) {
 		tl.Paging.Before = tl.Items[0].Published
 	}
-	if hasMoreAfter(conn, last) {
+	if p.hasMoreAfter(conn, last) {
 		tl.Paging.After = last
 	}
 
@@ -153,8 +153,11 @@ WHERE "channel_id" = $1
 	return tl, nil
 }
 
-func hasMoreBefore(conn *sql.Conn, before string) bool {
-	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "published_at" > $1`, before)
+// hasMoreBefore reports whether the channel has items older than the first item
+// on the page. The channel is part of the WHERE: counting the whole table made
+// the answer depend on other channels, and made every page pay for a full scan.
+func (p *postgresStream) hasMoreBefore(conn *sql.Conn, before string) bool {
+	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "channel_id" = $1 AND "published_at" > $2 LIMIT 1`, p.channelID, before)
 	var count int
 	if err := row.Scan(&count); err == sql.ErrNoRows {
 		return false
@@ -162,8 +165,13 @@ func hasMoreBefore(conn *sql.Conn, before string) bool {
 	return count > 0
 }
 
-func hasMoreAfter(conn *sql.Conn, after string) bool {
-	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "published_at" < $1`, after)
+// hasMoreAfter reports whether the channel has items newer than the last item
+// on the page, scoped to the channel for the same reason as hasMoreBefore.
+func (p *postgresStream) hasMoreAfter(conn *sql.Conn, after string) bool {
+	if after == "" {
+		return false
+	}
+	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "channel_id" = $1 AND "published_at" < $2`, p.channelID, after)
 	var count int
 	if err := row.Scan(&count); err == sql.ErrNoRows {
 		return false
