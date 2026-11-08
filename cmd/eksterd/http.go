@@ -243,12 +243,28 @@ func isLoggedIn(backend *memoryBackend, sess *session) bool {
 }
 
 func performIndieauthCallback(clientID string, r *http.Request, sess *session) (bool, *authResponse, error) {
-	state := r.Form.Get("state")
+	q := r.URL.Query()
+	state := q.Get("state")
 	if state != sess.State {
 		return false, &authResponse{}, fmt.Errorf("mismatched state")
 	}
 
-	code := r.Form.Get("code")
+	// An identification response carries me and no code: the authorization
+	// server already said who signed in, and there is nothing left to redeem.
+	// Posting an empty code back to the authorization endpoint is what used to
+	// happen here, and every server answers that with 401.
+	if q.Get("code") == "" {
+		me := q.Get("me")
+		if me == "" {
+			return false, &authResponse{}, fmt.Errorf("no code and no me in the callback")
+		}
+		if sess.Me != "" && strings.TrimRight(sess.Me, "/") != strings.TrimRight(me, "/") {
+			return false, &authResponse{}, fmt.Errorf("signed in as %q, asked for %q", me, sess.Me)
+		}
+		return true, &authResponse{Me: me}, nil
+	}
+
+	code := q.Get("code")
 	return verifyAuthCode(code, sess.RedirectURI, sess.AuthorizationEndpoint, clientID)
 }
 
