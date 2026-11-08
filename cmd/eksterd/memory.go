@@ -699,7 +699,13 @@ func ProcessSourcedItems(fetcher fetch.Fetcher, fetchURL, contentType string, bo
 		return nil, err
 	}
 
+	// A feed is allowed to list only titles, and an author is allowed to be a
+	// reference to an h-card rather than the card itself. Both are the entry's
+	// own markup to supply, so go and read it before the item is stored.
+	resolver := newCardResolver(fetcher)
 	for i, item := range items {
+		item = fillFromPermalink(fetcher, item, fetchURL)
+		item = resolveAuthor(resolver, item)
 		item.Read = false
 		item.Source = source
 		items[i] = item
