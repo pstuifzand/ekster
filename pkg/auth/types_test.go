@@ -13,7 +13,7 @@ func TestTimestampAcceptsBothShapes(t *testing.T) {
 		want int64
 	}{
 		"number": {`{"issued_at": 1700000000}`, 1700000000},
-		"string": {`{"issued_at": "2026-11-08T01:05:38Z"}`, 1762563938},
+		"string": {`{"issued_at": "2026-11-08T01:05:38Z"}`, 1794099938},
 		"empty":  {`{}`, 0},
 	}
 

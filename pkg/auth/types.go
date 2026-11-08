@@ -55,9 +55,9 @@ func (t *Timestamp) UnmarshalJSON(b []byte) error {
 
 // TokenResponse is the information that we get back from the token endpoint of the user...
 type TokenResponse struct {
-	Me       string `json:"me"`
-	ClientID string `json:"client_id"`
-	Scope    string `json:"scope"`
+	Me       string    `json:"me"`
+	ClientID string    `json:"client_id"`
+	Scope    string    `json:"scope"`
 	IssuedAt Timestamp `json:"issued_at"`
-	Nonce    int64  `json:"nonce"`
+	Nonce    int64     `json:"nonce"`
 }
