@@ -34,6 +34,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -337,9 +338,9 @@ func (b *memoryBackend) RefreshFeeds() {
 	count := 0
 	for _, feed := range feeds {
 		log.Println("Processing", feed.URL)
-		err := b.refreshFeed(feed)
-		if err != nil {
-			b.addNotification("Error while fetching feed", feed, err)
+		terr := b.refreshFeedSafely(feed)
+		if terr != nil {
+			b.addNotification("Error while fetching feed", feed, terr)
 			continue
 		}
 
@@ -350,6 +351,21 @@ func (b *memoryBackend) RefreshFeeds() {
 		_ = b.updateChannelUnreadCount("notifications")
 	}
 	log.Printf("Processed %d feeds", count)
+}
+
+// refreshFeedSafely runs one feed's refresh and turns a panic into an error.
+// A panic in a goroutine takes the whole daemon down, and the feed that
+// triggers it here is fetched from the open web: its markup decides whether
+// ekster keeps running. That is not a trade worth making, so the damage is
+// limited to one feed and the next tick tries again.
+func (b *memoryBackend) refreshFeedSafely(f feed) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("recovered while refreshing %s: %v\n%s", f.URL, r, debug.Stack())
+			err = fmt.Errorf("panic while refreshing %s: %v", f.URL, r)
+		}
+	}()
+	return b.refreshFeed(f)
 }
 
 func (b *memoryBackend) refreshFeed(feed feed) error {
@@ -704,8 +720,7 @@ func ProcessSourcedItems(fetcher fetch.Fetcher, fetchURL, contentType string, bo
 	// own markup to supply, so go and read it before the item is stored.
 	resolver := newCardResolver(fetcher)
 	for i, item := range items {
-		item = fillFromPermalink(fetcher, item, fetchURL)
-		item = resolveAuthor(resolver, item)
+		item = enrichItem(fetcher, resolver, item, fetchURL)
 		item.Read = false
 		item.Source = source
 		items[i] = item

@@ -153,6 +153,30 @@ func TestFullEntriesAreNotFetchedAgain(t *testing.T) {
 	}
 }
 
+// A page that makes the parser panic must cost one entry's enrichment, not the
+// process. A nil dereference inside the microformats parser did exactly that in
+// production while enriching an entry from a mention feed.
+func TestPanickingEnrichmentKeepsTheItem(t *testing.T) {
+	base := fakeFetcher(map[string]string{"https://example.com/feed": feedPage}, nil)
+	boom := fetch.FetcherFunc(func(ctx context.Context, u string) (*http.Response, error) {
+		if u == "https://example.com/post/1" {
+			panic("parser exploded")
+		}
+		return base(ctx, u)
+	})
+
+	items, err := ProcessSourcedItems(boom, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
+	if err != nil {
+		t.Fatalf("a panic while enriching one entry must not fail the feed: %s", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("got %d items, want 1", len(items))
+	}
+	if items[0].Name == "" {
+		t.Errorf("the feed's title was lost")
+	}
+}
+
 // A permalink that cannot be read leaves the item as the feed gave it.
 func TestUnreachablePermalinkKeepsTheItem(t *testing.T) {
 	fetcher := fakeFetcher(map[string]string{"https://example.com/feed": feedPage}, nil)

@@ -25,6 +25,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -126,6 +127,22 @@ func (r *cardResolver) Card(u string) (microsub.Card, bool) {
 	r.cards[u] = resolvedCard{card: card, at: r.now()}
 	r.mu.Unlock()
 	return card, true
+}
+
+// enrichItem runs the per-item enrichment steps and turns a panic in a parser
+// into the untouched item. The markup is third-party input: a page that breaks
+// the parser should cost that entry's enrichment, not the feed update and not
+// the process.
+func enrichItem(fetcher fetch.Fetcher, resolver *cardResolver, item microsub.Item, feedURL string) (out microsub.Item) {
+	out = item
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("recovered while enriching %s: %v\n%s", item.URL, r, debug.Stack())
+		}
+	}()
+	out = fillFromPermalink(fetcher, item, feedURL)
+	out = resolveAuthor(resolver, out)
+	return out
 }
 
 // resolveAuthor fills in the name and photo of an author that is only a URL.
