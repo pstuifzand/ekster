@@ -70,6 +70,16 @@ func newPool(addr string) *redis.Pool {
 	}
 }
 
+// deny answers a rejected request with the CORS headers too. Without them a
+// browser sees a network error instead of the reason, which is the one thing a
+// reader needs to fix its configuration.
+func deny(w http.ResponseWriter, msg string, code int) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Cache-Control, Last-Event-ID, Content-Type")
+	http.Error(w, msg, code)
+}
+
 // WithAuth adds authorization to a http.Handler
 func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +93,7 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 		userID, err := strconv.Atoi(userIDStr)
 		if err != nil {
 			log.Println(r.URL.Path, "does not contain a user id")
-			http.Error(w, "No user id found in url", http.StatusBadRequest)
+			deny(w, "No user id found in url", http.StatusBadRequest)
 			return
 		}
 
@@ -92,7 +102,7 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 		err = row.Scan(&me, &tokenEndpoint)
 		if err == sql.ErrNoRows {
 			log.Println("no user found with id", userID)
-			http.Error(w, "No user found with id", http.StatusBadRequest)
+			deny(w, "No user found with id", http.StatusBadRequest)
 			return
 		}
 
@@ -114,7 +124,7 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 		}
 		if !authorized {
 			log.Printf("Token could not be validated")
-			http.Error(w, "Can't validate token", http.StatusForbidden)
+			deny(w, "Can't validate token", http.StatusForbidden)
 			return
 		}
 
