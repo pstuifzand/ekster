@@ -150,6 +150,10 @@ where s.id = $1
 	if err != nil {
 		return err
 	}
+	// An unclosed rows holds a pooled connection until the process exits. One
+	// per delivery walks the database up to max_connections, after which every
+	// query fails with "too many clients already" and deliveries answer 400.
+	defer rows.Close()
 
 	b, err := ioutil.ReadAll(body)
 	if err != nil {
@@ -177,7 +181,7 @@ where s.id = $1
 		_, _ = buf.Seek(0, io.SeekStart)
 	}
 
-	return err
+	return rows.Err()
 }
 
 func (h *hubIncomingBackend) FeedSetLeaseSeconds(subscriptionID int64, leaseSeconds int64) error {
@@ -206,6 +210,7 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var feed Feed
@@ -226,7 +231,7 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 		feeds = append(feeds, feed)
 	}
 
-	return feeds, nil
+	return feeds, rows.Err()
 }
 
 func (h *hubIncomingBackend) Subscribe(feed *Feed) error {
