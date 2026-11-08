@@ -226,20 +226,30 @@ func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 		}
 	}
 
-	result, err := conn.ExecContext(context.Background(), `
+	// An item that comes back changed - an edited entry, or the same entry now
+	// carrying its author - replaces what is stored. Leaving the old copy in
+	// place means a feed can never correct itself. is_read lives in its own
+	// column, so rewriting data does not mark anything unread.
+	//
+	// xmax is zero only for a fresh insert, which is what the caller reports as
+	// a new item; an update is a correction, not news.
+	var inserted bool
+	err = conn.QueryRowContext(context.Background(), `
 INSERT INTO "items" ("channel_id", "feed_id", "uid", "data", "published_at", "created_at")
 VALUES ($1, $2, $3, $4, $5, DEFAULT)
-ON CONFLICT ON CONSTRAINT "items_uid_key" DO NOTHING
-`, p.channelID, optFeedID, item.ID, &item, t)
+ON CONFLICT ON CONSTRAINT "items_uid_key" DO UPDATE
+SET "data" = EXCLUDED."data", "published_at" = EXCLUDED."published_at", "feed_id" = EXCLUDED."feed_id"
+WHERE "items"."data" IS DISTINCT FROM EXCLUDED."data"
+RETURNING (xmax = 0)
+`, p.channelID, optFeedID, item.ID, &item, t).Scan(&inserted)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
 	if err != nil {
 		return false, fmt.Errorf("insert item: %w", err)
 	}
-	c, err := result.RowsAffected()
-	if err != nil {
-		return false, err
-	}
 
-	return c > 0, nil
+	return inserted, nil
 }
 
 // MarkRead
