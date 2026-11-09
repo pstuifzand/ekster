@@ -27,7 +27,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/pstuifzand/ekster/pkg/util"
@@ -105,7 +104,7 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 		return 0, fmt.Errorf("insert into subscriptions: %w", err)
 	}
 
-	client := &http.Client{}
+	client := identifyingClient(0)
 
 	hubURL, err := websub.GetHubURL(client, topic)
 	if err != nil {
@@ -247,8 +246,8 @@ func (h *hubIncomingBackend) Subscribe(feed *Feed) error {
 	log.Println("Subscribe", feed.URL)
 	// A hub that accepts the connection but never answers would otherwise block
 	// the whole renewal loop for every other feed.
-	client := http.Client{Timeout: 30 * time.Second}
-	return websub.Subscribe(&client, feed.Hub, feed.URL, feed.Callback, feed.Secret, LeaseSeconds)
+	client := identifyingClient(30 * time.Second)
+	return websub.Subscribe(client, feed.Hub, feed.URL, feed.Callback, feed.Secret, LeaseSeconds)
 }
 
 // subscribeBackoff gives the first retry after 15 minutes and doubles up to six

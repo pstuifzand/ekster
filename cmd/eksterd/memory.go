@@ -121,6 +121,16 @@ type feed struct {
 	Tier        int
 	Unmodified  int
 	NextFetchAt time.Time
+
+	// ETag and LastModified are the validators the server gave us with the
+	// last body it sent. Sending them back turns an unchanged feed into a 304
+	// instead of another full download.
+	ETag         string
+	LastModified string
+
+	// Failures counts consecutive failed fetches and drives the retry
+	// schedule. A feed that keeps failing must not be retried on every ticker.
+	Failures int
 }
 
 func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse, endpoint string) (bool, error) {
@@ -255,15 +265,27 @@ func (b *memoryBackend) ChannelsDelete(ctx context.Context, uid string) error {
 func (b *memoryBackend) updateFeed(feed feed) error {
 	_, err := b.database.Exec(`
 UPDATE "feeds"
-SET "tier" = $2, "unmodified" = $3, "next_fetch_at" = $4
+SET "tier" = $2, "unmodified" = $3, "next_fetch_at" = $4,
+    "etag" = $5, "last_modified" = $6, "consecutive_failures" = $7
 WHERE "id" = $1
-`, feed.ID, feed.Tier, feed.Unmodified, feed.NextFetchAt)
+`, feed.ID, feed.Tier, feed.Unmodified, feed.NextFetchAt,
+		nullIfEmpty(feed.ETag), nullIfEmpty(feed.LastModified), feed.Failures)
 	return err
+}
+
+// nullIfEmpty stores an empty validator as NULL, so "no validator" and "an
+// empty one" cannot be confused by the next reader of the row.
+func nullIfEmpty(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 func (b *memoryBackend) getFeeds() ([]feed, error) {
 	rows, err := b.database.Query(`
-SELECT "f"."id", "f"."url", "c"."uid", "f"."tier","f"."unmodified","f"."next_fetch_at"
+SELECT "f"."id", "f"."url", "c"."uid", "f"."tier","f"."unmodified","f"."next_fetch_at",
+       "f"."etag", "f"."last_modified", "f"."consecutive_failures"
 FROM "feeds" AS "f"
 INNER JOIN public.channels c ON c.id = f.channel_id
 WHERE next_fetch_at IS NULL OR next_fetch_at < now()
@@ -271,15 +293,18 @@ WHERE next_fetch_at IS NULL OR next_fetch_at < now()
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	var feeds []feed
 	for rows.Next() {
 		var feedID int
 		var feedURL, UID string
-		var tier, unmodified int
+		var tier, unmodified, failures int
 		var nextFetchAt sql.NullTime
+		var etag, lastModified sql.NullString
 
-		err = rows.Scan(&feedID, &feedURL, &UID, &tier, &unmodified, &nextFetchAt)
+		err = rows.Scan(&feedID, &feedURL, &UID, &tier, &unmodified, &nextFetchAt,
+			&etag, &lastModified, &failures)
 		if err != nil {
 			log.Printf("while scanning feeds: %s", err)
 			continue
@@ -295,17 +320,20 @@ WHERE next_fetch_at IS NULL OR next_fetch_at < now()
 		feeds = append(
 			feeds,
 			feed{
-				UID:         UID,
-				ID:          feedID,
-				URL:         feedURL,
-				Tier:        tier,
-				Unmodified:  unmodified,
-				NextFetchAt: fetchTime,
+				UID:          UID,
+				ID:           feedID,
+				URL:          feedURL,
+				Tier:         tier,
+				Unmodified:   unmodified,
+				NextFetchAt:  fetchTime,
+				ETag:         etag.String,
+				LastModified: lastModified.String,
+				Failures:     failures,
 			},
 		)
 	}
 
-	return feeds, nil
+	return feeds, rows.Err()
 }
 
 func (b *memoryBackend) recordFeedOutcome(feedID, httpStatus int, fetchErr error, itemCount int, succeeded bool) {
@@ -576,7 +604,7 @@ func (b *memoryBackend) refreshFeedSafely(parent context.Context, f feed) (err e
 	return b.refreshFeed(ctx, f)
 }
 
-func (b *memoryBackend) refreshFeed(ctx context.Context, feed feed) (err error) {
+func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -589,64 +617,115 @@ func (b *memoryBackend) refreshFeed(ctx context.Context, feed feed) (err error) 
 	// that dies has to be a row someone can look at, not a log line nobody
 	// reads; /status is built from these columns.
 	defer func() {
-		b.recordFeedOutcome(feed.ID, httpStatus, err, itemCount, succeeded)
+		b.recordFeedOutcome(f.ID, httpStatus, err, itemCount, succeeded)
 	}()
 
-	resp, err := b.Fetch3(ctx, feed.UID, feed.URL)
-	if err != nil {
-		return fmt.Errorf("while Fetch3 of %s: %w", feed.URL, err)
+	// The validators from the last body make the request conditional: an
+	// unchanged feed costs the host a header comparison and costs us no body.
+	resp, fetchErr := fetchFeedResponse(ctx, f.URL, f.ETag, f.LastModified)
+	if fetchErr != nil {
+		return b.feedFailed(f, fmt.Errorf("fetch of %s: %w", f.URL, fetchErr))
 	}
 	defer resp.Body.Close()
 	httpStatus = resp.StatusCode
 
-	// An error page is not a feed. Parsing a 404 body yielded zero items and
-	// looked like a quiet blog, which is exactly the case this page exists for.
-	if httpStatus < 200 || httpStatus > 299 {
-		return fmt.Errorf("fetch of %s returned %s", feed.URL, resp.Status)
+	switch {
+	case httpStatus == http.StatusNotModified:
+		// Nothing changed, so there is nothing to parse and the validators
+		// stay as they are.
+		succeeded = true
+		b.scheduleNextFetch(&f, false)
+		if uerr := b.updateFeed(f); uerr != nil {
+			log.Printf("Error: while updating feed %v: %v", f, uerr)
+		}
+		trace.SpanFromContext(ctx).SetAttributes(
+			attribute.Bool("feed.changed", false),
+			attribute.Bool("feed.not_modified", true),
+		)
+		return nil
+
+	case httpStatus < 200 || httpStatus > 299:
+		// An error page is not a feed. Parsing a 404 body yielded zero items
+		// and looked like a quiet blog, which is exactly the case this page
+		// exists for.
+		err = fmt.Errorf("fetch of %s returned %s", f.URL, resp.Status)
+		delay := failureDelay(f.Failures + 1)
+		if httpStatus == http.StatusTooManyRequests || httpStatus == http.StatusServiceUnavailable {
+			// The host asked us to go away for a while; taking it literally
+			// is cheaper than being blocked.
+			delay = retryAfterDelay(resp, delay, time.Now())
+		}
+		return b.feedFailedAfter(f, err, delay)
 	}
 
+	f.ETag = resp.Header.Get("ETag")
+	f.LastModified = resp.Header.Get("Last-Modified")
+
 	var changed bool
-	changed, itemCount, err = b.ProcessContent(ctx, feed.UID, fmt.Sprintf("%d", feed.ID), feed.URL, resp.Header.Get("Content-Type"), resp.Body)
+	changed, itemCount, err = b.ProcessContent(ctx, f.UID, fmt.Sprintf("%d", f.ID), f.URL, resp.Header.Get("Content-Type"), resp.Body)
 	if err != nil {
-		return fmt.Errorf("in ProcessContent of %s: %w", feed.URL, err)
+		return b.feedFailedAfter(f, fmt.Errorf("in ProcessContent of %s: %w", f.URL, err), failureDelay(f.Failures+1))
 	}
 	succeeded = true
+	f.Failures = 0
+	b.scheduleNextFetch(&f, changed)
 
 	trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("feed.changed", changed))
 
-	if changed {
-		feed.Tier--
-	} else {
-		feed.Unmodified++
-	}
-
-	if feed.Unmodified >= 2 {
-		feed.Tier++
-		feed.Unmodified = 0
-	}
-
-	if feed.Tier > 10 {
-		feed.Tier = 10
-	}
-
-	if feed.Tier < 0 {
-		feed.Tier = 0
-	}
-
-	minutes := time.Duration(math.Ceil(math.Exp2(float64(feed.Tier))))
-
-	feed.NextFetchAt = time.Now().Add(minutes * time.Minute)
-
-	log.Printf("Next Fetch in %d minutes at %v", minutes, feed.NextFetchAt.Format(time.RFC3339))
-
-	err = b.updateFeed(feed)
-	if err != nil {
-		log.Printf("Error: while updating feed %v: %v", feed, err)
+	if uerr := b.updateFeed(f); uerr != nil {
+		log.Printf("Error: while updating feed %v: %v", f, uerr)
 		// don't return error, because it becomes a notification
 		return nil
 	}
 
 	return nil
+}
+
+// scheduleNextFetch applies the tier rules: a changed feed drops a tier (and is
+// fetched sooner), a feed that did not change climbs after two unchanged
+// fetches, up to about a day between fetches at the top tier.
+func (b *memoryBackend) scheduleNextFetch(f *feed, changed bool) {
+	if changed {
+		f.Tier--
+	} else {
+		f.Unmodified++
+	}
+
+	if f.Unmodified >= 2 {
+		f.Tier++
+		f.Unmodified = 0
+	}
+
+	if f.Tier > 10 {
+		f.Tier = 10
+	}
+	if f.Tier < 0 {
+		f.Tier = 0
+	}
+
+	minutes := time.Duration(math.Ceil(math.Exp2(float64(f.Tier))))
+
+	f.NextFetchAt = time.Now().Add(minutes * time.Minute)
+
+	log.Printf("Next Fetch in %d minutes at %v", minutes, f.NextFetchAt.Format(time.RFC3339))
+}
+
+// feedFailed pushes the next attempt out on the failure schedule. Without this
+// the feed's next_fetch_at never advances when a fetch errors, so a feed that
+// answers 404 is fetched on every ticker tick: a request a minute, forever,
+// from a reader the host cannot even identify.
+func (b *memoryBackend) feedFailed(f feed, err error) error {
+	return b.feedFailedAfter(f, err, failureDelay(f.Failures+1))
+}
+
+func (b *memoryBackend) feedFailedAfter(f feed, err error, delay time.Duration) error {
+	f.Failures++
+	f.NextFetchAt = time.Now().Add(delay)
+	if uerr := b.updateFeed(f); uerr != nil {
+		log.Printf("while recording the failed fetch of %s: %s", f.URL, uerr)
+	}
+	log.Printf("Retry %s in %s (failure %d)", f.URL, delay.Round(time.Second), f.Failures)
+	return err
 }
 
 func (b *memoryBackend) addNotification(name string, feed feed, err error) {
@@ -1267,36 +1346,7 @@ var ErrBlackList = errors.New("Blacklisted URL")
 
 // Fetch2 fetches stuff
 func Fetch2(ctx context.Context, fetchURL string) (*http.Response, error) {
-	if !strings.HasPrefix(fetchURL, "http") {
-		return nil, fmt.Errorf("error parsing %s as url, has no http(s) prefix", fetchURL)
-	}
-
-	u, err := url.Parse(fetchURL)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing %s as url: %s", fetchURL, err)
-	}
-
-	if strings.Contains(u.Host, "twitter.com") {
-		if !strings.Contains(u.Path, "/status/") {
-			return nil, ErrBlackList
-		}
-	}
-	if strings.Contains(u.Host, "reddit.com") {
-		return nil, ErrBlackList
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	client := http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fetch failed: %s", err)
-	}
-
-	return resp, err
+	return fetchFeedResponse(ctx, fetchURL, "", "")
 }
 
 func (b *memoryBackend) loadSetting(uid string) (channelSetting, error) {
