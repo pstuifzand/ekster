@@ -196,6 +196,32 @@ func (p *postgresStream) Count() (int, error) {
 	return count, nil
 }
 
+// publishedLayouts covers what microformats pages actually emit. The value is
+// copied from the markup verbatim, so besides RFC3339 the plain
+// "2006-01-02 15:04:05 -0700" form most themes print has to be accepted;
+// otherwise every item of an otherwise valid h-feed is rejected at insert time
+// and the feed looks empty for years.
+var publishedLayouts = []string{
+	time.RFC3339Nano,
+	"2006-01-02T15:04:05Z0700",
+	"2006-01-02 15:04:05 -0700",
+	"2006-01-02 15:04:05Z07:00",
+	"2006-01-02 15:04:05",
+	"2006-01-02",
+	time.RFC1123Z,
+	time.RFC822Z,
+}
+
+func parsePublished(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	for _, layout := range publishedLayouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("time %q could not be parsed with any known layout", value)
+}
+
 // AddItem
 func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 	ctx := context.Background()
@@ -205,13 +231,9 @@ func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 	}
 	defer conn.Close()
 
-	t, err := time.Parse("2006-01-02T15:04:05Z0700", item.Published)
+	t, err := parsePublished(item.Published)
 	if err != nil {
-		t2, err := time.Parse("2006-01-02T15:04:05Z07:00", item.Published)
-		if err != nil {
-			return false, fmt.Errorf("while adding item: time %q could not be parsed: %w", item.Published, err)
-		}
-		t = t2
+		return false, fmt.Errorf("while adding item: %w", err)
 	}
 	if item.ID == "" {
 		// FIXME: This won't work when we receive the item multiple times
