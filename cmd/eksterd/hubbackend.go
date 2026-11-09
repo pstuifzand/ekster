@@ -196,6 +196,14 @@ where id = $3
 	return err
 }
 
+// FeedSetResubscribeAt moves the next renewal attempt, so a hub that refuses or
+// rate limits the subscription is retried with a backoff instead of every tick.
+func (h *hubIncomingBackend) FeedSetResubscribeAt(subscriptionID int64, at time.Time) error {
+	db := h.database
+	_, err := db.Exec(`update subscriptions set resubscribe_at = $1 where id = $2`, at, subscriptionID)
+	return err
+}
+
 // Feeds returns a list of subscribed feeds
 func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 	db := h.database
@@ -237,13 +245,29 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 
 func (h *hubIncomingBackend) Subscribe(feed *Feed) error {
 	log.Println("Subscribe", feed.URL)
-	client := http.Client{}
+	// A hub that accepts the connection but never answers would otherwise block
+	// the whole renewal loop for every other feed.
+	client := http.Client{Timeout: 30 * time.Second}
 	return websub.Subscribe(&client, feed.Hub, feed.URL, feed.Callback, feed.Secret, LeaseSeconds)
+}
+
+// subscribeBackoff gives the first retry after 15 minutes and doubles up to six
+// hours, so a hub that rate limits or rejects us is not hammered every minute.
+func subscribeBackoff(failures int) time.Duration {
+	backoff := 15 * time.Minute
+	for i := 1; i < failures && backoff < 6*time.Hour; i++ {
+		backoff *= 2
+	}
+	if backoff > 6*time.Hour {
+		backoff = 6 * time.Hour
+	}
+	return backoff
 }
 
 func (h *hubIncomingBackend) run() error {
 	ticker := time.NewTicker(1 * time.Minute)
 	quit := make(chan struct{})
+	failures := map[int64]int{}
 
 	go func() {
 		for {
@@ -262,17 +286,34 @@ func (h *hubIncomingBackend) run() error {
 				log.Printf("Found %d feeds", len(feeds))
 				for _, feed := range feeds {
 					log.Printf("Looking at %s\n", feed.URL)
-					if feed.ResubscribeAt != nil && time.Now().After(*feed.ResubscribeAt) {
-						if feed.Callback == "" {
-							feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
+					if feed.ResubscribeAt != nil && time.Now().Before(*feed.ResubscribeAt) {
+						continue
+					}
+					if feed.Callback == "" {
+						feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
+					}
+					log.Printf("Send resubscribe for %q on %q with callback %q\n", feed.URL, feed.Hub, feed.Callback)
+					varWebsub.Add("resubscribe", 1)
+					err := h.Subscribe(&feed)
+
+					var next time.Time
+					if err != nil {
+						varWebsub.Add("errors", 1)
+						failures[feed.ID]++
+						backoff := subscribeBackoff(failures[feed.ID])
+						next = time.Now().Add(backoff)
+						log.Printf("Error while subscribing: %s (retry in %s)", err, backoff)
+					} else {
+						delete(failures, feed.ID)
+						lease := time.Duration(feed.LeaseSeconds) * time.Second
+						if lease <= 0 {
+							lease = time.Duration(LeaseSeconds) * time.Second
 						}
-						log.Printf("Send resubscribe for %q on %q with callback %q\n", feed.URL, feed.Hub, feed.Callback)
-						varWebsub.Add("resubscribe", 1)
-						err := h.Subscribe(&feed)
-						if err != nil {
-							log.Printf("Error while subscribing: %s", err)
-							varWebsub.Add("errors", 1)
-						}
+						next = time.Now().Add(lease / 2)
+					}
+
+					if e := h.FeedSetResubscribeAt(feed.ID, next); e != nil {
+						log.Printf("Could not set resubscribe_at for %d: %s", feed.ID, e)
 					}
 				}
 
