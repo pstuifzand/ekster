@@ -25,7 +25,8 @@ Tunnel for local development:
 ssh -N -L 4318:172.17.0.1:4318 -L 4317:172.17.0.1:4317 root@p83.nl
 ```
 
-Grafana: https://grafana.p83.nl — Tempo is the default datasource (`uid: tempo`).
+Grafana: https://grafana.p83.nl — Tempo is the default datasource (`uid: tempo`),
+Prometheus is provisioned as `uid: prometheus` for the metric side.
 
 ## Environment
 
@@ -49,11 +50,12 @@ and CI so no spans leave the machine.
 exp, err := otlptracehttp.New(ctx) // reads the OTEL_EXPORTER_OTLP_* variables
 if err != nil { return err }
 
-// NewSchemaless, not NewWithAttributes(semconv.SchemaURL, ...): the default
-// resource already carries a schema URL and Merge refuses two different ones
-// ("conflicting Schema URL"), which silently disables tracing.
+// NewSchemaless, not NewWithAttributes(semconv.SchemaURL, ...): resource.Default()
+// already carries a schema URL and Merge refuses two different ones
+// ("conflicting Schema URL"). The error is easy to swallow and the result is
+// tracing that silently never happens.
 res, _ := resource.Merge(resource.Default(),
-    resource.NewSchemaless(semconv.ServiceName("ekster")))
+    resource.NewSchemaless(semconv.ServiceName("ekster"), semconv.ServiceVersion(version)))
 
 tp := sdktrace.NewTracerProvider(
     sdktrace.WithBatcher(exp),
@@ -80,17 +82,16 @@ Nothing there? Spans are batched, so give it ~10 s; anything older than 72 h is
 deleted; and `connection refused` means the sender is on a network without a
 route — check which networks the container is attached to.
 
-## Notes
+## Breakdown tab and service graph
 
-- `ekster` used to declare `go 1.16` in `go.mod`; the OpenTelemetry Go SDK
-  needs Go 1.21+, so the module is now `go 1.23`, the Dockerfile builds on
-  `golang:1.23-alpine`, and CI pins the same. Keep those three in step.
-- Tracing in ekster is opt-in: nothing is created and nothing is sent unless
-  `OTEL_EXPORTER_OTLP_ENDPOINT` is set. The unit tests instrument with an
-  in-memory recorder, so they never touch a collector either.
-- Tempo's storage, memory caps and compose file live in `/root/observability` on
-  the server. Trace blocks sit on the Docker volume under
-  `/mnt/volume-ams3-02` and are not backed up — deliberate for a 72 h buffer.
+The Breakdown tab does not search spans; it asks Tempo for **TraceQL metrics**
+(`{...} | rate() by (resource.service.name)`). Those come from Tempo's
+metrics-generator, which derives RED metrics from incoming spans and remote-writes
+them into Prometheus on the same host. That is why a `500 ... error finding
+generators: empty ring` appears when the generator is off or stopped.
+
+Consequence: metrics begin at the moment a span is ingested after the generator
+started — there is no backfill. Traces and metrics both expire after 72 h.
 
 ## What ekster emits
 
@@ -101,27 +102,39 @@ live in attributes so the trace list stays readable.
 |---|---|---|
 | `GET /microsub/`, `POST /micropub`, `POST /incoming/`, `GET /` | inbound HTTP | method, path, status code |
 | `feeds.refresh` | every one-minute refresh cycle | `feeds.count`, `feeds.processed` |
-| `feed.refresh` | one per feed, child of the cycle | `feed.url`, `feed.channel`, `feed.id`, `feed.tier` |
-| `GET <host><path>` | every outgoing request | method, host, path, status, `http.cache.hit` |
+| `feed.refresh` | one per feed, child of the cycle | `feed.url`, `feed.channel`, `feed.id`, `feed.tier`, `feed.changed` |
 | `feed.process` | storing a feed's items | `feed.channel`, `feed.id`, `feed.changed` |
-| `feed.parse` | header + items for one document | `feed.format`, `feed.items`, `feed.name` |
+| `feed.parse` | header + items for one document | `feed.format`, `feed.name`, `feed.items` |
 | `feed.parse.header` | feed metadata | `feed.content_type` |
-| `feed.parse.items` | entries | `feed.content_type`, `feed.items` |
-| `feeds.search`, `feed.preview` | reader search and preview | query, url |
+| `feed.parse.items` | entries | `feed.format`, `feed.items` |
+| `GET <host><path>` | every outgoing request | method, host, path, status, `http.cache.hit` |
 
 Outgoing HTTP is instrumented once, by wrapping `http.DefaultTransport` in
-`pkg/observability.Setup`: every `http.Client{}` without an explicit transport
-is covered, so the feed fetcher, WebSub hub calls, IndieAuth endpoint discovery
-and rss enclosure downloads all appear without per-call-site code. A redis HTTP
-cache hit is marked `http.cache.hit=true`, which tells a fast trace apart from a
-fast network.
+`pkg/observability.Setup`: every `http.Client{}` without an explicit transport is
+covered, so the feed fetcher, WebSub hub calls, IndieAuth discovery and enclosure
+downloads all appear without per-call-site code. The instrumentation does not
+wrap the OTLP exporter's own POSTs, so exporting traces cannot trace itself.
 
-The `action=events` SSE connection is deliberately not traced — its span would
-only end when the reader closes the page.
+**A refresh cycle should carry one `GET <host>` per feed and nothing else.**
+Entries are rendered from the feed; ekster does not read permalinks and does not
+fetch the pages a post links to. If a trace shows hundreds of outbound spans,
+something has started following links again — that is the signal this
+instrumentation exists to give.
 
-TraceQL starting points:
+Known gap: the `feeds.refresh` root span is not reaching Tempo, so refresh traces
+show `<root span not yet received>` and the cycle's real duration is unknown. The
+`feed.refresh` children arrive normally; treat first-span-to-last-span as a floor,
+not a total.
 
-```
-{ resource.service.name = "ekster" && name = "feed.refresh" && duration > 2s }
-{ resource.service.name = "ekster" && span.feed.changed = true }
-```
+## Notes
+
+- OpenTelemetry needs Go 1.21+. `ekster` is on `go 1.23` in `go.mod`, builds on
+  `golang:1.23-alpine` in the Dockerfile, and CI pins the same. Keep those three
+  in step; the SDK modules are pinned to `v1.35.0` (`otelhttp v0.60.0`) because
+  later releases require a newer toolchain.
+- Wiring lives in `pkg/observability`, not in `main`. Tracing is opt-in: with no
+  `OTEL_EXPORTER_OTLP_ENDPOINT` nothing is created and nothing is exported, so
+  `go run` and the tests stay offline.
+- Tempo's storage, memory caps and compose file live in `/root/observability` on
+  the server. Trace blocks sit on the Docker volume under
+  `/mnt/volume-ams3-02` and are not backed up — deliberate for a 72 h buffer.
