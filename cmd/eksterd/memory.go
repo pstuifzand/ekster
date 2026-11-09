@@ -71,6 +71,12 @@ func init() {
 // DefaultPrio is the priority value for new channels
 const DefaultPrio = 9999999
 
+// maxItemsPerRefresh bounds how much of one feed a single refresh will store.
+// A feed that lists its whole archive is the reader's problem to bound, not the
+// host's: the newest entries are the ones a feed leads with, and the rest cost
+// database and index writes nobody will read.
+const maxItemsPerRefresh = 100
+
 type memoryBackend struct {
 	lock     sync.RWMutex
 	Channels map[string]microsub.Channel
@@ -1092,13 +1098,32 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 	// it so /status can show it instead of the feed looking quiet.
 	itemCount = len(items)
 
+	// A feed may dump its whole archive (one here lists 597 entries). Storing
+	// and indexing all of it costs minutes of database and search writes for
+	// entries the reader will never scroll to, and it spends the per-feed
+	// budget the caller set. The newest entries are the ones a feed leads with.
+	if len(items) > maxItemsPerRefresh {
+		items = items[:maxItemsPerRefresh]
+	}
+
+	processed := 0
 	for _, item := range items {
+		// The caller's deadline bounds the fetch, but nothing bounded this
+		// loop: a feed with hundreds of entries kept writing long after its
+		// five seconds were gone, and a single slow index write left the whole
+		// refresh loop parked for hours. Stop when the budget is spent.
+		if cerr := ctx.Err(); cerr != nil {
+			return changed, itemCount, fmt.Errorf("processing %s stopped after %d of %d items: %w",
+				fetchURL, processed, itemCount, cerr)
+		}
+
 		item.Source.ID = feedID
 		added, err := b.channelAddItemWithMatcher(channel, item)
 		if err != nil {
 			log.Printf("ERROR: (feedID=%s) %s\n", feedID, err)
 		}
 		changed = changed || added
+		processed++
 	}
 
 	err = b.updateChannelUnreadCount(channel)

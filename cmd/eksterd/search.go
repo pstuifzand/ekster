@@ -20,13 +20,39 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"time"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/pstuifzand/ekster/pkg/microsub"
 )
 
 var index bleve.Index
+
+// The search index is a nicety; fetching is the product. A bleve write that
+// never returns must not take the refresh loop with it, which is exactly what
+// happened: one feed with hundreds of entries left the loop parked for hours
+// inside a segment merge. Writes are therefore bounded, and an index that
+// misses its deadline is left alone for a while instead of costing every item
+// the same wait.
+const (
+	indexTimeout  = 15 * time.Second
+	indexCoolDown = 5 * time.Minute
+)
+
+var (
+	indexBlockedUntil time.Time
+	indexClock        = time.Now
+)
+
+func indexBlocked() bool {
+	return indexClock().Before(indexBlockedUntil)
+}
+
+func blockIndex() {
+	indexBlockedUntil = indexClock().Add(indexCoolDown)
+}
 
 func initSearch() error {
 	if _, err := os.Stat("items.bleve"); os.IsNotExist(err) {
@@ -51,14 +77,33 @@ type indexItem struct {
 }
 
 func addToSearch(item microsub.Item, channel string) error {
-	if index != nil {
-		indexItem := indexItem{item, channel}
-		err := index.Index(item.ID, indexItem)
+	if index == nil {
+		return nil
+	}
+	if indexBlocked() {
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- index.Index(item.ID, indexItem{item, channel})
+	}()
+
+	timer := time.NewTimer(indexTimeout)
+	defer timer.Stop()
+
+	select {
+	case err := <-done:
 		if err != nil {
 			return fmt.Errorf("while indexing item: %v", err)
 		}
+		return nil
+	case <-timer.C:
+		blockIndex()
+		log.Printf("the search index did not answer within %s; indexing paused for %s",
+			indexTimeout, indexCoolDown)
+		return nil
 	}
-	return nil
 }
 
 func getStringArray(fields map[string]interface{}, key string) []string {
