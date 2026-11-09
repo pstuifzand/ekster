@@ -93,6 +93,17 @@ type logsPage struct {
 	Session session
 }
 
+// statusPage lists every feed with the outcome of its last fetch.
+type statusPage struct {
+	Session session
+
+	Feeds   []feedStatus
+	Failing int
+	Empty   int
+	Stale   int
+	OK      int
+}
+
 type authPage struct {
 	Session     session
 	Me          string
@@ -455,6 +466,62 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			err = h.renderTemplate(w, "channel.html", page)
+			if err != nil {
+				fmt.Fprintf(w, "ERROR: %s\n", err)
+			}
+			return
+		} else if r.URL.Path == "/status" || r.URL.Path == "/status.json" {
+			c, err := r.Cookie("session")
+			if err == http.ErrNoCookie {
+				http.Redirect(w, r, "/", http.StatusFound)
+				return
+			}
+			sessionVar := c.Value
+			sess, err := loadSession(sessionVar, conn)
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			if !isLoggedIn(h.Backend, &sess) {
+				w.WriteHeader(401)
+				fmt.Fprintf(w, "Unauthorized")
+				return
+			}
+
+			feeds, err := h.Backend.FeedStatuses()
+			if err != nil {
+				log.Printf("ERROR: %s\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			if r.URL.Path == "/status.json" {
+				w.Header().Set("Content-Type", "application/json")
+				if err := json.NewEncoder(w).Encode(feeds); err != nil {
+					log.Printf("ERROR: %s\n", err)
+				}
+				return
+			}
+
+			var page statusPage
+			page.Session = sess
+			page.Feeds = feeds
+			for _, f := range feeds {
+				switch f.State {
+				case "failing":
+					page.Failing++
+				case "empty":
+					page.Empty++
+				case "stale":
+					page.Stale++
+				default:
+					page.OK++
+				}
+			}
+
+			err = h.renderTemplate(w, "status.html", page)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %s\n", err)
 			}

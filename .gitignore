@@ -10,3 +10,6 @@ backend.json
 
 data/
 database-data/
+
+# bleve search index written at runtime
+items.bleve/

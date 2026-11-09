@@ -173,7 +173,7 @@ where s.id = $1
 		}
 
 		log.Printf("Updating feed %s %q in %q (%s)\n", feedID, topic, channelName, channel)
-		_, err = processor.ProcessContent(ctx, channel, feedID, topic, contentType, buf)
+		_, _, err = processor.ProcessContent(ctx, channel, feedID, topic, contentType, buf)
 		if err != nil {
 			log.Printf("could not process content for channel %s: %s", channelName, err)
 		}

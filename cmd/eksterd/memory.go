@@ -35,6 +35,7 @@ import (
 	"net/url"
 	"regexp"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -307,6 +308,194 @@ WHERE next_fetch_at IS NULL OR next_fetch_at < now()
 	return feeds, nil
 }
 
+func (b *memoryBackend) recordFeedOutcome(feedID, httpStatus int, fetchErr error, itemCount int, succeeded bool) {
+	if succeeded {
+		_, err := b.database.Exec(`
+UPDATE "feeds"
+SET "last_fetch_at" = now(), "last_http_status" = $2, "last_error" = NULL,
+    "last_success_at" = now(), "last_item_count" = $3
+WHERE "id" = $1
+`, feedID, httpStatus, itemCount)
+		if err != nil {
+			log.Printf("could not record fetch outcome for feed %d: %s", feedID, err)
+		}
+		return
+	}
+
+	// A request that never produced a response has no status code; keep the
+	// column NULL so the page can tell "the site is unreachable" from "the site
+	// answered 404".
+	var status sql.NullInt64
+	if httpStatus != 0 {
+		status = sql.NullInt64{Int64: int64(httpStatus), Valid: true}
+	}
+
+	message := ""
+	if fetchErr != nil {
+		message = fetchErr.Error()
+	}
+
+	_, err := b.database.Exec(`
+UPDATE "feeds"
+SET "last_fetch_at" = now(), "last_http_status" = $2, "last_error" = $3
+WHERE "id" = $1
+`, feedID, status, message)
+	if err != nil {
+		log.Printf("could not record fetch outcome for feed %d: %s", feedID, err)
+	}
+}
+
+// feedStatus is one row of /status: the last fetch outcome for a feed, plus how
+// much content the feed has ever produced, which is what separates a dormant
+// blog from a feed that is being fetched and parsed into nothing.
+type feedStatus struct {
+	ID             int        `json:"id"`
+	URL            string     `json:"url"`
+	Channel        string     `json:"channel"`
+	State          string     `json:"state"`
+	LastFetchAt    *time.Time `json:"last_fetch_at,omitempty"`
+	LastHTTPStatus *int       `json:"last_http_status,omitempty"`
+	LastError      string     `json:"last_error,omitempty"`
+	LastSuccessAt  *time.Time `json:"last_success_at,omitempty"`
+	LastItemCount  *int       `json:"last_item_count,omitempty"`
+	NewestItemAt   *time.Time `json:"newest_item_at,omitempty"`
+	TotalItems     int        `json:"total_items"`
+
+	// Pre-formatted for the template; the JSON keeps the raw timestamps.
+	LastFetch     string `json:"-"`
+	LastSuccess   string `json:"-"`
+	NewestItem    string `json:"-"`
+	LastItemLabel string `json:"-"`
+}
+
+// FeedStatuses returns every feed with its last fetch outcome, newest first for
+// the failing ones.
+func (b *memoryBackend) FeedStatuses() ([]feedStatus, error) {
+	rows, err := b.database.Query(`
+SELECT "f"."id", "f"."url", "c"."name",
+       "f"."last_fetch_at", "f"."last_http_status", "f"."last_error",
+       "f"."last_success_at", "f"."last_item_count",
+       (SELECT max("i"."published_at") FROM "items" AS "i"
+          INNER JOIN "channels" AS "ic" ON "ic"."id" = "i"."channel_id"
+         WHERE "i"."feed_id" = "f"."id" AND "ic"."uid" <> 'notifications'),
+       (SELECT count(*) FROM "items" AS "i"
+          INNER JOIN "channels" AS "ic" ON "ic"."id" = "i"."channel_id"
+         WHERE "i"."feed_id" = "f"."id" AND "ic"."uid" <> 'notifications')
+FROM "feeds" AS "f"
+INNER JOIN "channels" AS "c" ON "c"."id" = "f"."channel_id"
+ORDER BY "f"."url"
+`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	now := time.Now()
+	var statuses []feedStatus
+	for rows.Next() {
+		var (
+			s             feedStatus
+			lastFetch     sql.NullTime
+			lastStatus    sql.NullInt64
+			lastError     sql.NullString
+			lastSuccess   sql.NullTime
+			lastItemCount sql.NullInt64
+			newestItem    sql.NullTime
+		)
+		err = rows.Scan(&s.ID, &s.URL, &s.Channel,
+			&lastFetch, &lastStatus, &lastError,
+			&lastSuccess, &lastItemCount, &newestItem, &s.TotalItems)
+		if err != nil {
+			return nil, err
+		}
+
+		if lastFetch.Valid {
+			t := lastFetch.Time
+			s.LastFetchAt = &t
+			s.LastFetch = age(t, now)
+		}
+		if lastStatus.Valid {
+			code := int(lastStatus.Int64)
+			s.LastHTTPStatus = &code
+		}
+		if lastError.Valid {
+			s.LastError = lastError.String
+		}
+		if lastSuccess.Valid {
+			t := lastSuccess.Time
+			s.LastSuccessAt = &t
+			s.LastSuccess = age(t, now)
+		}
+		if lastItemCount.Valid {
+			n := int(lastItemCount.Int64)
+			s.LastItemCount = &n
+			s.LastItemLabel = fmt.Sprintf("%d", n)
+		}
+		if newestItem.Valid {
+			t := newestItem.Time
+			s.NewestItemAt = &t
+			s.NewestItem = age(t, now)
+		}
+
+		s.State = classifyFeed(s.LastError != "", s.TotalItems, s.LastItemCount, s.NewestItemAt, now)
+
+		statuses = append(statuses, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	severity := map[string]int{"failing": 0, "empty": 1, "stale": 2, "ok": 3}
+	sort.SliceStable(statuses, func(i, j int) bool {
+		if severity[statuses[i].State] != severity[statuses[j].State] {
+			return severity[statuses[i].State] < severity[statuses[j].State]
+		}
+		return statuses[i].URL < statuses[j].URL
+	})
+
+	return statuses, nil
+}
+
+// staleAfter is how long a feed may go without a new item before /status calls
+// it stale. It is a hint, not a verdict: plenty of blogs are simply quiet.
+const staleAfter = 90 * 24 * time.Hour
+
+// classifyFeed decides the label /status shows. A feed whose last fetch failed
+// is "failing" whatever it stored before; one that is fetched but has produced
+// no items is "empty", which is the shape of a parser that stopped matching the
+// markup; a feed with old items and no error is merely "stale".
+func classifyFeed(failed bool, totalItems int, lastItemCount *int, newestItemAt *time.Time, now time.Time) string {
+	if failed {
+		return "failing"
+	}
+	if totalItems == 0 {
+		return "empty"
+	}
+	if lastItemCount != nil && *lastItemCount == 0 {
+		return "empty"
+	}
+	if newestItemAt == nil || now.Sub(*newestItemAt) > staleAfter {
+		return "stale"
+	}
+	return "ok"
+}
+
+func age(t, now time.Time) string {
+	d := now.Sub(t)
+	switch {
+	case d < 0:
+		return "in the future"
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	}
+}
+
 func (b *memoryBackend) run() {
 	b.ticker = time.NewTicker(1 * time.Minute)
 	b.quit = make(chan struct{})
@@ -387,20 +576,42 @@ func (b *memoryBackend) refreshFeedSafely(parent context.Context, f feed) (err e
 	return b.refreshFeed(ctx, f)
 }
 
-func (b *memoryBackend) refreshFeed(ctx context.Context, feed feed) error {
+func (b *memoryBackend) refreshFeed(ctx context.Context, feed feed) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
+	var (
+		httpStatus int
+		itemCount  int
+		succeeded  bool
+	)
+	// Whatever happens below, the outcome is written to the feed row. A feed
+	// that dies has to be a row someone can look at, not a log line nobody
+	// reads; /status is built from these columns.
+	defer func() {
+		b.recordFeedOutcome(feed.ID, httpStatus, err, itemCount, succeeded)
+	}()
 
 	resp, err := b.Fetch3(ctx, feed.UID, feed.URL)
 	if err != nil {
 		return fmt.Errorf("while Fetch3 of %s: %w", feed.URL, err)
 	}
 	defer resp.Body.Close()
+	httpStatus = resp.StatusCode
 
-	changed, err := b.ProcessContent(ctx, feed.UID, fmt.Sprintf("%d", feed.ID), feed.URL, resp.Header.Get("Content-Type"), resp.Body)
+	// An error page is not a feed. Parsing a 404 body yielded zero items and
+	// looked like a quiet blog, which is exactly the case this page exists for.
+	if httpStatus < 200 || httpStatus > 299 {
+		return fmt.Errorf("fetch of %s returned %s", feed.URL, resp.Status)
+	}
+
+	var changed bool
+	changed, itemCount, err = b.ProcessContent(ctx, feed.UID, fmt.Sprintf("%d", feed.ID), feed.URL, resp.Header.Get("Content-Type"), resp.Body)
 	if err != nil {
 		return fmt.Errorf("in ProcessContent of %s: %w", feed.URL, err)
 	}
+	succeeded = true
+
 	trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("feed.changed", changed))
 
 	if changed {
@@ -536,7 +747,7 @@ func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (
 	}
 	defer resp.Body.Close()
 
-	_, _ = b.ProcessContent(ctx, uid, fmt.Sprintf("%d", feedID), subFeed.URL, resp.Header.Get("Content-Type"), resp.Body)
+	_, _, _ = b.ProcessContent(ctx, uid, fmt.Sprintf("%d", feedID), subFeed.URL, resp.Header.Get("Content-Type"), resp.Body)
 
 	_, _ = b.hubBackend.CreateFeed(url)
 
@@ -768,11 +979,11 @@ func ProcessSourcedItems(ctx context.Context, fetcher fetch.Fetcher, fetchURL, c
 
 // ContentProcessor processes content for a channel and feed
 type ContentProcessor interface {
-	ProcessContent(ctx context.Context, channel, feedID, fetchURL, contentType string, body io.Reader) (bool, error)
+	ProcessContent(ctx context.Context, channel, feedID, fetchURL, contentType string, body io.Reader) (changed bool, items int, err error)
 }
 
 // ProcessContent processes content of a feed, returns if the feed has changed or not
-func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fetchURL, contentType string, body io.Reader) (changed bool, err error) {
+func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fetchURL, contentType string, body io.Reader) (changed bool, itemCount int, err error) {
 	ctx, span := observability.Span(ctx, "feed.process",
 		attribute.String("feed.channel", channel),
 		attribute.String("feed.id", feedID),
@@ -780,7 +991,10 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 		attribute.String("feed.content_type", contentType),
 	)
 	defer func() {
-		span.SetAttributes(attribute.Bool("feed.changed", changed))
+		span.SetAttributes(
+			attribute.Bool("feed.changed", changed),
+			attribute.Int("feed.items", itemCount),
+		)
 		if err != nil {
 			span.RecordError(err)
 		}
@@ -791,8 +1005,13 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 
 	items, err := ProcessSourcedItems(ctx, cachingFetch, fetchURL, contentType, body)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
+
+	// The count is returned even when nothing changed: a document that parses
+	// into zero items is the signature of a broken feed, and the caller records
+	// it so /status can show it instead of the feed looking quiet.
+	itemCount = len(items)
 
 	for _, item := range items {
 		item.Source.ID = feedID
@@ -805,10 +1024,10 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 
 	err = b.updateChannelUnreadCount(channel)
 	if err != nil {
-		return changed, err
+		return changed, itemCount, err
 	}
 
-	return changed, nil
+	return changed, itemCount, nil
 }
 
 // Fetch3 fills stuff

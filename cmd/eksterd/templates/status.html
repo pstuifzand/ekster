@@ -1,0 +1,47 @@
+{{define "title"}}Ekster - Feed status{{end}}
+{{define "content"}}
+<h2 class="subtitle">Feed status</h2>
+
+<p class="content is-small">
+    {{ .Failing }} failing · {{ .Empty }} fetching but empty · {{ .Stale }} stale · {{ .OK }} ok.
+    The outcome of a feed's last fetch is written to the feed row on every fetch, so
+    this is the refresh loop's own view, not a separate check.
+</p>
+
+<table class="table is-fullwidth is-narrow is-hoverable">
+    <thead>
+        <tr>
+            <th>State</th>
+            <th>Feed</th>
+            <th>Channel</th>
+            <th>HTTP</th>
+            <th>Last fetch</th>
+            <th>Last success</th>
+            <th>Items</th>
+            <th>Newest item</th>
+            <th>Error</th>
+        </tr>
+    </thead>
+    <tbody>
+    {{ range .Feeds }}
+        <tr>
+            <td>
+                {{ if eq .State "failing" }}<span class="tag is-danger">failing</span>
+                {{ else if eq .State "empty" }}<span class="tag is-warning">empty</span>
+                {{ else if eq .State "stale" }}<span class="tag is-light">stale</span>
+                {{ else }}<span class="tag is-success">ok</span>{{ end }}
+            </td>
+            <td><a href="{{ .URL }}" rel="noopener noreferrer">{{ .URL }}</a></td>
+            <td>{{ .Channel }}</td>
+            <td>{{ if .LastHTTPStatus }}{{ .LastHTTPStatus }}{{ else }}&mdash;{{ end }}</td>
+            <td>{{ if .LastFetch }}{{ .LastFetch }}{{ else }}never{{ end }}</td>
+            <td>{{ if .LastSuccess }}{{ .LastSuccess }}{{ else }}never{{ end }}</td>
+            <td>{{ .TotalItems }}{{ if .LastItemLabel }} ({{ .LastItemLabel }} last fetch){{ end }}</td>
+            <td>{{ if .NewestItem }}{{ .NewestItem }}{{ else }}&mdash;{{ end }}</td>
+            <td class="is-size-7">{{ .LastError }}</td>
+        </tr>
+    {{ end }}
+    </tbody>
+</table>
+{{end}}
+{{template "base.html" .}}
