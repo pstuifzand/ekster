@@ -21,6 +21,7 @@ package websub
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -162,6 +163,19 @@ func Subscribe(client *http.Client, hubURL, topicURL, callbackURL, secret string
 	}
 
 	defer res.Body.Close()
+
+	body, _ := ioutil.ReadAll(io.LimitReader(res.Body, 1024))
+
+	// A hub can accept the request (200/202) and still refuse the subscription
+	// in the body. switchboard.p3k.io answers 200 with "Rate limited" and never
+	// sends the verification request, so treating only the status code as the
+	// verdict left ekster re-subscribing every minute forever.
+	if res.StatusCode < 200 || res.StatusCode > 299 {
+		return fmt.Errorf("hub %s rejected subscription: %s: %s", hubURL, res.Status, strings.TrimSpace(string(body)))
+	}
+	if strings.Contains(strings.ToLower(string(body)), "rate limit") {
+		return fmt.Errorf("hub %s rate limited subscription: %s", hubURL, strings.TrimSpace(string(body)))
+	}
 
 	return nil
 }
