@@ -71,7 +71,7 @@ func TestThinEntriesAreFilledFromThePermalink(t *testing.T) {
 	counts := map[string]int{}
 	fetcher := fakeFetcher(pages(), counts)
 
-	items, err := ProcessSourcedItems(fetcher, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
+	items, err := ProcessSourcedItems(context.Background(), fetcher, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestAuthorReferenceIsResolvedToTheCard(t *testing.T) {
 	counts := map[string]int{}
 	fetcher := fakeFetcher(pages(), counts)
 
-	items, err := ProcessSourcedItems(fetcher, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
+	items, err := ProcessSourcedItems(context.Background(), fetcher, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestResolvedCardsAreCached(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		item := microsub.Item{Author: &microsub.Card{Type: "card", URL: "https://example.com/"}}
-		item = resolveAuthor(resolver, item)
+		item = resolveAuthor(context.Background(), resolver, item)
 		if item.Author.Name != "Example Author" {
 			t.Fatalf("call %d: author name = %q", i, item.Author.Name)
 		}
@@ -141,7 +141,7 @@ func TestFullEntriesAreNotFetchedAgain(t *testing.T) {
 	counts := map[string]int{}
 	fetcher := fakeFetcher(pages(), counts)
 
-	items, err := ProcessSourcedItems(fetcher, "https://example.com/feed", "text/html", strings.NewReader(entryPage))
+	items, err := ProcessSourcedItems(context.Background(), fetcher, "https://example.com/feed", "text/html", strings.NewReader(entryPage))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestPanickingEnrichmentKeepsTheItem(t *testing.T) {
 		return base(ctx, u)
 	})
 
-	items, err := ProcessSourcedItems(boom, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
+	items, err := ProcessSourcedItems(context.Background(), boom, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
 	if err != nil {
 		t.Fatalf("a panic while enriching one entry must not fail the feed: %s", err)
 	}
@@ -181,7 +181,7 @@ func TestPanickingEnrichmentKeepsTheItem(t *testing.T) {
 func TestUnreachablePermalinkKeepsTheItem(t *testing.T) {
 	fetcher := fakeFetcher(map[string]string{"https://example.com/feed": feedPage}, nil)
 
-	items, err := ProcessSourcedItems(fetcher, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
+	items, err := ProcessSourcedItems(context.Background(), fetcher, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
 	if err != nil {
 		t.Fatalf("an unreachable entry must not fail the feed: %s", err)
 	}

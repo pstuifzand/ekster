@@ -1,4 +1,4 @@
-FROM golang:1.18-alpine AS build-env
+FROM golang:1.23-alpine AS build-env
 RUN apk --no-cache add ca-certificates
 COPY go.mod go.sum /src/
 COPY cmd /src/cmd/

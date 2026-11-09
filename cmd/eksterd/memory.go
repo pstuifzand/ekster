@@ -45,10 +45,15 @@ import (
 	"github.com/pstuifzand/ekster/pkg/auth"
 	"github.com/pstuifzand/ekster/pkg/fetch"
 	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/observability"
 	"github.com/pstuifzand/ekster/pkg/sse"
 	"github.com/pstuifzand/ekster/pkg/timeline"
 	"github.com/pstuifzand/ekster/pkg/userid"
 	"github.com/pstuifzand/ekster/pkg/util"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/gomodule/redigo/redis"
 	"willnorris.com/go/microformats"
@@ -325,17 +330,22 @@ func (b *memoryBackend) RefreshFeeds() {
 	log.Println("Feed update process started")
 	defer log.Println("Feed update process completed")
 
+	ctx, span := observability.Span(context.Background(), "feeds.refresh")
+	defer span.End()
+
 	feeds, err := b.getFeeds()
 	if err != nil {
+		span.RecordError(err)
 		return
 	}
+	span.SetAttributes(attribute.Int("feeds.count", len(feeds)))
 
 	log.Printf("Found %d feeds", len(feeds))
 
 	count := 0
 	for _, feed := range feeds {
 		log.Println("Processing", feed.URL)
-		terr := b.refreshFeedSafely(feed)
+		terr := b.refreshFeedSafely(ctx, feed)
 		if terr != nil {
 			b.addNotification("Error while fetching feed", feed, terr)
 			continue
@@ -343,6 +353,7 @@ func (b *memoryBackend) RefreshFeeds() {
 
 		count++
 	}
+	span.SetAttributes(attribute.Int("feeds.processed", count))
 
 	if count > 0 {
 		_ = b.updateChannelUnreadCount("notifications")
@@ -355,18 +366,29 @@ func (b *memoryBackend) RefreshFeeds() {
 // triggers it here is fetched from the open web: its markup decides whether
 // ekster keeps running. That is not a trade worth making, so the damage is
 // limited to one feed and the next tick tries again.
-func (b *memoryBackend) refreshFeedSafely(f feed) (err error) {
+func (b *memoryBackend) refreshFeedSafely(parent context.Context, f feed) (err error) {
+	ctx, span := observability.Span(parent, "feed.refresh",
+		attribute.String("feed.url", f.URL),
+		attribute.String("feed.channel", f.UID),
+		attribute.Int("feed.id", f.ID),
+		attribute.Int("feed.tier", f.Tier),
+	)
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("recovered while refreshing %s: %v\n%s", f.URL, r, debug.Stack())
 			err = fmt.Errorf("panic while refreshing %s: %v", f.URL, r)
 		}
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
 	}()
-	return b.refreshFeed(f)
+	return b.refreshFeed(ctx, f)
 }
 
-func (b *memoryBackend) refreshFeed(feed feed) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func (b *memoryBackend) refreshFeed(ctx context.Context, feed feed) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	resp, err := b.Fetch3(ctx, feed.UID, feed.URL)
@@ -375,10 +397,11 @@ func (b *memoryBackend) refreshFeed(feed feed) error {
 	}
 	defer resp.Body.Close()
 
-	changed, err := b.ProcessContent(feed.UID, fmt.Sprintf("%d", feed.ID), feed.URL, resp.Header.Get("Content-Type"), resp.Body)
+	changed, err := b.ProcessContent(ctx, feed.UID, fmt.Sprintf("%d", feed.ID), feed.URL, resp.Header.Get("Content-Type"), resp.Body)
 	if err != nil {
 		return fmt.Errorf("in ProcessContent of %s: %w", feed.URL, err)
 	}
+	trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("feed.changed", changed))
 
 	if changed {
 		feed.Tier--
@@ -513,7 +536,7 @@ func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (
 	}
 	defer resp.Body.Close()
 
-	_, _ = b.ProcessContent(uid, fmt.Sprintf("%d", feedID), subFeed.URL, resp.Header.Get("Content-Type"), resp.Body)
+	_, _ = b.ProcessContent(ctx, uid, fmt.Sprintf("%d", feedID), subFeed.URL, resp.Header.Get("Content-Type"), resp.Body)
 
 	_, _ = b.hubBackend.CreateFeed(url)
 
@@ -575,6 +598,9 @@ func (b *memoryBackend) ItemSearch(ctx context.Context, channel, query string) (
 }
 
 func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Feed, error) {
+	ctx, span := observability.Span(ctx, "feeds.search", attribute.String("search.query", query))
+	defer span.End()
+
 	urls := getPossibleURLs(query)
 
 	// needs to be like this, because we get a null result otherwise in the json output
@@ -606,7 +632,7 @@ func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Fe
 		defer feedResp.Body.Close()
 
 		// TODO: Combine FeedHeader and FeedItems so we can use it here
-		parsedFeed, err := fetch.FeedHeader(cachingFetch, fetchURL.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
+		parsedFeed, err := fetch.FeedHeader(ctx, cachingFetch, fetchURL.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
 		if err != nil {
 			log.Printf("Error in parse of %s - %v\n", fetchURL, err)
 			continue
@@ -629,7 +655,7 @@ func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Fe
 					// FIXME: don't defer in for loop (possible memory leak)
 					defer feedResp.Body.Close()
 
-					parsedFeed, err := fetch.FeedHeader(cachingFetch, alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
+					parsedFeed, err := fetch.FeedHeader(ctx, cachingFetch, alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
 					if err != nil {
 						log.Printf("Error in parse of %s - %v\n", alt, err)
 						continue
@@ -641,10 +667,14 @@ func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Fe
 		}
 	}
 
+	span.SetAttributes(attribute.Int("feeds.found", len(feeds)))
 	return feeds, nil
 }
 
 func (b *memoryBackend) PreviewURL(ctx context.Context, previewURL string) (microsub.Timeline, error) {
+	ctx, span := observability.Span(ctx, "feed.preview", attribute.String("feed.url", previewURL))
+	defer span.End()
+
 	cachingFetch := WithCaching(b.pool, fetch.FetcherFunc(Fetch2))
 	resp, err := cachingFetch.Fetch(previewURL)
 	if err != nil {
@@ -652,7 +682,7 @@ func (b *memoryBackend) PreviewURL(ctx context.Context, previewURL string) (micr
 	}
 	defer resp.Body.Close()
 
-	items, err := ProcessSourcedItems(cachingFetch, previewURL, resp.Header.Get("content-type"), resp.Body)
+	items, err := ProcessSourcedItems(ctx, cachingFetch, previewURL, resp.Header.Get("content-type"), resp.Body)
 	if err != nil {
 		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
 	}
@@ -684,8 +714,15 @@ func (b *memoryBackend) Events(ctx context.Context) (chan sse.Message, error) {
 }
 
 // ProcessSourcedItems processes items and adds the Source
-func ProcessSourcedItems(fetcher fetch.Fetcher, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
+func ProcessSourcedItems(ctx context.Context, fetcher fetch.Fetcher, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
 	// When the source is available from the Header, we fill the Source of the item
+
+	ctx, span := observability.Span(ctx, "feed.parse",
+		attribute.String("feed.url", fetchURL),
+		attribute.String("feed.content_type", contentType),
+		attribute.String("feed.format", fetch.Format(contentType)),
+	)
+	defer span.End()
 
 	bodyBytes, err := ioutil.ReadAll(body)
 	if err != nil {
@@ -693,13 +730,14 @@ func ProcessSourcedItems(fetcher fetch.Fetcher, fetchURL, contentType string, bo
 	}
 
 	var source *microsub.Source
-	if header, err := fetch.FeedHeader(fetcher, fetchURL, contentType, bytes.NewBuffer(bodyBytes)); err == nil {
+	if header, err := fetch.FeedHeader(ctx, fetcher, fetchURL, contentType, bytes.NewBuffer(bodyBytes)); err == nil {
 		source = &microsub.Source{
 			ID:    header.URL,
 			URL:   header.URL,
 			Name:  header.Name,
 			Photo: header.Photo,
 		}
+		span.SetAttributes(attribute.String("feed.name", header.Name))
 	} else {
 		source = &microsub.Source{
 			ID:  fetchURL,
@@ -707,17 +745,19 @@ func ProcessSourcedItems(fetcher fetch.Fetcher, fetchURL, contentType string, bo
 		}
 	}
 
-	items, err := fetch.FeedItems(fetcher, fetchURL, contentType, bytes.NewBuffer(bodyBytes))
+	items, err := fetch.FeedItems(ctx, fetcher, fetchURL, contentType, bytes.NewBuffer(bodyBytes))
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
+	span.SetAttributes(attribute.Int("feed.items", len(items)))
 
 	// A feed is allowed to list only titles, and an author is allowed to be a
 	// reference to an h-card rather than the card itself. Both are the entry's
 	// own markup to supply, so go and read it before the item is stored.
 	resolver := newCardResolver(fetcher)
 	for i, item := range items {
-		item = enrichItem(fetcher, resolver, item, fetchURL)
+		item = enrichItem(ctx, fetcher, resolver, item, fetchURL)
 		item.Read = false
 		item.Source = source
 		items[i] = item
@@ -728,19 +768,31 @@ func ProcessSourcedItems(fetcher fetch.Fetcher, fetchURL, contentType string, bo
 
 // ContentProcessor processes content for a channel and feed
 type ContentProcessor interface {
-	ProcessContent(channel, feedID, fetchURL, contentType string, body io.Reader) (bool, error)
+	ProcessContent(ctx context.Context, channel, feedID, fetchURL, contentType string, body io.Reader) (bool, error)
 }
 
 // ProcessContent processes content of a feed, returns if the feed has changed or not
-func (b *memoryBackend) ProcessContent(channel, feedID, fetchURL, contentType string, body io.Reader) (bool, error) {
+func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fetchURL, contentType string, body io.Reader) (changed bool, err error) {
+	ctx, span := observability.Span(ctx, "feed.process",
+		attribute.String("feed.channel", channel),
+		attribute.String("feed.id", feedID),
+		attribute.String("feed.url", fetchURL),
+		attribute.String("feed.content_type", contentType),
+	)
+	defer func() {
+		span.SetAttributes(attribute.Bool("feed.changed", changed))
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.End()
+	}()
+
 	cachingFetch := WithCaching(b.pool, fetch.FetcherFunc(Fetch2))
 
-	items, err := ProcessSourcedItems(cachingFetch, fetchURL, contentType, body)
+	items, err := ProcessSourcedItems(ctx, cachingFetch, fetchURL, contentType, body)
 	if err != nil {
 		return false, err
 	}
-
-	changed := false
 
 	for _, item := range items {
 		item.Source.ID = feedID
@@ -959,11 +1011,13 @@ func WithCaching(pool *redis.Pool, ff fetch.Fetcher) fetch.Fetcher {
 		data, err := redis.Bytes(conn.Do("GET", cacheKey))
 		if err == nil {
 			log.Printf("HIT %s\n", fetchURL)
+			trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("http.cache.hit", true))
 			rd := bufio.NewReader(bytes.NewReader(data))
 			return http.ReadResponse(rd, req)
 		}
 
 		log.Printf("MISS %s\n", fetchURL)
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("http.cache.hit", false))
 
 		resp, err := ff.FetchWithContext(ctx, fetchURL)
 		if err != nil {
@@ -1012,7 +1066,7 @@ func Fetch2(ctx context.Context, fetchURL string) (*http.Response, error) {
 		return nil, ErrBlackList
 	}
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}

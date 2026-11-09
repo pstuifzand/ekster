@@ -7,6 +7,12 @@ services:
       - 8089:80
     environment:
       - "EKSTER_BASEURL=http://localhost:8089/"
+      # Tracing is off while this is empty. On the p83.nl host set it to
+      # http://tempo:4318 and keep this service on nginxproxy_default; locally
+      # use http://localhost:4318 with the SSH tunnel open (see docs/tempo.md).
+      - "OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
+      - "OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf"
+      - "OTEL_SERVICE_NAME=ekster"
 
   redis:
     image: "redis:5"

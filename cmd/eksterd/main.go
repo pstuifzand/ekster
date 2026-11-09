@@ -22,6 +22,7 @@ Eksterd is a microsub server that is extendable.
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	_ "expvar"
@@ -29,12 +30,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/pstuifzand/ekster/pkg/auth"
+	"github.com/pstuifzand/ekster/pkg/observability"
 	"github.com/pstuifzand/ekster/pkg/userid"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -191,9 +195,38 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Fatal(app.Run())
+	// Tracing is opt-in. With OTEL_EXPORTER_OTLP_ENDPOINT set, spans are sent
+	// to that collector; nothing is sent otherwise. A broken tracing setup must
+	// not keep the server down, so it degrades to a log line.
+	shutdown, err := observability.Setup(context.Background(), "ekster", BuildVersion())
+	if err != nil {
+		log.Printf("could not start tracing: %v", err)
+		shutdown = func(context.Context) error { return nil }
+	}
+
+	// The batch exporter holds spans until they are flushed, and a container
+	// gets SIGTERM, not a clean return. Flush before leaving so the work that
+	// just happened is not lost with the process.
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = shutdown(ctx)
+		os.Exit(0)
+	}()
+
+	err = app.Run()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_ = shutdown(ctx)
+	cancel()
 
 	db.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 // Log migrations

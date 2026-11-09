@@ -36,9 +36,12 @@ import (
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/pstuifzand/ekster/pkg/jf2"
 	"github.com/pstuifzand/ekster/pkg/jsonfeed"
 	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/observability"
 	"github.com/pstuifzand/ekster/pkg/rss"
 
 	"willnorris.com/go/microformats"
@@ -47,11 +50,21 @@ import (
 )
 
 // FeedHeader returns a new microsub.Feed with the information parsed from body.
-func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (microsub.Feed, error) {
+func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType string, body io.Reader) (feed microsub.Feed, err error) {
+	ctx, span := observability.Span(ctx, "feed.parse.header",
+		attribute.String("feed.url", fetchURL),
+		attribute.String("feed.content_type", contentType),
+	)
+	defer func() {
+		span.SetAttributes(attribute.String("feed.name", feed.Name))
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.End()
+	}()
+
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
-
-	feed := microsub.Feed{}
 
 	u, _ := url.Parse(fetchURL)
 
@@ -60,7 +73,7 @@ func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (
 		author, ok := jf2.SimplifyMicroformatDataAuthor(data)
 		if !ok {
 			if strings.HasPrefix(author.URL, "http") {
-				resp, err := fetcher.Fetch(author.URL)
+				resp, err := fetcher.FetchWithContext(ctx, author.URL)
 				if err != nil {
 					return feed, err
 				}
@@ -133,11 +146,24 @@ func FeedHeader(fetcher Fetcher, fetchURL, contentType string, body io.Reader) (
 }
 
 // FeedItems returns the items from the url, parsed from body.
-func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([]microsub.Item, error) {
+func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType string, body io.Reader) (items []microsub.Item, err error) {
+	ctx, span := observability.Span(ctx, "feed.parse.items",
+		attribute.String("feed.url", fetchURL),
+		attribute.String("feed.content_type", contentType),
+		attribute.String("feed.format", Format(contentType)),
+	)
+	defer func() {
+		span.SetAttributes(attribute.Int("feed.items", len(items)))
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.End()
+	}()
+
 	log.Printf("ProcessContent %s\n", fetchURL)
 	log.Println("Found " + contentType)
 
-	items := []microsub.Item{}
+	items = []microsub.Item{}
 
 	u, _ := url.Parse(fetchURL)
 
@@ -256,7 +282,7 @@ func FeedItems(fetcher Fetcher, fetchURL, contentType string, body io.Reader) ([
 	for i, v := range items {
 		// Process mentions inside the content
 		if v.Content != nil && v.Content.HTML != "" {
-			mentions, err := parseContentMentions(fetcher, v.Content.HTML)
+			mentions, err := parseContentMentions(ctx, fetcher, v.Content.HTML)
 			if err != nil {
 				log.Println("parseContentMentions", err)
 				continue
@@ -283,7 +309,25 @@ type mention struct {
 	Item microsub.Item
 }
 
-func parseContentMentions(fetcher Fetcher, s string) ([]mention, error) {
+// Format names the document format for a given content type. It is used for
+// trace attributes, so a span shows at a glance which parser ran.
+func Format(contentType string) string {
+	switch {
+	case strings.HasPrefix(contentType, "text/html"):
+		return "jf2"
+	case strings.HasPrefix(contentType, "application/feed+json"),
+		strings.HasPrefix(contentType, "application/json"):
+		return "jsonfeed"
+	case strings.HasPrefix(contentType, "text/xml"),
+		strings.HasPrefix(contentType, "application/rss+xml"),
+		strings.HasPrefix(contentType, "application/atom+xml"),
+		strings.HasPrefix(contentType, "application/xml"):
+		return "rss/atom"
+	}
+	return "unknown"
+}
+
+func parseContentMentions(ctx context.Context, fetcher Fetcher, s string) ([]mention, error) {
 	node, err := html.Parse(strings.NewReader(s))
 	if err != nil {
 		return nil, err
@@ -292,7 +336,7 @@ func parseContentMentions(fetcher Fetcher, s string) ([]mention, error) {
 	var mentions []mention
 
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		newMentions, err := parseContentMentionsRec(fetcher, c)
+		newMentions, err := parseContentMentionsRec(ctx, fetcher, c)
 		if err != nil {
 			log.Println("parseContentMentionsRec", err)
 			continue
@@ -309,7 +353,7 @@ func parseContentMentions(fetcher Fetcher, s string) ([]mention, error) {
 // ErrNoMention is used when not mention was found
 var ErrNoMention = errors.New("No mention")
 
-func parseContentMentionProcessLink(fetcher Fetcher, node *html.Node) (mention, error) {
+func parseContentMentionProcessLink(ctx context.Context, fetcher Fetcher, node *html.Node) (mention, error) {
 	href := getAttrPtr(node, "href")
 	if href == nil {
 		return mention{}, ErrNoMention
@@ -322,7 +366,7 @@ func parseContentMentionProcessLink(fetcher Fetcher, node *html.Node) (mention, 
 		return mention{}, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	resp, err := fetcher.FetchWithContext(ctx, *href)
@@ -362,10 +406,10 @@ func parseContentMentionProcessLink(fetcher Fetcher, node *html.Node) (mention, 
 	}, nil
 }
 
-func parseContentMentionsRec(fetcher Fetcher, node *html.Node) ([]mention, error) {
+func parseContentMentionsRec(ctx context.Context, fetcher Fetcher, node *html.Node) ([]mention, error) {
 	var mentions []mention
 	if isAtom(node, atom.A) {
-		mention, err := parseContentMentionProcessLink(fetcher, node)
+		mention, err := parseContentMentionProcessLink(ctx, fetcher, node)
 		if err != nil {
 			log.Println("parseContentMentionProcessLink", err)
 		} else {
@@ -377,7 +421,7 @@ func parseContentMentionsRec(fetcher Fetcher, node *html.Node) ([]mention, error
 	}
 
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		newMentions, err := parseContentMentionsRec(fetcher, c)
+		newMentions, err := parseContentMentionsRec(ctx, fetcher, c)
 		if err != nil {
 			log.Println("parseContentMentionsRec", err)
 			continue

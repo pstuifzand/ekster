@@ -20,6 +20,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"expvar"
 	"fmt"
@@ -43,7 +44,7 @@ type HubBackend interface {
 	Feeds() ([]Feed, error)
 	CreateFeed(url string) (int64, error)
 	GetSecret(feedID int64) string
-	UpdateFeed(processor ContentProcessor, feedID int64, contentType string, body io.Reader) error
+	UpdateFeed(ctx context.Context, processor ContentProcessor, feedID int64, contentType string, body io.Reader) error
 	FeedSetLeaseSeconds(feedID int64, leaseSeconds int64) error
 	Subscribe(feed *Feed) error
 }
@@ -133,7 +134,7 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 	return int64(subscriptionID), nil
 }
 
-func (h *hubIncomingBackend) UpdateFeed(processor ContentProcessor, subscriptionID int64, contentType string, body io.Reader) error {
+func (h *hubIncomingBackend) UpdateFeed(ctx context.Context, processor ContentProcessor, subscriptionID int64, contentType string, body io.Reader) error {
 	log.Println("UpdateFeed", subscriptionID)
 
 	db := h.database
@@ -172,7 +173,7 @@ where s.id = $1
 		}
 
 		log.Printf("Updating feed %s %q in %q (%s)\n", feedID, topic, channelName, channel)
-		_, err = processor.ProcessContent(channel, feedID, topic, contentType, buf)
+		_, err = processor.ProcessContent(ctx, channel, feedID, topic, contentType, buf)
 		if err != nil {
 			log.Printf("could not process content for channel %s: %s", channelName, err)
 		}

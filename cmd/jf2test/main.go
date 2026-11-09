@@ -56,7 +56,7 @@ func main() {
 	}
 	defer resp.Body.Close()
 
-	items, err := fetch.FeedItems(fetch.FetcherFunc(Fetch), url, resp.Header.Get("Content-Type"), resp.Body)
+	items, err := fetch.FeedItems(context.Background(), fetch.FetcherFunc(Fetch), url, resp.Header.Get("Content-Type"), resp.Body)
 	if err != nil {
 		log.Fatal(err)
 	}

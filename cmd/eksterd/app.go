@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/pstuifzand/ekster/pkg/observability"
 	"github.com/pstuifzand/ekster/pkg/server"
 )
 
@@ -74,10 +75,10 @@ func NewApp(options AppOptions) (*App, error) {
 	}
 	app.backend.hubBackend = app.hubBackend
 
-	http.Handle("/micropub", &micropubHandler{
+	http.Handle("/micropub", observability.Handler("/micropub", &micropubHandler{
 		Backend: app.backend,
 		pool:    options.pool,
-	})
+	}, nil))
 
 	handler, broker := server.NewMicrosubHandler(app.backend)
 	if options.AuthEnabled {
@@ -86,19 +87,24 @@ func NewApp(options AppOptions) (*App, error) {
 
 	app.backend.broker = broker
 
-	http.Handle("/microsub/", handler)
+	// An events request is a long-lived SSE connection. Left instrumented it
+	// would be one span per open reader that only ends when the browser does,
+	// which says nothing and fills the trace list.
+	http.Handle("/microsub/", observability.Handler("/microsub/", handler, func(r *http.Request) bool {
+		return r.URL.Query().Get("action") == "events"
+	}))
 
-	http.Handle("/incoming/", &incomingHandler{
+	http.Handle("/incoming/", observability.Handler("/incoming/", &incomingHandler{
 		Backend:   app.hubBackend,
 		Processor: app.backend,
-	})
+	}, nil))
 
 	if !options.Headless {
 		handler, err := newMainHandler(app.backend, options.BaseURL, options.pool)
 		if err != nil {
 			return nil, errors.Wrap(err, "could not create main handler")
 		}
-		http.Handle("/", handler)
+		http.Handle("/", observability.Handler("/", handler, nil))
 	}
 
 	return app, nil

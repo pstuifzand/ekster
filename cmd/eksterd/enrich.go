@@ -49,11 +49,11 @@ type page struct {
 }
 
 // readPage fetches a URL and reads at most maxPageSize of it.
-func readPage(fetcher fetch.Fetcher, u string) (page, error) {
+func readPage(ctx context.Context, fetcher fetch.Fetcher, u string) (page, error) {
 	if !isHTTPURL(u) {
 		return page{}, fmt.Errorf("not an http url: %q", u)
 	}
-	resp, err := fetcher.FetchWithContext(context.Background(), u)
+	resp, err := fetcher.FetchWithContext(ctx, u)
 	if err != nil {
 		return page{}, err
 	}
@@ -100,7 +100,7 @@ func newCardResolver(fetcher fetch.Fetcher) *cardResolver {
 // Card returns the h-card at u, cached for a day. A page that cannot be
 // fetched or carries no h-card is not an error: the item keeps the reference it
 // already had, and the reader still knows there is an author.
-func (r *cardResolver) Card(u string) (microsub.Card, bool) {
+func (r *cardResolver) Card(ctx context.Context, u string) (microsub.Card, bool) {
 	if !isHTTPURL(u) {
 		return microsub.Card{}, false
 	}
@@ -112,12 +112,12 @@ func (r *cardResolver) Card(u string) (microsub.Card, bool) {
 		return cached.card, true
 	}
 
-	doc, err := readPage(r.fetcher, u)
+	doc, err := readPage(ctx, r.fetcher, u)
 	if err != nil {
 		log.Printf("could not resolve author %s: %s\n", u, err)
 		return microsub.Card{}, false
 	}
-	header, err := fetch.FeedHeader(r.fetcher, u, doc.contentType, bytes.NewBuffer(doc.body))
+	header, err := fetch.FeedHeader(ctx, r.fetcher, u, doc.contentType, bytes.NewBuffer(doc.body))
 	if err != nil || header.Name == "" {
 		return microsub.Card{}, false
 	}
@@ -133,24 +133,24 @@ func (r *cardResolver) Card(u string) (microsub.Card, bool) {
 // into the untouched item. The markup is third-party input: a page that breaks
 // the parser should cost that entry's enrichment, not the feed update and not
 // the process.
-func enrichItem(fetcher fetch.Fetcher, resolver *cardResolver, item microsub.Item, feedURL string) (out microsub.Item) {
+func enrichItem(ctx context.Context, fetcher fetch.Fetcher, resolver *cardResolver, item microsub.Item, feedURL string) (out microsub.Item) {
 	out = item
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("recovered while enriching %s: %v\n%s", item.URL, r, debug.Stack())
 		}
 	}()
-	out = fillFromPermalink(fetcher, item, feedURL)
-	out = resolveAuthor(resolver, out)
+	out = fillFromPermalink(ctx, fetcher, item, feedURL)
+	out = resolveAuthor(ctx, resolver, out)
 	return out
 }
 
 // resolveAuthor fills in the name and photo of an author that is only a URL.
-func resolveAuthor(resolver *cardResolver, item microsub.Item) microsub.Item {
+func resolveAuthor(ctx context.Context, resolver *cardResolver, item microsub.Item) microsub.Item {
 	if item.Author == nil || item.Author.Name != "" || item.Author.URL == "" {
 		return item
 	}
-	card, ok := resolver.Card(item.Author.URL)
+	card, ok := resolver.Card(ctx, item.Author.URL)
 	if !ok {
 		return item
 	}
@@ -191,16 +191,16 @@ func thin(item microsub.Item, feedURL string) bool {
 // fillFromPermalink reads the entry's own page when the feed only listed a
 // title. Feeds are allowed to be teasers; the entry is where the text is, and a
 // reader that shows a headline and nothing else has simply not looked.
-func fillFromPermalink(fetcher fetch.Fetcher, item microsub.Item, feedURL string) microsub.Item {
+func fillFromPermalink(ctx context.Context, fetcher fetch.Fetcher, item microsub.Item, feedURL string) microsub.Item {
 	if !thin(item, feedURL) {
 		return item
 	}
-	doc, err := readPage(fetcher, item.URL)
+	doc, err := readPage(ctx, fetcher, item.URL)
 	if err != nil {
 		log.Printf("could not read %s: %s\n", item.URL, err)
 		return item
 	}
-	entries, err := fetch.FeedItems(fetcher, item.URL, doc.contentType, bytes.NewBuffer(doc.body))
+	entries, err := fetch.FeedItems(ctx, fetcher, item.URL, doc.contentType, bytes.NewBuffer(doc.body))
 	if err != nil || len(entries) == 0 {
 		return item
 	}
