@@ -24,7 +24,6 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -45,8 +44,6 @@ import (
 	"github.com/pstuifzand/ekster/pkg/rss"
 
 	"willnorris.com/go/microformats"
-
-	readability "github.com/go-shiori/go-readability"
 )
 
 // FeedHeader returns a new microsub.Feed with the information parsed from body.
@@ -282,11 +279,7 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 	for i, v := range items {
 		// Process mentions inside the content
 		if v.Content != nil && v.Content.HTML != "" {
-			mentions, err := parseContentMentions(ctx, fetcher, v.Content.HTML)
-			if err != nil {
-				log.Println("parseContentMentions", err)
-				continue
-			}
+			mentions := parseContentMentions(v.Content.HTML)
 
 			if v.Refs == nil {
 				v.Refs = make(map[string]microsub.Item)
@@ -327,111 +320,49 @@ func Format(contentType string) string {
 	return "unknown"
 }
 
-func parseContentMentions(ctx context.Context, fetcher Fetcher, s string) ([]mention, error) {
+// parseContentMentions lists the links an entry points at, without fetching
+// them.
+//
+// It used to fetch every anchor and run readability on the response, keeping the
+// first one that parsed as an article. A release feed with forty entries and
+// fifteen links each turned one refresh into six hundred requests at the sites
+// the feed named, most of which were not mentions at all. The link is what the
+// markup actually says; the article behind it is the reader's job to fetch.
+func parseContentMentions(s string) []mention {
 	node, err := html.Parse(strings.NewReader(s))
 	if err != nil {
-		return nil, err
+		return nil
 	}
 
 	var mentions []mention
+	seen := map[string]bool{}
 
-	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		newMentions, err := parseContentMentionsRec(ctx, fetcher, c)
-		if err != nil {
-			log.Println("parseContentMentionsRec", err)
-			continue
+	walkLinks(node, func(href string) {
+		if href == "" || seen[href] {
+			return
 		}
-		mentions = append(mentions, newMentions...)
-		if len(mentions) >= 1 {
-			return mentions, nil
-		}
-	}
+		seen[href] = true
+		mentions = append(mentions, mention{
+			Href: href,
+			Item: microsub.Item{
+				Type: "entry",
+				URL:  href,
+			},
+		})
+	})
 
-	return mentions, nil
+	return mentions
 }
 
-// ErrNoMention is used when not mention was found
-var ErrNoMention = errors.New("No mention")
-
-func parseContentMentionProcessLink(ctx context.Context, fetcher Fetcher, node *html.Node) (mention, error) {
-	href := getAttrPtr(node, "href")
-	if href == nil {
-		return mention{}, ErrNoMention
-	}
-	log.Println("Processing mentions:", *href)
-
-	var hrefURL *url.URL
-	var err error
-	if hrefURL, err = url.Parse(*href); err != nil {
-		return mention{}, err
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	resp, err := fetcher.FetchWithContext(ctx, *href)
-	if err != nil {
-		return mention{}, err
-	}
-	defer resp.Body.Close()
-
-	article, err := readability.FromReader(resp.Body, hrefURL)
-	if err != nil {
-		return mention{}, err
-	}
-
-	var item microsub.Item
-
-	item.Type = "entry"
-	item.Name = article.Title
-	item.Content = &microsub.Content{
-		Text: article.TextContent,
-		HTML: article.Content,
-	}
-	if article.Image != "" {
-		item.Photo = []string{article.Image}
-	}
-
-	item.Summary = article.Excerpt
-	if article.Byline != "" {
-		item.Author = &microsub.Card{
-			Name: article.Byline,
-		}
-	}
-	item.URL = *href
-
-	return mention{
-		Href: *href,
-		Item: item,
-	}, nil
-}
-
-func parseContentMentionsRec(ctx context.Context, fetcher Fetcher, node *html.Node) ([]mention, error) {
-	var mentions []mention
+func walkLinks(node *html.Node, fn func(href string)) {
 	if isAtom(node, atom.A) {
-		mention, err := parseContentMentionProcessLink(ctx, fetcher, node)
-		if err != nil {
-			log.Println("parseContentMentionProcessLink", err)
-		} else {
-			mentions = append(mentions, mention)
+		if href := getAttrPtr(node, "href"); href != nil {
+			fn(*href)
 		}
 	}
-	if len(mentions) >= 1 {
-		return mentions, nil
-	}
-
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		newMentions, err := parseContentMentionsRec(ctx, fetcher, c)
-		if err != nil {
-			log.Println("parseContentMentionsRec", err)
-			continue
-		}
-		mentions = append(mentions, newMentions...)
-		if len(mentions) >= 1 {
-			return mentions, nil
-		}
+		walkLinks(c, fn)
 	}
-	return mentions, nil
 }
 
 // expandHref expands relative URLs in a.href and img.src attributes to be absolute URLs.

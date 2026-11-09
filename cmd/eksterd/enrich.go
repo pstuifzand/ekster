@@ -133,14 +133,17 @@ func (r *cardResolver) Card(ctx context.Context, u string) (microsub.Card, bool)
 // into the untouched item. The markup is third-party input: a page that breaks
 // the parser should cost that entry's enrichment, not the feed update and not
 // the process.
-func enrichItem(ctx context.Context, fetcher fetch.Fetcher, resolver *cardResolver, item microsub.Item, feedURL string) (out microsub.Item) {
+//
+// It no longer reads the entry's own page. The feed is the source: an entry
+// that carries only a title is a title, and fetching a page per entry turns one
+// feed refresh into hundreds of requests at the sites the feed points at.
+func enrichItem(ctx context.Context, fetcher fetch.Fetcher, resolver *cardResolver, item microsub.Item) (out microsub.Item) {
 	out = item
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("recovered while enriching %s: %v\n%s", item.URL, r, debug.Stack())
 		}
 	}()
-	out = fillFromPermalink(ctx, fetcher, item, feedURL)
 	out = resolveAuthor(ctx, resolver, out)
 	return out
 }
@@ -166,87 +169,4 @@ func resolveAuthor(ctx context.Context, resolver *cardResolver, item microsub.It
 	}
 	item.Author = &author
 	return item
-}
-
-// hasContent reports whether an item already says something to read.
-func hasContent(item microsub.Item) bool {
-	if item.Content == nil {
-		return false
-	}
-	return item.Content.Text != "" || item.Content.HTML != ""
-}
-
-// thin reports whether the feed gave nothing but a title: an entry that needs
-// its permalink read before it is worth showing.
-func thin(item microsub.Item, feedURL string) bool {
-	if item.Name == "" || item.URL == "" || item.URL == feedURL {
-		return false
-	}
-	if hasContent(item) || len(item.Photo) > 0 || item.Checkin != nil {
-		return false
-	}
-	return true
-}
-
-// fillFromPermalink reads the entry's own page when the feed only listed a
-// title. Feeds are allowed to be teasers; the entry is where the text is, and a
-// reader that shows a headline and nothing else has simply not looked.
-func fillFromPermalink(ctx context.Context, fetcher fetch.Fetcher, item microsub.Item, feedURL string) microsub.Item {
-	if !thin(item, feedURL) {
-		return item
-	}
-	doc, err := readPage(ctx, fetcher, item.URL)
-	if err != nil {
-		log.Printf("could not read %s: %s\n", item.URL, err)
-		return item
-	}
-	entries, err := fetch.FeedItems(ctx, fetcher, item.URL, doc.contentType, bytes.NewBuffer(doc.body))
-	if err != nil || len(entries) == 0 {
-		return item
-	}
-
-	entry := entries[0]
-	for _, candidate := range entries {
-		if candidate.URL == item.URL || candidate.UID == item.URL {
-			entry = candidate
-			break
-		}
-	}
-
-	if !hasContent(item) && hasContent(entry) {
-		item.Content = entry.Content
-	}
-	if item.Author == nil {
-		item.Author = entry.Author
-	}
-	if item.Summary == "" {
-		item.Summary = entry.Summary
-	}
-	if len(item.Photo) == 0 {
-		item.Photo = entry.Photo
-	}
-	if item.Name == "" {
-		item.Name = entry.Name
-	}
-	item.Category = mergeCategories(item.Category, entry.Category)
-	// The feed stays authoritative about when the entry was published: a
-	// permalink read later must not move it in the timeline.
-	return item
-}
-
-// mergeCategories adds categories the item does not already have.
-func mergeCategories(have, add []string) []string {
-	merged := append([]string{}, have...)
-	seen := map[string]bool{}
-	for _, c := range merged {
-		seen[c] = true
-	}
-	for _, c := range add {
-		if c == "" || seen[c] {
-			continue
-		}
-		seen[c] = true
-		merged = append(merged, c)
-	}
-	return merged
 }

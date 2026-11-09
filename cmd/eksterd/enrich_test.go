@@ -67,7 +67,9 @@ func pages() map[string]string {
 	}
 }
 
-func TestThinEntriesAreFilledFromThePermalink(t *testing.T) {
+// The feed is the source. An entry that carries only a title stays a title:
+// ekster must not read the permalink to find content the feed did not send.
+func TestThinEntriesAreNotFetched(t *testing.T) {
 	counts := map[string]int{}
 	fetcher := fakeFetcher(pages(), counts)
 
@@ -80,18 +82,17 @@ func TestThinEntriesAreFilledFromThePermalink(t *testing.T) {
 	}
 
 	item := items[0]
-	if item.Content == nil || !strings.Contains(item.Content.Text, "draft -06") {
-		t.Errorf("content was not filled in from the entry: %#v", item.Content)
+	if counts["https://example.com/post/1"] != 0 {
+		t.Errorf("the permalink was read %d times, want none", counts["https://example.com/post/1"])
+	}
+	if item.Content != nil && (item.Content.Text != "" || item.Content.HTML != "") {
+		t.Errorf("content appeared from somewhere: %#v", item.Content)
 	}
 	if item.Name != "Identity Assertion JWT Authorization Grant Draft 06" {
 		t.Errorf("the feed's title was not kept: %q", item.Name)
 	}
-	if counts["https://example.com/post/1"] != 1 {
-		t.Errorf("the permalink was read %d times, want once", counts["https://example.com/post/1"])
-	}
-	// Categories from both the feed and the entry are kept.
-	if len(item.Category) != 2 {
-		t.Errorf("categories = %v, want both the feed and the entry's", item.Category)
+	if len(item.Category) != 1 || item.Category[0] != "oauth" {
+		t.Errorf("categories = %v, want just the feed's", item.Category)
 	}
 }
 
@@ -99,7 +100,7 @@ func TestAuthorReferenceIsResolvedToTheCard(t *testing.T) {
 	counts := map[string]int{}
 	fetcher := fakeFetcher(pages(), counts)
 
-	items, err := ProcessSourcedItems(context.Background(), fetcher, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
+	items, err := ProcessSourcedItems(context.Background(), fetcher, "https://example.com/feed", "text/html", strings.NewReader(entryPage))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,15 +158,15 @@ func TestFullEntriesAreNotFetchedAgain(t *testing.T) {
 // process. A nil dereference inside the microformats parser did exactly that in
 // production while enriching an entry from a mention feed.
 func TestPanickingEnrichmentKeepsTheItem(t *testing.T) {
-	base := fakeFetcher(map[string]string{"https://example.com/feed": feedPage}, nil)
+	base := fakeFetcher(map[string]string{"https://example.com/feed": entryPage}, nil)
 	boom := fetch.FetcherFunc(func(ctx context.Context, u string) (*http.Response, error) {
-		if u == "https://example.com/post/1" {
+		if u == "https://example.com/" {
 			panic("parser exploded")
 		}
 		return base(ctx, u)
 	})
 
-	items, err := ProcessSourcedItems(context.Background(), boom, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
+	items, err := ProcessSourcedItems(context.Background(), boom, "https://example.com/feed", "text/html", strings.NewReader(entryPage))
 	if err != nil {
 		t.Fatalf("a panic while enriching one entry must not fail the feed: %s", err)
 	}
@@ -177,18 +178,21 @@ func TestPanickingEnrichmentKeepsTheItem(t *testing.T) {
 	}
 }
 
-// A permalink that cannot be read leaves the item as the feed gave it.
-func TestUnreachablePermalinkKeepsTheItem(t *testing.T) {
-	fetcher := fakeFetcher(map[string]string{"https://example.com/feed": feedPage}, nil)
+// A feed of titles costs one request: the feed itself. Nothing follows links.
+func TestTitleOnlyFeedMakesNoRequests(t *testing.T) {
+	counts := map[string]int{}
+	fetcher := fakeFetcher(pages(), counts)
 
 	items, err := ProcessSourcedItems(context.Background(), fetcher, "https://example.com/feed", "text/html", strings.NewReader(feedPage))
 	if err != nil {
-		t.Fatalf("an unreachable entry must not fail the feed: %s", err)
+		t.Fatalf("a title-only feed must not fail: %s", err)
 	}
 	if len(items) != 1 {
 		t.Fatalf("got %d items, want 1", len(items))
 	}
-	if items[0].Name == "" {
-		t.Errorf("the feed's title was lost")
+	for url, n := range counts {
+		if n != 0 {
+			t.Errorf("%s was fetched %d times, want none", url, n)
+		}
 	}
 }

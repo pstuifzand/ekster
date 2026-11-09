@@ -757,7 +757,7 @@ func ProcessSourcedItems(ctx context.Context, fetcher fetch.Fetcher, fetchURL, c
 	// own markup to supply, so go and read it before the item is stored.
 	resolver := newCardResolver(fetcher)
 	for i, item := range items {
-		item = enrichItem(ctx, fetcher, resolver, item, fetchURL)
+		item = enrichItem(ctx, fetcher, resolver, item)
 		item.Read = false
 		item.Source = source
 		items[i] = item
