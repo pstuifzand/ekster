@@ -129,9 +129,15 @@ func (c *Client) microsubPostFormRequest(ctx context.Context, action string, arg
 		return nil, err
 	}
 
+	// Without this header the server's ParseForm leaves the body unread, so every
+	// entry[] quietly disappears and mark_read succeeds while marking nothing.
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
 
 	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
 
 	if res.StatusCode != 200 {
 		msg, _ := ioutil.ReadAll(res.Body)
