@@ -5,6 +5,29 @@ import (
 	"time"
 )
 
+func TestItemCursor(t *testing.T) {
+	for _, test := range []struct {
+		cursor    string
+		wantID    int
+		wantIDSet bool
+	}{
+		{cursor: "2026-11-06T16:38:41Z|42", wantID: 42, wantIDSet: true},
+		{cursor: "2026-11-06T16:38:41Z", wantIDSet: false},
+	} {
+		gotTime, gotID, gotIDSet, err := parseItemCursor(test.cursor)
+		if err != nil {
+			t.Fatalf("parseItemCursor(%q): %v", test.cursor, err)
+		}
+		if gotTime.IsZero() || gotID != test.wantID || gotIDSet != test.wantIDSet {
+			t.Errorf("parseItemCursor(%q) = (%v, %d, %t), want ID %d set=%t", test.cursor, gotTime, gotID, gotIDSet, test.wantID, test.wantIDSet)
+		}
+	}
+
+	if _, _, _, err := parseItemCursor("not-a-time|x"); err == nil {
+		t.Fatal("invalid cursor should fail")
+	}
+}
+
 func TestParsePublished(t *testing.T) {
 	// What microformats h-entries actually carry. The second form is the one
 	// that rejected every item of ramblinggit.com and svenknebel.de for years.

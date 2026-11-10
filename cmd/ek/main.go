@@ -134,8 +134,6 @@ func loadEndpoints(c *client.Client, me *url.URL, filename string) error {
 }
 
 func main() {
-	flag.Parse()
-
 	flag.Usage = func() {
 		fmt.Print(`Ek is a tool for managing Microsub servers.
 
@@ -153,6 +151,7 @@ Commands:
 	channels -delete UID         delete channel with UID
 
 	timeline UID                 show posts for channel UID
+	mark-read UID                mark all posts in channel UID as read
 	timeline UID -after AFTER    show posts for channel UID starting from AFTER
 	timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
 
@@ -177,6 +176,8 @@ Global arguments:
 `)
 		flag.PrintDefaults()
 	}
+
+	flag.Parse()
 
 	configDir := fmt.Sprintf("%s/.config/microsub", os.Getenv("HOME"))
 
@@ -302,6 +303,44 @@ func performCommands(sub microsub.Microsub, commands []string) {
 			}
 			fmt.Printf("Channel updated %s %s\n", channel.Name, channel.UID)
 		}
+	}
+
+	if len(commands) == 2 && commands[0] == "mark-read" {
+		channel, err := channelID(ctx, sub, commands[1])
+		if err != nil {
+			log.Fatalf("An error occurred: %s\n", err)
+		}
+
+		marked := 0
+		cursor := ""
+		for {
+			timeline, err := sub.TimelineGet(ctx, "", cursor, channel)
+			if err != nil {
+				log.Fatalf("An error occurred: %s\n", err)
+			}
+
+			var ids []string
+			for _, item := range timeline.Items {
+				if item.ID != "" {
+					ids = append(ids, item.ID)
+				}
+			}
+			if len(ids) > 0 {
+				if err := sub.MarkRead(ctx, channel, ids); err != nil {
+					log.Fatalf("An error occurred: %s\n", err)
+				}
+				marked += len(ids)
+			}
+
+			if timeline.Paging.After == "" {
+				break
+			}
+			if timeline.Paging.After == cursor {
+				log.Fatalf("Timeline paging did not advance at %s", cursor)
+			}
+			cursor = timeline.Paging.After
+		}
+		fmt.Printf("Marked %d entries as read in channel %s\n", marked, channel)
 	}
 
 	if len(commands) >= 2 && commands[0] == "timeline" {
