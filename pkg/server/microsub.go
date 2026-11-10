@@ -273,7 +273,11 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 				} else {
+					// A client that drops its body (no Content-Type, say) used to get 200
+					// here and report success; the entries stayed unread with no way to tell.
 					log.Println("No uids specified for mark read")
+					http.Error(w, "mark_read requires at least one entry", http.StatusBadRequest)
+					return
 				}
 			} else {
 				http.Error(w, fmt.Sprintf("unknown method in timeline %s\n", method), http.StatusInternalServerError)

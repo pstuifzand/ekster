@@ -178,6 +178,26 @@ func TestServer_MarkRead(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// A mark_read with no entries is a client bug, not a success: answering 200 is how
+// ./ek mark-read printed "Marked 7454 entries" while marking nothing.
+func TestServer_MarkReadWithoutEntriesIsRejected(t *testing.T) {
+	server, c := createServerClient()
+	defer server.Close()
+
+	u := c.MicrosubEndpoint
+	q := u.Query()
+	q.Add("action", "timeline")
+	q.Add("method", "mark_read")
+	q.Add("channel", "0001")
+	u.RawQuery = q.Encode()
+
+	resp, err := http.Post(u.String(), "application/x-www-form-urlencoded", nil)
+	if assert.NoError(t, err) {
+		defer resp.Body.Close()
+		assert.Equal(t, 400, resp.StatusCode)
+	}
+}
+
 func TestServer_GetUnknownAction(t *testing.T) {
 	server, c := createServerClient()
 	defer server.Close()
