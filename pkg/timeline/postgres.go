@@ -63,10 +63,12 @@ func (p *postgresStream) Init() error {
 	return nil
 }
 
-// Items
+// Items returns a page ordered by publication time, with the database ID as a
+// stable tie-breaker. Cursors include both values so equal publication times
+// cannot cause entries to be skipped between pages. Timestamp-only cursors are
+// still accepted for compatibility with clients holding older cursors.
 func (p *postgresStream) Items(before, after string) (microsub.Timeline, error) {
-	ctx := context.Background()
-	conn, err := p.database.Conn(ctx)
+	conn, err := p.database.Conn(context.Background())
 	if err != nil {
 		return microsub.Timeline{}, err
 	}
@@ -80,22 +82,31 @@ SELECT "id", "uid", "data", "created_at", "is_read", "published_at"
 FROM "items"
 WHERE "channel_id" = $1
 `)
-	if before != "" {
-		b, err := time.Parse(time.RFC3339, before)
+	cursor := before
+	if cursor == "" {
+		cursor = after
+	}
+	if cursor != "" {
+		publishedAt, id, hasID, err := parseItemCursor(cursor)
 		if err != nil {
-			log.Println(err)
-		} else {
-			args = append(args, b)
-			qb.WriteString(` AND "published_at" > $2`)
+			return microsub.Timeline{}, err
 		}
-	} else if after != "" {
-		b, err := time.Parse(time.RFC3339, after)
-		if err == nil {
-			args = append(args, b)
+		args = append(args, publishedAt)
+		if before != "" {
+			if hasID {
+				args = append(args, id)
+				qb.WriteString(` AND ("published_at" > $2 OR ("published_at" = $2 AND "id" > $3))`)
+			} else {
+				qb.WriteString(` AND "published_at" > $2`)
+			}
+		} else if hasID {
+			args = append(args, id)
+			qb.WriteString(` AND ("published_at" < $2 OR ("published_at" = $2 AND "id" < $3))`)
+		} else {
 			qb.WriteString(` AND "published_at" < $2`)
 		}
 	}
-	qb.WriteString(` ORDER BY "published_at" DESC LIMIT 20`)
+	qb.WriteString(` ORDER BY "published_at" DESC, "id" DESC LIMIT 20`)
 
 	rows, err := conn.QueryContext(context.Background(), qb.String(), args...)
 	if err != nil {
@@ -103,80 +114,131 @@ WHERE "channel_id" = $1
 	}
 
 	var tl microsub.Timeline
-
-	var first, last string
-
+	var firstCursor, lastCursor string
 	for rows.Next() {
 		var id int
 		var uid string
 		var item microsub.Item
 		var createdAt time.Time
 		var isRead int
-		var publishedAt string
-
-		err = rows.Scan(&id, &uid, &item, &createdAt, &isRead, &publishedAt)
-		if err != nil {
-			break
+		var publishedAt time.Time
+		if err := rows.Scan(&id, &uid, &item, &createdAt, &isRead, &publishedAt); err != nil {
+			_ = rows.Close()
+			return tl, err
 		}
-		if first == "" {
-			first = publishedAt
-		}
-		last = publishedAt
-
 		item.Read = isRead == 1
 		item.ID = uid
-		item.Published = publishedAt
-
+		// Postgres prints a timestamptz as "2006-01-02 15:04:05+00", which is neither
+		// what clients parse nor what parseItemCursor accepts: canonical RFC3339 goes
+		// into both the item and the cursor, which is what makes the cursor round trip.
+		stamp := publishedAt.UTC().Format(time.RFC3339)
+		item.Published = stamp
 		tl.Items = append(tl.Items, item)
+		itemCursor := makeItemCursor(stamp, id)
+		if firstCursor == "" {
+			firstCursor = itemCursor
+		}
+		lastCursor = itemCursor
 	}
-	if closeErr := rows.Close(); closeErr != nil {
+	if err := rows.Close(); err != nil {
 		return tl, err
 	}
-	if err != nil {
-		return tl, err
-	}
-	if err = rows.Err(); err != nil {
+	if err := rows.Err(); err != nil {
 		return tl, err
 	}
 
-	if len(tl.Items) > 0 && p.hasMoreBefore(conn, tl.Items[0].Published) {
-		tl.Paging.Before = tl.Items[0].Published
+	if firstCursor != "" && p.hasMoreBefore(conn, firstCursor) {
+		tl.Paging.Before = firstCursor
 	}
-	if p.hasMoreAfter(conn, last) {
-		tl.Paging.After = last
+	if lastCursor != "" && p.hasMoreAfter(conn, lastCursor) {
+		tl.Paging.After = lastCursor
 	}
-
 	if tl.Items == nil {
 		tl.Items = []microsub.Item{}
 	}
-
 	return tl, nil
 }
 
-// hasMoreBefore reports whether the channel has items older than the first item
-// on the page. The channel is part of the WHERE: counting the whole table made
-// the answer depend on other channels, and made every page pay for a full scan.
-func (p *postgresStream) hasMoreBefore(conn *sql.Conn, before string) bool {
-	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "channel_id" = $1 AND "published_at" > $2 LIMIT 1`, p.channelID, before)
-	var count int
-	if err := row.Scan(&count); err == sql.ErrNoRows {
-		return false
-	}
-	return count > 0
+func makeItemCursor(publishedAt string, id int) string {
+	return fmt.Sprintf("%s|%d", publishedAt, id)
 }
 
-// hasMoreAfter reports whether the channel has items newer than the last item
-// on the page, scoped to the channel for the same reason as hasMoreBefore.
-func (p *postgresStream) hasMoreAfter(conn *sql.Conn, after string) bool {
-	if after == "" {
+func parseItemCursor(cursor string) (time.Time, int, bool, error) {
+	publishedAt := cursor
+	var id int
+	hasID := false
+	if separator := strings.LastIndexByte(cursor, '|'); separator >= 0 {
+		publishedAt = cursor[:separator]
+		parsedID, err := strconv.Atoi(cursor[separator+1:])
+		if err != nil {
+			return time.Time{}, 0, false, fmt.Errorf("invalid timeline cursor %q: %w", cursor, err)
+		}
+		id, hasID = parsedID, true
+	}
+	parsedTime, err := parseCursorTime(publishedAt)
+	if err != nil {
+		return time.Time{}, 0, false, fmt.Errorf("invalid timeline cursor %q: %w", cursor, err)
+	}
+	return parsedTime, id, hasID, nil
+}
+
+// cursorTimeLayouts is RFC3339 first, then the shapes a cursor can arrive in from an
+// older client or an older server that passed the Postgres text through verbatim.
+var cursorTimeLayouts = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02 15:04:05.999999999-07",
+	"2006-01-02 15:04:05-07",
+	"2006-01-02 15:04:05-07:00",
+	"2006-01-02 15:04:05",
+}
+
+func parseCursorTime(value string) (time.Time, error) {
+	var lastErr error
+	for _, layout := range cursorTimeLayouts {
+		parsed, err := time.Parse(layout, value)
+		if err == nil {
+			return parsed, nil
+		}
+		lastErr = err
+	}
+	return time.Time{}, lastErr
+}
+
+func (p *postgresStream) hasMoreBefore(conn *sql.Conn, cursor string) bool {
+	publishedAt, id, hasID, err := parseItemCursor(cursor)
+	if err != nil {
 		return false
 	}
-	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM "items" WHERE "channel_id" = $1 AND "published_at" < $2`, p.channelID, after)
-	var count int
-	if err := row.Scan(&count); err == sql.ErrNoRows {
+	query := `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND "published_at" > $2)`
+	args := []interface{}{p.channelID, publishedAt}
+	if hasID {
+		query = `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND ("published_at" > $2 OR ("published_at" = $2 AND "id" > $3)))`
+		args = append(args, id)
+	}
+	var exists bool
+	if err := conn.QueryRowContext(context.Background(), query, args...).Scan(&exists); err != nil {
 		return false
 	}
-	return count > 0
+	return exists
+}
+
+func (p *postgresStream) hasMoreAfter(conn *sql.Conn, cursor string) bool {
+	publishedAt, id, hasID, err := parseItemCursor(cursor)
+	if err != nil {
+		return false
+	}
+	query := `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND "published_at" < $2)`
+	args := []interface{}{p.channelID, publishedAt}
+	if hasID {
+		query = `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND ("published_at" < $2 OR ("published_at" = $2 AND "id" < $3)))`
+		args = append(args, id)
+	}
+	var exists bool
+	if err := conn.QueryRowContext(context.Background(), query, args...).Scan(&exists); err != nil {
+		return false
+	}
+	return exists
 }
 
 // Count
@@ -306,7 +368,7 @@ func (p *postgresStream) ItemsByUID(uids []string) ([]microsub.Item, error) {
 		var item microsub.Item
 		var createdAt time.Time
 		var isRead int
-		var publishedAt string
+		var publishedAt time.Time
 
 		row := p.database.QueryRow(`
 			SELECT  "data", "created_at", "is_read", "published_at"
@@ -324,7 +386,8 @@ func (p *postgresStream) ItemsByUID(uids []string) ([]microsub.Item, error) {
 
 		item.Read = isRead == 1
 		item.ID = uid
-		item.Published = publishedAt
+		// Same canonical form as Items(): clients parse RFC3339, not the Postgres text.
+		item.Published = publishedAt.UTC().Format(time.RFC3339)
 		items = append(items, item)
 	}
 
