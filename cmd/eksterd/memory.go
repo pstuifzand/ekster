@@ -805,13 +805,38 @@ func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (
 		return microsub.Feed{}, err
 	}
 
+	// A feed URL can only be followed once: "feeds"."url" is unique. Following a
+	// URL that is already in this channel is a no-op, not a failure — the reader
+	// (or any client) may re-submit a URL it already follows, and the unique
+	// constraint used to answer 500 with a raw driver error.
+	var existingChannelID int
+	err = b.database.QueryRow(`SELECT "channel_id" FROM "feeds" WHERE "url" = $1`, url).Scan(&existingChannelID)
+	if err == nil {
+		if existingChannelID != channelID {
+			return subFeed, fmt.Errorf("%w: %s", microsub.ErrFeedAlreadyFollowed, url)
+		}
+		return subFeed, nil
+	} else if err != sql.ErrNoRows {
+		return subFeed, err
+	}
+
 	var feedID int
 	err = b.database.QueryRow(
-		`INSERT INTO "feeds" ("channel_id", "url", "tier", "unmodified", "next_fetch_at") VALUES ($1, $2, 1, 0, now()) RETURNING "id"`,
+		`INSERT INTO "feeds" ("channel_id", "url", "tier", "unmodified", "next_fetch_at") VALUES ($1, $2, 1, 0, now()) ON CONFLICT ("url") DO NOTHING RETURNING "id"`,
 		channelID,
 		subFeed.URL,
 	).Scan(&feedID)
-	if err != nil {
+	if err == sql.ErrNoRows {
+		// Lost a race with a concurrent follow of the same URL. Report it the same
+		// way the pre-check does instead of failing on a constraint violation.
+		var racedChannelID int
+		if e := b.database.QueryRow(`SELECT "channel_id" FROM "feeds" WHERE "url" = $1`, url).Scan(&racedChannelID); e != nil {
+			return subFeed, e
+		} else if racedChannelID != channelID {
+			return subFeed, fmt.Errorf("%w: %s", microsub.ErrFeedAlreadyFollowed, url)
+		}
+		return subFeed, nil
+	} else if err != nil {
 		return subFeed, err
 	}
 

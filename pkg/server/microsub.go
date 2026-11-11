@@ -24,6 +24,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -195,6 +196,10 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// h.HubIncomingBackend.CreateFeed(url, uid)
 			feed, err := h.backend.FollowURL(r.Context(), uid, url)
 			if err != nil {
+				if errors.Is(err, microsub.ErrFeedAlreadyFollowed) {
+					http.Error(w, err.Error(), http.StatusConflict)
+					return
+				}
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}

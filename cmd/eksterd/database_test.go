@@ -116,7 +116,12 @@ func TestDatabaseSuite(t *testing.T) {
 	}
 
 	databaseURL = "postgres://postgres@database/ekster_testing?sslmode=disable&user=postgres&password=simple"
-	err := runMigrations(databaseURL)
+	db, err := sql.Open("postgres", databaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+	err = runMigrations(db)
 	if err != nil {
 		log.Fatal(err)
 	}
