@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Use the fetched HTML page's title and URL as the fallback feed author when no author card is available.
+
 ## [0.10.0] - 2026-11-11
 
 ### Added

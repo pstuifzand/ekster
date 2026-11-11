@@ -46,6 +46,38 @@ import (
 	"willnorris.com/go/microformats"
 )
 
+// htmlPageTitle returns the text content of an HTML document's title element.
+func htmlPageTitle(page []byte) string {
+	doc, err := html.Parse(bytes.NewReader(page))
+	if err != nil {
+		return ""
+	}
+	var findTitle func(*html.Node) string
+	findTitle = func(n *html.Node) string {
+		if n.Type == html.ElementNode && n.Data == "title" {
+			var title strings.Builder
+			var collect func(*html.Node)
+			collect = func(node *html.Node) {
+				if node.Type == html.TextNode {
+					title.WriteString(node.Data)
+				}
+				for child := node.FirstChild; child != nil; child = child.NextSibling {
+					collect(child)
+				}
+			}
+			collect(n)
+			return strings.TrimSpace(title.String())
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			if title := findTitle(child); title != "" {
+				return title
+			}
+		}
+		return ""
+	}
+	return findTitle(doc)
+}
+
 // FeedHeader returns a new microsub.Feed with the information parsed from body.
 func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType string, body io.Reader) (feed microsub.Feed, err error) {
 	ctx, span := observability.Span(ctx, "feed.parse.header",
@@ -66,30 +98,41 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 	u, _ := url.Parse(fetchURL)
 
 	if strings.HasPrefix(contentType, "text/html") {
-		data := microformats.Parse(body, u)
+		page, err := ioutil.ReadAll(body)
+		if err != nil {
+			return feed, fmt.Errorf("could not read HTML page: %w", err)
+		}
+		data := microformats.Parse(bytes.NewReader(page), u)
 		author, ok := jf2.SimplifyMicroformatDataAuthor(data)
-		if !ok {
-			if strings.HasPrefix(author.URL, "http") {
-				resp, err := fetcher.FetchWithContext(ctx, author.URL)
-				if err != nil {
-					return feed, err
-				}
+		if !ok && author.URL != "" {
+			resp, err := fetcher.FetchWithContext(ctx, author.URL)
+			if err == nil {
 				defer resp.Body.Close()
-				u, _ := url.Parse(author.URL)
-
-				md := microformats.Parse(resp.Body, u)
-
-				author, ok = jf2.SimplifyMicroformatDataAuthor(md)
-				if !ok {
-					log.Println("Could not simplify the author")
+				authorURL, _ := url.Parse(author.URL)
+				md := microformats.Parse(resp.Body, authorURL)
+				if resolved, found := jf2.SimplifyMicroformatDataAuthor(md); found {
+					author, ok = resolved, true
 				}
+			} else {
+				log.Printf("Could not fetch author page %s: %v", author.URL, err)
 			}
+		}
+
+		if !ok || author.Name == "" {
+			if title := htmlPageTitle(page); title != "" {
+				author.Name = title
+			}
+			if author.URL == "" {
+				author.URL = fetchURL
+			}
+			author.Type = "card"
 		}
 
 		feed.Type = "feed"
 		feed.URL = fetchURL
 		feed.Name = author.Name
 		feed.Photo = author.Photo
+		feed.Author = author
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
 		jfeed, err := jsonfeed.Parse(body)
 		if err != nil {

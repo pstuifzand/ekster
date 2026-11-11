@@ -32,6 +32,16 @@ func fetcher(ctx context.Context, fetchURL string) (*http.Response, error) {
 	return nil, nil
 }
 
+func TestFeedHeaderUsesPageTitleAsAuthorFallback(t *testing.T) {
+	doc := `<html><head><title>Brad Enslen</title></head><body></body></html>`
+	feed, err := FeedHeader(context.Background(), FetcherFunc(fetcher), "https://ramblinggit.com/", "text/html", strings.NewReader(doc))
+	if assert.NoError(t, err) {
+		assert.Equal(t, "Brad Enslen", feed.Author.Name)
+		assert.Equal(t, "https://ramblinggit.com/", feed.Author.URL)
+		assert.Equal(t, "card", feed.Author.Type)
+	}
+}
+
 func TestFeedHeader(t *testing.T) {
 	doc := `
 <html>
