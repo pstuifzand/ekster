@@ -10,7 +10,7 @@ on:
     - cron: '24 18 * * *'
   push:
     branches: [ "dev" ]
-    # Publish semver tags as releases.
+    # Publish semver-tagged images to GHCR.
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "dev" ]

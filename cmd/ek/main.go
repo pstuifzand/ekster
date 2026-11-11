@@ -35,10 +35,8 @@ import (
 	"github.com/pstuifzand/ekster/pkg/microsub"
 )
 
-const (
-	// Version is the version of the command
-	Version = "0.10.0"
-)
+// Version is overridden from the release tag when building release binaries.
+var Version = "0.10.0"
 
 var (
 	verbose = flag.Bool("verbose", false, "show verbose logging")
