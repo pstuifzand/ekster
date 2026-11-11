@@ -78,6 +78,7 @@ type itemPage struct {
 	ChannelUID  string
 	ChannelName string
 	SourceName  string
+	AuthorName  string
 }
 
 func (h *itemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -121,6 +122,9 @@ func (h *itemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if stored.Item.Source != nil {
 		page.SourceName = stored.Item.Source.Name
+	}
+	if stored.Item.Author != nil && stored.Item.Author.Name != "" && stored.Item.Author.Name != page.SourceName {
+		page.AuthorName = stored.Item.Author.Name
 	}
 
 	if err := renderPage(w, "item.html", page); err != nil {

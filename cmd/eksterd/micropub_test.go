@@ -113,3 +113,16 @@ func TestParseFormItemHTMLContent(t *testing.T) {
 func TestUIDFromItemURLRejectsForeignPaths(t *testing.T) {
 	assert.Equal(t, "", uidFromItemURL("https://microsub.example/micropub?url=x"))
 }
+
+func TestMicropubTargetAuthor(t *testing.T) {
+	named := micropubTarget{SourceID: 7, SourceName: "Readwise"}
+	require.NotNil(t, named.itemAuthor())
+	assert.Equal(t, "Readwise", named.itemAuthor().Name)
+
+	unnamed := micropubTarget{SourceID: 7}
+	require.NotNil(t, unnamed.itemAuthor())
+	assert.Equal(t, "Source 7", unnamed.itemAuthor().Name)
+
+	indieauth := micropubTarget{Channel: "home"}
+	assert.Nil(t, indieauth.itemAuthor(), "an IndieAuth token has no source row to attribute")
+}

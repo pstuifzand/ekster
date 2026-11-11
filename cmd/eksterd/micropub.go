@@ -107,6 +107,13 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	item.URL = itemURL(h.BaseURL, newID)
 	item.Source = target.itemSource()
 
+	// An author the client sent wins; otherwise the source is the author.
+	if item.Author == nil || (item.Author.Name == "" && item.Author.URL == "") {
+		if author := target.itemAuthor(); author != nil {
+			item.Author = author
+		}
+	}
+
 	log.Printf("Item published: %s (%s)", item.Published, item.URL)
 
 	_, err = h.Backend.channelAddItemWithMatcher(target.Channel, *item)
@@ -342,6 +349,16 @@ func (t micropubTarget) itemSource() *microsub.Source {
 		ID:   fmt.Sprintf("micropub:%d", t.SourceID),
 		Name: name,
 	}
+}
+
+// itemAuthor attributes the post to the source that sent it, so a reader shows
+// where an item came from instead of an anonymous entry. An IndieAuth token is
+// the user's own, and its posts are not attributed to a source row.
+func (t micropubTarget) itemAuthor() *microsub.Card {
+	if t.SourceID == 0 {
+		return nil
+	}
+	return &microsub.Card{Name: t.itemSource().Name}
 }
 
 // resolveTarget finds the channel a request may post to. Micropub requires the

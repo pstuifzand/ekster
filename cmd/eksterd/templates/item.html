@@ -24,6 +24,7 @@
             <p class="content is-small has-text-grey">
                 <a href="/settings/channel?uid={{ .ChannelUID }}">{{ .ChannelName }}</a>
                 {{ if .SourceName }} · via {{ .SourceName }}{{ end }}
+                {{ if .AuthorName }} · by {{ .AuthorName }}{{ end }}
                 {{ if .Item.Published }} · {{ .Item.Published }}{{ end }}
             </p>
 
