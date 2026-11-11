@@ -589,6 +589,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "ERROR: %s\n", err)
 			}
 			return
+		} else if r.URL.Path == "/settings/sources" {
+			h.handleSourcesPage(w, r, conn)
+			return
 		} else if r.URL.Path == "/auth" {
 			// check if we are logged in
 			// TODO: if not logged in, make sure we get back here
@@ -872,6 +875,12 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			http.Redirect(w, r, "/settings", http.StatusFound)
+			return
+		} else if r.URL.Path == "/settings/sources" {
+			h.handleSourceCreate(w, r, conn)
+			return
+		} else if r.URL.Path == "/settings/sources/delete" {
+			h.handleSourceDelete(w, r, conn)
 			return
 		} else if r.URL.Path == "/refresh" {
 			h.Backend.RefreshFeeds()

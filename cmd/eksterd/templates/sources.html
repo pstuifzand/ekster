@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ekster</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.1/css/bulma.min.css">
+</head>
+<body>
+    <section class="section">
+        <div class="container">
+            <nav class="navbar" role="navigation" aria-label="main navigation">
+                <div class="navbar-brand">
+                    <a class="navbar-item" href="/">
+                        Ekster
+                    </a>
+
+                    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="menu">
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                    </a>
+                </div>
+
+                {{ if .Session.LoggedIn }}
+                    <div id="menu" class="navbar-menu">
+                        <a class="navbar-item" href="/settings">
+                            Settings
+                        </a>
+                        <a class="navbar-item" href="/logs">
+                            Logs
+                        </a>
+                        <a class="navbar-item" href="{{ .Session.Me }}">
+                            Profile
+                        </a>
+                    </div>
+                {{ end }}
+            </nav>
+
+            <h1 class="title">Ekster - Microsub server</h1>
+
+            <h2 class="subtitle">Micropub sources</h2>
+
+            <p class="content is-small">
+                A source is a token that lets a service outside Ekster post items into one
+                channel. Each source has its own endpoint, so revoking one does not disturb
+                the others. Post <code>application/x-www-form-urlencoded</code> with a
+                <code>content</code> field, or send JF2 JSON with
+                <code>Content-Type: application/jf2+json</code>.
+            </p>
+
+            {{ if .Error }}
+                <div class="notification is-danger is-light">{{ .Error }}</div>
+            {{ end }}
+
+            {{ if .Created }}
+                <div class="notification is-success is-light">
+                    Source created. Copy its endpoint into the service that posts to it.
+                </div>
+            {{ end }}
+
+            <table class="table is-fullwidth is-narrow is-hoverable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Channel</th>
+                        <th>Endpoint</th>
+                        <th>Created (UTC)</th>
+                        <th>Last used (UTC)</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {{ range .Sources }}
+                    <tr{{ if eq .ID $.Created }} class="has-background-success-light"{{ end }}>
+                        <td>{{ .Name }}</td>
+                        <td>
+                            <a href="/settings/channel?uid={{ .ChannelUID }}">{{ .ChannelName }}</a>
+                        </td>
+                        <td>
+                            <div class="field has-addons">
+                                <div class="control is-expanded">
+                                    <input class="input is-small" type="text" readonly
+                                           value="{{ .Endpoint }}" onclick="this.select()">
+                                </div>
+                                <div class="control">
+                                    <button class="button is-small" type="button"
+                                            onclick="copyEndpoint(this)">Copy</button>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="is-size-7">{{ .Created }}</td>
+                        <td class="is-size-7">
+                            {{ if .Used }}{{ .LastUsed }}{{ else }}<span class="has-text-grey">never</span>{{ end }}
+                        </td>
+                        <td>
+                            <form method="post" action="/settings/sources/delete"
+                                  onsubmit="return confirm('Delete {{ .Name }}? Any service still posting with its endpoint will be rejected.');">
+                                <input type="hidden" name="id" value="{{ .ID }}">
+                                <button class="button is-small is-danger is-light" type="submit">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                {{ else }}
+                    <tr>
+                        <td colspan="6">No sources yet. Add one below.</td>
+                    </tr>
+                {{ end }}
+                </tbody>
+            </table>
+
+            <h2 class="subtitle">Add a source</h2>
+
+            {{ if .Channels }}
+            <form method="post" action="/settings/sources">
+                <div class="field is-grouped">
+                    <div class="control is-expanded">
+                        <input class="input" type="text" name="name" maxlength="128"
+                               placeholder="Name, for example Gmail to Ekster">
+                    </div>
+                    <div class="control">
+                        <div class="select">
+                            <select name="uid" required>
+                                {{ range .Channels }}
+                                    <option value="{{ .UID }}">{{ .Name }}</option>
+                                {{ end }}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Create source</button>
+                    </div>
+                </div>
+                <p class="help">The name is only shown here, to tell sources apart.</p>
+            </form>
+            {{ else }}
+                <p class="content is-small">Create a channel first, then add a source to it.</p>
+            {{ end }}
+        </div>
+    </section>
+
+    <script>
+        function copyEndpoint(button) {
+            var input = button.closest('.field').querySelector('input');
+            input.select();
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(input.value);
+            } else {
+                document.execCommand('copy');
+            }
+            button.textContent = 'Copied';
+            setTimeout(function () { button.textContent = 'Copy'; }, 1500);
+        }
+    </script>
+</body>
+</html>

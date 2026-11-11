@@ -64,9 +64,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
-		var channel string
-
-		sourceID, channel, err := getChannelFromAuthorization(r, conn, h.Backend.database)
+		source, err := getTargetFromAuthorization(r, conn, h.Backend.database)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -74,12 +72,11 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// no channel is found
-		if channel == "" {
+		if source.Channel == "" {
 			http.Error(w, "bad request, unknown channel", http.StatusBadRequest)
 			return
 		}
 
-		// TODO: We could try to fill the Source of the Item with something, but what?
 		item, err := parseIncomingItem(r)
 		if err != nil {
 			log.Println(err)
@@ -92,7 +89,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		item.Read = false
-		newID, err := generateItemID(conn, channel)
+		newID, err := generateItemID(conn, source.Channel)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -100,20 +97,19 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		item.ID = newID
 
-		item.Source = &microsub.Source{
-			ID:   fmt.Sprintf("micropub:%d", sourceID),
-			Name: fmt.Sprintf("Source %d", sourceID),
+		item.Source = source.itemSource()
+
+		_, err = h.Backend.channelAddItemWithMatcher(source.Channel, *item)
+		if err != nil {
+			log.Printf("could not add item to channel %s: %v", source.Channel, err)
 		}
 
-		_, err = h.Backend.channelAddItemWithMatcher(channel, *item)
+		err = h.Backend.updateChannelUnreadCount(source.Channel)
 		if err != nil {
-			log.Printf("could not add item to channel %s: %v", channel, err)
+			log.Printf("could not update channel unread content %s: %v", source.Channel, err)
 		}
 
-		err = h.Backend.updateChannelUnreadCount(channel)
-		if err != nil {
-			log.Printf("could not update channel unread content %s: %v", channel, err)
-		}
+		h.Backend.SourceTouch(source.SourceID)
 
 		w.Header().Set("Content-Type", "application/json")
 
@@ -171,23 +167,51 @@ func parseIncomingItem(r *http.Request) (*microsub.Item, error) {
 	return nil, fmt.Errorf("content-type %q is not supported", contentType)
 }
 
-func getChannelFromAuthorization(r *http.Request, conn redis.Conn, database *sql.DB) (int, string, error) {
-	// backward compatible
+// micropubTarget is where an authorized micropub POST lands: a source token
+// names one stored source and its channel; an IndieAuth token names only a
+// channel and has no source row.
+type micropubTarget struct {
+	SourceID   int
+	SourceName string
+	Channel    string
+}
+
+func (t micropubTarget) itemSource() *microsub.Source {
+	if t.SourceID == 0 {
+		return &microsub.Source{ID: "micropub", Name: "Micropub"}
+	}
+
+	name := t.SourceName
+	if name == "" {
+		name = fmt.Sprintf("Source %d", t.SourceID)
+	}
+
+	return &microsub.Source{
+		ID:   fmt.Sprintf("micropub:%d", t.SourceID),
+		Name: name,
+	}
+}
+
+func getTargetFromAuthorization(r *http.Request, conn redis.Conn, database *sql.DB) (micropubTarget, error) {
+	var target micropubTarget
+
+	// backward compatible: the source_id query parameter carries the token, not
+	// the row id. Existing sources are configured that way, so it stays.
 	sourceID := r.URL.Query().Get("source_id")
 	if sourceID != "" {
 		row := database.QueryRow(`
-SELECT s.id as source_id, c.uid
+SELECT s.id as source_id, s.name, c.uid
 FROM "sources" AS "s"
 INNER JOIN "channels" AS "c" ON s.channel_id = c.id
 WHERE "auth_code" = $1
 `, sourceID)
 
-		var channel string
-		var sourceID int
-		if err := row.Scan(&sourceID, &channel); err == sql.ErrNoRows {
-			return 0, "", errors.New("channel not found")
+		if err := row.Scan(&target.SourceID, &target.SourceName, &target.Channel); err == sql.ErrNoRows {
+			return target, errors.New("channel not found")
+		} else if err != nil {
+			return target, err
 		}
-		return sourceID, channel, nil
+		return target, nil
 	}
 
 	// full micropub with indieauth
@@ -196,11 +220,12 @@ WHERE "auth_code" = $1
 		token := authHeader[7:]
 		channel, err := redis.String(conn.Do("HGET", "token:"+token, "channel"))
 		if err != nil {
-			return 0, "", errors.Wrap(err, "could not get channel for token")
+			return target, errors.Wrap(err, "could not get channel for token")
 		}
 
-		return 0, channel, nil
+		target.Channel = channel
+		return target, nil
 	}
 
-	return 0, "", fmt.Errorf("could not get channel from authorization")
+	return target, fmt.Errorf("could not get channel from authorization")
 }

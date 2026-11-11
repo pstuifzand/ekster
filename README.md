@@ -19,6 +19,16 @@ Run `ek mcp` to expose the configured Microsub account to MCP clients over
 stdio. It provides typed, structured, read-only tools for channels, timelines,
 and search. See [docs/mcp.md](docs/mcp.md).
 
+## Micropub sources
+
+Services outside Ekster can post items into a channel through the Micropub
+endpoint. Open `/settings/sources` to create a source per service and channel:
+each source gets its own token and endpoint, so revoking one does not affect the
+others. The page also shows when a source last delivered an item.
+
+Post `application/x-www-form-urlencoded` with a `content` field, or send JF2
+JSON with `Content-Type: application/jf2+json`.
+
 ```shell
 docker-compose up -d
 docker-compose logs -f web
