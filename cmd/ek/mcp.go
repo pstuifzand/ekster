@@ -28,6 +28,42 @@ type searchItemsInput struct {
 	Query   string  `json:"query" jsonschema:"Text to search for in timeline items"`
 	Channel *string `json:"channel,omitempty" jsonschema:"Channel UID to search; defaults to global"`
 }
+type channelNameInput struct {
+	Name string `json:"name" jsonschema:"Channel name"`
+}
+type channelUpdateInput struct {
+	Channel string `json:"channel" jsonschema:"Channel UID"`
+	Name    string `json:"name" jsonschema:"New channel name"`
+}
+type channelInput struct {
+	Channel string `json:"channel" jsonschema:"Channel UID"`
+}
+type followInput struct {
+	Channel string `json:"channel" jsonschema:"Channel UID"`
+	URL     string `json:"url" jsonschema:"Website or feed URL to follow"`
+}
+type previewInput struct {
+	URL string `json:"url" jsonschema:"Website or feed URL to preview"`
+}
+type markReadInput struct {
+	Channel string   `json:"channel" jsonschema:"Channel UID"`
+	Entries []string `json:"entries" jsonschema:"Stable item IDs to mark read"`
+}
+type feedOutput struct {
+	Feed microsub.Feed `json:"feed" jsonschema:"Followed feed"`
+}
+type channelOutput struct {
+	Channel microsub.Channel `json:"channel" jsonschema:"Created or updated channel"`
+}
+type previewOutput struct {
+	Items []itemResult `json:"items" jsonschema:"Preview timeline items"`
+}
+type successOutput struct {
+	Success bool `json:"success" jsonschema:"Whether the operation succeeded"`
+}
+type followsOutput struct {
+	Feeds []microsub.Feed `json:"feeds" jsonschema:"Feeds followed in the channel"`
+}
 type channelResult struct {
 	UID         string `json:"uid" jsonschema:"Channel UID"`
 	Name        string `json:"name" jsonschema:"Channel name"`
@@ -75,6 +111,15 @@ func newMCPServer(c *client.Client) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{Name: "get_timeline", Title: "Get channel timeline", Description: "Fetch one page of items from a Microsub channel. Use returned paging.before or paging.after to fetch adjacent pages.", Annotations: readOnly}, tools.getTimeline)
 	mcp.AddTool(server, &mcp.Tool{Name: "search_feeds", Title: "Search for feeds", Description: "Search the configured Microsub server for feeds matching a query.", Annotations: openSearch}, tools.searchFeeds)
 	mcp.AddTool(server, &mcp.Tool{Name: "search_items", Title: "Search timeline items", Description: "Search items in a Microsub channel; searches the global timeline by default.", Annotations: readOnly}, tools.searchItems)
+	write := &mcp.ToolAnnotations{ReadOnlyHint: false, OpenWorldHint: boolPtr(true)}
+	mcp.AddTool(server, &mcp.Tool{Name: "create_channel", Description: "Create a channel.", Annotations: write}, tools.createChannel)
+	mcp.AddTool(server, &mcp.Tool{Name: "update_channel", Description: "Rename a channel.", Annotations: write}, tools.updateChannel)
+	mcp.AddTool(server, &mcp.Tool{Name: "delete_channel", Description: "Delete a channel and its subscriptions.", Annotations: write}, tools.deleteChannel)
+	mcp.AddTool(server, &mcp.Tool{Name: "list_follows", Description: "List feeds followed in a channel.", Annotations: readOnly}, tools.listFollows)
+	mcp.AddTool(server, &mcp.Tool{Name: "follow_url", Description: "Follow a website or feed URL in a channel.", Annotations: write}, tools.followURL)
+	mcp.AddTool(server, &mcp.Tool{Name: "unfollow_url", Description: "Unfollow a URL in a channel.", Annotations: write}, tools.unfollowURL)
+	mcp.AddTool(server, &mcp.Tool{Name: "preview_url", Description: "Preview a website or feed before following it.", Annotations: openSearch}, tools.previewURL)
+	mcp.AddTool(server, &mcp.Tool{Name: "mark_read", Description: "Mark timeline items as read in a channel.", Annotations: write}, tools.markRead)
 	return server
 }
 
@@ -139,6 +184,39 @@ func (t *mcpTools) searchItems(ctx context.Context, _ *mcp.CallToolRequest, inpu
 		return nil, itemsOutput{}, err
 	}
 	return nil, itemsOutput{Items: mapItems(items)}, nil
+}
+
+func (t *mcpTools) createChannel(ctx context.Context, _ *mcp.CallToolRequest, in channelNameInput) (*mcp.CallToolResult, channelOutput, error) {
+	ch, err := t.microsub.ChannelsCreate(ctx, in.Name)
+	return nil, channelOutput{Channel: ch}, err
+}
+func (t *mcpTools) updateChannel(ctx context.Context, _ *mcp.CallToolRequest, in channelUpdateInput) (*mcp.CallToolResult, channelOutput, error) {
+	ch, err := t.microsub.ChannelsUpdate(ctx, in.Channel, in.Name)
+	return nil, channelOutput{Channel: ch}, err
+}
+func (t *mcpTools) deleteChannel(ctx context.Context, _ *mcp.CallToolRequest, in channelInput) (*mcp.CallToolResult, successOutput, error) {
+	err := t.microsub.ChannelsDelete(ctx, in.Channel)
+	return nil, successOutput{Success: err == nil}, err
+}
+func (t *mcpTools) listFollows(ctx context.Context, _ *mcp.CallToolRequest, in channelInput) (*mcp.CallToolResult, followsOutput, error) {
+	feeds, err := t.microsub.FollowGetList(ctx, in.Channel)
+	return nil, followsOutput{Feeds: feeds}, err
+}
+func (t *mcpTools) followURL(ctx context.Context, _ *mcp.CallToolRequest, in followInput) (*mcp.CallToolResult, feedOutput, error) {
+	feed, err := t.microsub.FollowURL(ctx, in.Channel, in.URL)
+	return nil, feedOutput{Feed: feed}, err
+}
+func (t *mcpTools) unfollowURL(ctx context.Context, _ *mcp.CallToolRequest, in followInput) (*mcp.CallToolResult, successOutput, error) {
+	err := t.microsub.UnfollowURL(ctx, in.Channel, in.URL)
+	return nil, successOutput{Success: err == nil}, err
+}
+func (t *mcpTools) previewURL(ctx context.Context, _ *mcp.CallToolRequest, in previewInput) (*mcp.CallToolResult, previewOutput, error) {
+	timeline, err := t.microsub.PreviewURL(ctx, in.URL)
+	return nil, previewOutput{Items: mapItems(timeline.Items)}, err
+}
+func (t *mcpTools) markRead(ctx context.Context, _ *mcp.CallToolRequest, in markReadInput) (*mcp.CallToolResult, successOutput, error) {
+	err := t.microsub.MarkRead(ctx, in.Channel, in.Entries)
+	return nil, successOutput{Success: err == nil}, err
 }
 
 func mapItems(items []microsub.Item) []itemResult {

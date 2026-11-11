@@ -9,18 +9,15 @@ The command uses the official Go MCP SDK v0.8.0, compatible with this
 repository's Go 1.23 baseline. Tools use inferred, validated JSON input schemas,
 explicit typed output schemas, and structured tool results (`structuredContent`).
 
-## Read-only tools
+## Tools
 
-- `list_channels`: channel UIDs, names, unread counts.
-- `get_timeline`: `channel` plus optional `before`/`after` cursors; returns items
-  and paging cursors.
-- `search_feeds`: search feed sources by query.
-- `search_items`: search timeline items, optionally in a channel; defaults to
-  the global timeline.
+Read tools: `list_channels`, `get_timeline`, `search_feeds`, `search_items`,
+`list_follows`, and `preview_url`.
 
-The read-only status and open-world hints are MCP annotations, not a security
-boundary. The MVP intentionally does not expose follow, channel mutation, or
-mark-read tools.
+Mutation tools: `create_channel`, `update_channel`, `delete_channel`,
+`follow_url`, `unfollow_url`, and `mark_read`. These operate on the configured
+Microsub account; destructive and state-changing operations are annotated as
+non-read-only, but MCP annotations are not a security boundary.
 
 ## Example MCP client configuration
 

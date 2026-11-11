@@ -43,8 +43,8 @@ func TestMCPToolsExposeSchemasAndStructuredResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(listed.Tools) != 4 {
-		t.Fatalf("got %d tools, want 4", len(listed.Tools))
+	if len(listed.Tools) != 12 {
+		t.Fatalf("got %d tools, want 12", len(listed.Tools))
 	}
 	for _, tool := range listed.Tools {
 		if tool.InputSchema == nil {
