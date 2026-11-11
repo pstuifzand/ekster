@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-11
+
+### Added
+
+- Added `ek reader`, an embedded Ekstereye reader with a loopback-only local server and Ek-managed IndieAuth connection.
+- Added `ek mcp`, a stdio MCP server exposing typed, structured, read-only Microsub tools for channels, timelines, and search.
+- Added documentation for the MCP integration and the planned local `ek serve` mode.
+
+### Changed
+
+- Updated Ek CLI version to 0.10.0.
+
 ## [1.0.0-rc.1] - 2021-11-20
 
 ### Added

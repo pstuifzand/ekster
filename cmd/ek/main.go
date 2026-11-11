@@ -37,7 +37,7 @@ import (
 
 const (
 	// Version is the version of the command
-	Version = "0.8.4"
+	Version = "0.10.0"
 )
 
 var (
@@ -144,6 +144,8 @@ Usage:
 Commands:
 
 	connect URL                  login to a website that supports Indieauth and Microsub
+	reader                       open the Ekstereye reader with Ek-managed login
+	mcp                          run a stdio MCP server for the configured Microsub account
 
 	channels                     list channels
 	channels NAME                create channel with NAME
@@ -180,6 +182,13 @@ Global arguments:
 	flag.Parse()
 
 	configDir := fmt.Sprintf("%s/.config/microsub", os.Getenv("HOME"))
+
+	if len(flag.Args()) == 1 && flag.Args()[0] == "reader" {
+		if err := runReader(); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
 	if len(os.Args) == 3 && os.Args[1] == "connect" {
 		err := os.MkdirAll(configDir, os.FileMode(0770))
@@ -234,6 +243,16 @@ Global arguments:
 	}
 
 	c.Logging = *verbose
+
+	if len(flag.Args()) == 1 && flag.Args()[0] == "mcp" {
+		// MCP stdio reserves stdout for protocol frames; do not dump HTTP
+		// requests (which contain the bearer token) even under --verbose.
+		c.Logging = false
+		if err := runMCP(&c); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
 	performCommands(&c, flag.Args())
 }

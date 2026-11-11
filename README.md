@@ -11,6 +11,14 @@ Use the `docker-compose.yml` file to get an idea of how to use Ekster in Docker.
 
 Start the server with database and redis using `docker-compose`.
 
+Ek also includes the Ekstereye reader. Run `ek reader` to open it locally; it
+uses Ek's saved IndieAuth connection and proxies Microsub requests through a
+loopback-only server. If no account is connected, the reader offers sign-in.
+
+Run `ek mcp` to expose the configured Microsub account to MCP clients over
+stdio. It provides typed, structured, read-only tools for channels, timelines,
+and search. See [docs/mcp.md](docs/mcp.md).
+
 ```shell
 docker-compose up -d
 docker-compose logs -f web
