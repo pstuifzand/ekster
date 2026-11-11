@@ -51,15 +51,16 @@ type micropubSource struct {
 
 // sourceView is a source formatted for the sources page.
 type sourceView struct {
-	ID          int
-	Name        string
-	ChannelUID  string
-	ChannelName string
-	Token       string
-	Endpoint    string
-	Created     string
-	LastUsed    string
-	Used        bool
+	ID             int
+	Name           string
+	ChannelUID     string
+	ChannelName    string
+	Token          string
+	Endpoint       string
+	LegacyEndpoint string
+	Created        string
+	LastUsed       string
+	Used           bool
 }
 
 type sourcesPage struct {
@@ -192,8 +193,11 @@ func (h *mainHandler) sourceViews(ctx context.Context, sources []micropubSource)
 			ChannelUID:  s.ChannelUID,
 			ChannelName: s.ChannelName,
 			Token:       s.Token,
-			Endpoint:    fmt.Sprintf("%s/micropub?source_id=%s", baseURL, url.QueryEscape(s.Token)),
-			Created:     s.CreatedAt.UTC().Format("2006-01-02 15:04"),
+			Endpoint:    baseURL + "/micropub",
+			// Sources created before the endpoint learned to read a bearer
+			// token were handed this URL, so it keeps working.
+			LegacyEndpoint: fmt.Sprintf("%s/micropub?source_id=%s", baseURL, url.QueryEscape(s.Token)),
+			Created:        s.CreatedAt.UTC().Format("2006-01-02 15:04"),
 		}
 		if s.LastUsedAt.Valid {
 			view.Used = true

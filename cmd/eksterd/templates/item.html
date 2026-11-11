@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ if .Item.Name }}{{ .Item.Name }}{{ else }}Item{{ end }} - Ekster</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.1/css/bulma.min.css">
+</head>
+<body>
+    <section class="section">
+        <div class="container">
+            <nav class="navbar" role="navigation" aria-label="main navigation">
+                <div class="navbar-brand">
+                    <a class="navbar-item" href="/">
+                        Ekster
+                    </a>
+                </div>
+            </nav>
+
+            <h1 class="title">
+                {{ if .Item.Name }}{{ .Item.Name }}{{ else }}Item{{ end }}
+            </h1>
+
+            <p class="content is-small has-text-grey">
+                <a href="/settings/channel?uid={{ .ChannelUID }}">{{ .ChannelName }}</a>
+                {{ if .SourceName }} · via {{ .SourceName }}{{ end }}
+                {{ if .Item.Published }} · {{ .Item.Published }}{{ end }}
+            </p>
+
+            <div class="content">
+                {{ if .Text }}<p>{{ .Text }}</p>{{ else }}<p class="has-text-grey">No content.</p>{{ end }}
+            </div>
+
+            {{ if .Item.Category }}
+                <div class="tags">
+                    {{ range .Item.Category }}<span class="tag">{{ . }}</span>{{ end }}
+                </div>
+            {{ end }}
+
+            <p class="content is-small has-text-grey">
+                This item is private. It answers only to a signed-in session or a
+                micropub token for its channel.
+            </p>
+        </div>
+    </section>
+</body>
+</html>

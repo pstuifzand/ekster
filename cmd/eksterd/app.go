@@ -77,6 +77,12 @@ func NewApp(options AppOptions) (*App, error) {
 
 	http.Handle("/micropub", observability.Handler("/micropub", &micropubHandler{
 		Backend: app.backend,
+		BaseURL: options.BaseURL,
+		pool:    options.pool,
+	}, nil))
+
+	http.Handle("/i/", observability.Handler("/i/", &itemHandler{
+		Backend: app.backend,
 		pool:    options.pool,
 	}, nil))
 

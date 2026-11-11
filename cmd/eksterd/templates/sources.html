@@ -43,8 +43,10 @@
 
             <p class="content is-small">
                 A source is a token that lets a service outside Ekster post items into one
-                channel. Each source has its own endpoint, so revoking one does not disturb
-                the others. Post <code>application/x-www-form-urlencoded</code> with a
+                channel. Each source has its own token and endpoint, so revoking one does not
+                disturb the others. Send the token as <code>Authorization: Bearer &lt;token&gt;</code>,
+                or as an <code>access_token</code> field when the service cannot set headers.
+                Post <code>application/x-www-form-urlencoded</code> with a
                 <code>content</code> field, or send JF2 JSON with
                 <code>Content-Type: application/jf2+json</code>.
             </p>
@@ -65,6 +67,7 @@
                         <th>Name</th>
                         <th>Channel</th>
                         <th>Endpoint</th>
+                        <th>Token</th>
                         <th>Created (UTC)</th>
                         <th>Last used (UTC)</th>
                         <th></th>
@@ -85,7 +88,32 @@
                                 </div>
                                 <div class="control">
                                     <button class="button is-small" type="button"
-                                            onclick="copyEndpoint(this)">Copy</button>
+                                            onclick="copyField(this)">Copy</button>
+                                </div>
+                            </div>
+                            <details>
+                                <summary class="is-size-7">Legacy endpoint with the token in the URL</summary>
+                                <div class="field has-addons mt-1">
+                                    <div class="control is-expanded">
+                                        <input class="input is-small" type="text" readonly
+                                               value="{{ .LegacyEndpoint }}" onclick="this.select()">
+                                    </div>
+                                    <div class="control">
+                                        <button class="button is-small" type="button"
+                                                onclick="copyField(this)">Copy</button>
+                                    </div>
+                                </div>
+                            </details>
+                        </td>
+                        <td>
+                            <div class="field has-addons">
+                                <div class="control is-expanded">
+                                    <input class="input is-small" type="password" readonly
+                                           value="{{ .Token }}" onclick="this.select()">
+                                </div>
+                                <div class="control">
+                                    <button class="button is-small" type="button"
+                                            onclick="copyField(this)">Copy</button>
                                 </div>
                             </div>
                         </td>
@@ -103,7 +131,7 @@
                     </tr>
                 {{ else }}
                     <tr>
-                        <td colspan="6">No sources yet. Add one below.</td>
+                        <td colspan="7">No sources yet. Add one below.</td>
                     </tr>
                 {{ end }}
                 </tbody>
@@ -140,7 +168,7 @@
     </section>
 
     <script>
-        function copyEndpoint(button) {
+        function copyField(button) {
             var input = button.closest('.field').querySelector('input');
             input.select();
             if (navigator.clipboard) {

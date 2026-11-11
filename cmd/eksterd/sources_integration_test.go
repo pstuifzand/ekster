@@ -92,7 +92,7 @@ func TestSourcesAreScopedToTheirUser(t *testing.T) {
 
 	// The token, not the row id, is what the source_id query parameter carries.
 	request := httptest.NewRequest("POST", "/micropub?source_id="+source.Token, nil)
-	target, err := getTargetFromAuthorization(request, nil, db)
+	target, err := resolveTarget(request, db, nil)
 	if err != nil {
 		t.Fatalf("getTargetFromAuthorization: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestSourcesAreScopedToTheirUser(t *testing.T) {
 
 	// A deleted source must no longer authenticate.
 	request = httptest.NewRequest("POST", "/micropub?source_id="+source.Token, nil)
-	if _, err := getTargetFromAuthorization(request, nil, db); err == nil {
+	if _, err := resolveTarget(request, db, nil); err == nil {
 		t.Fatal("a deleted source still resolves a channel")
 	}
 }

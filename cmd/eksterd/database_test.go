@@ -88,13 +88,13 @@ func (d *databaseSuite) TestGetChannelFromAuthorization() {
 
 	// source_id found
 	r := httptest.NewRequest("POST", "/micropub?source_id=1234", nil)
-	target, err := getTargetFromAuthorization(r, d.Redis, d.Database)
+	target, err := resolveTarget(r, d.Database, nil)
 	assert.NoError(d.T(), err, "channel from source_id")
 	assert.Equal(d.T(), "abcdef", target.Channel, "channel uid found")
 
 	// source_id not found
 	r = httptest.NewRequest("POST", "/micropub?source_id=1111", nil)
-	target, err = getTargetFromAuthorization(r, d.Redis, d.Database)
+	target, err = resolveTarget(r, d.Database, nil)
 	assert.Error(d.T(), err, "channel from authorization header")
 	assert.Equal(d.T(), "", target.Channel, "channel uid found")
 }

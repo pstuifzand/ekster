@@ -23,9 +23,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
-	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -136,19 +134,7 @@ func newMainHandler(backend *memoryBackend, baseURL string, pool *redis.Pool) (*
 }
 
 func (h *mainHandler) renderTemplate(w io.Writer, filename string, data interface{}) error {
-	fsys, err := fs.Sub(templates, "templates")
-	if err != nil {
-		return err
-	}
-	t, err := template.ParseFS(fsys, "base.html", filename)
-	if err != nil {
-		return err
-	}
-	err = t.ExecuteTemplate(w, filename, data)
-	if err != nil {
-		return err
-	}
-	return nil
+	return renderPage(w, filename, data)
 }
 
 func getSessionCookie(w http.ResponseWriter, r *http.Request) string {
