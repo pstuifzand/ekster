@@ -743,6 +743,10 @@ func (b *memoryBackend) addNotification(name string, feed feed, err error) {
 			Name: feed.URL,
 		},
 		Name: name,
+		Author: &microsub.Card{
+			Type: "card",
+			Name: "Ekster",
+		},
 		Content: &microsub.Content{
 			Text: fmt.Sprintf("ERROR: while updating feed: %s", err),
 		},
