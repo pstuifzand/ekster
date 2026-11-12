@@ -252,6 +252,11 @@ func (c *Client) FollowGetList(ctx context.Context, channel string) ([]microsub.
 	if err != nil {
 		return []microsub.Feed{}, nil
 	}
+	if response.Items == nil {
+		// An older server answers {"items": null} for a channel without
+		// follows; callers expect an empty list they can range over.
+		return []microsub.Feed{}, nil
+	}
 	return response.Items, nil
 }
 

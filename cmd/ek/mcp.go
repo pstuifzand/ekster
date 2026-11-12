@@ -200,6 +200,9 @@ func (t *mcpTools) deleteChannel(ctx context.Context, _ *mcp.CallToolRequest, in
 }
 func (t *mcpTools) listFollows(ctx context.Context, _ *mcp.CallToolRequest, in channelInput) (*mcp.CallToolResult, followsOutput, error) {
 	feeds, err := t.microsub.FollowGetList(ctx, in.Channel)
+	if feeds == nil {
+		feeds = []microsub.Feed{}
+	}
 	return nil, followsOutput{Feeds: feeds}, err
 }
 func (t *mcpTools) followURL(ctx context.Context, _ *mcp.CallToolRequest, in followInput) (*mcp.CallToolResult, feedOutput, error) {

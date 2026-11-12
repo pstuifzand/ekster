@@ -87,4 +87,17 @@ VALUES (1, $1, 1, 0, now())`, feedURL); err != nil {
 	if channelID != 1 {
 		t.Fatalf("feed moved to channel_id %d, want 1", channelID)
 	}
+
+	// A channel without follows must answer an empty list, not nil: its JSON is
+	// the follow list an MCP tool validates against an array schema.
+	feeds, err := backend.FollowGetList(ctx, "chan-b")
+	if err != nil {
+		t.Fatalf("FollowGetList: %v", err)
+	}
+	if feeds == nil {
+		t.Fatal("FollowGetList returned nil for an empty channel, want an empty slice")
+	}
+	if len(feeds) != 0 {
+		t.Fatalf("FollowGetList on an empty channel returned %d feeds", len(feeds))
+	}
 }

@@ -782,7 +782,10 @@ func (b *memoryBackend) FollowGetList(ctx context.Context, uid string) ([]micros
 		return nil, err
 	}
 
-	var feeds []microsub.Feed
+	// Start with an empty slice: a channel with no follows must encode as []
+	// in the follow list, not null. A null there fails the MCP tool's output
+	// schema, which requires an array.
+	feeds := []microsub.Feed{}
 	for rows.Next() {
 		var feedURL string
 		err = rows.Scan(&feedURL)
