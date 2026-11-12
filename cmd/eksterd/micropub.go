@@ -60,6 +60,10 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPost:
+		if r.FormValue("action") == "update" {
+			h.handleUpdate(w, r)
+			return
+		}
 		h.handleCreate(w, r)
 	case http.MethodGet:
 		h.handleQuery(w, r)
@@ -137,6 +141,145 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(map[string]string{"url": item.URL}); err != nil {
 		log.Println(err)
 	}
+}
+
+func (h *micropubHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	target, err := resolveTarget(r, h.Backend.database, h.pool)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if target.Channel == "" {
+		http.Error(w, "bad request, unknown channel", http.StatusBadRequest)
+		return
+	}
+
+	uid := uidFromItemURL(r.FormValue("url"))
+	if uid == "" {
+		http.Error(w, "invalid or missing item URL", http.StatusBadRequest)
+		return
+	}
+	stored, err := h.Backend.ItemByUID(r.Context(), uid)
+	if err != nil || stored.ChannelUID != target.Channel {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	updated, err := applyMicropubUpdate(stored.Item, r.Form)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := h.Backend.UpdateMicropubItem(r.Context(), target.Channel, uid, updated); err != nil {
+		log.Printf("could not update micropub item %s: %v", uid, err)
+		http.Error(w, "could not update item", http.StatusInternalServerError)
+		return
+	}
+	h.Backend.SourceTouch(target.SourceID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func applyMicropubUpdate(item microsub.Item, form map[string][]string) (microsub.Item, error) {
+	applyScalar := func(property string, current *string) error {
+		if values, ok := form["replace["+property+"]"]; ok {
+			if len(values) != 1 {
+				return fmt.Errorf("property %q requires one replacement value", property)
+			}
+			*current = values[0]
+		}
+		if _, ok := form["delete["+property+"]"]; ok || contains(form["delete[]"], property) {
+			*current = ""
+		}
+		if _, ok := form["add["+property+"]"]; ok {
+			return fmt.Errorf("property %q does not support add", property)
+		}
+		return nil
+	}
+	applyList := func(property string, current *[]string) {
+		if values, ok := form["replace["+property+"]"]; ok {
+			*current = append([]string(nil), values...)
+		}
+		if values, ok := form["add["+property+"]"]; ok {
+			*current = append(*current, values...)
+		}
+		if values, ok := form["delete["+property+"]"]; ok {
+			remove := make(map[string]bool, len(values))
+			for _, value := range values {
+				remove[value] = true
+			}
+			filtered := (*current)[:0]
+			for _, value := range *current {
+				if !remove[value] {
+					filtered = append(filtered, value)
+				}
+			}
+			*current = filtered
+		}
+		if contains(form["delete[]"], property) {
+			*current = nil
+		}
+	}
+
+	// Micropub's property operations are supported for the properties Ekster
+	// stores as notification/post content. Identity and ownership are immutable.
+	for key := range form {
+		for _, operation := range []string{"replace[", "add[", "delete["} {
+			if strings.HasPrefix(key, operation) && strings.HasSuffix(key, "]") {
+				property := strings.TrimSuffix(strings.TrimPrefix(key, operation), "]")
+				switch property {
+				case "name", "summary", "content", "category", "photo", "like-of", "bookmark-of", "repost-of", "in-reply-to", "mention-of":
+				default:
+					return item, fmt.Errorf("unsupported update property %q", property)
+				}
+			}
+		}
+	}
+	for _, property := range form["delete[]"] {
+		switch property {
+		case "name", "summary", "content", "category", "photo", "like-of", "bookmark-of", "repost-of", "in-reply-to", "mention-of":
+		default:
+			return item, fmt.Errorf("unsupported update property %q", property)
+		}
+	}
+
+	if err := applyScalar("name", &item.Name); err != nil {
+		return item, err
+	}
+	if err := applyScalar("summary", &item.Summary); err != nil {
+		return item, err
+	}
+	if item.Content == nil {
+		item.Content = &microsub.Content{}
+	}
+	if err := applyScalar("content", &item.Content.Text); err != nil {
+		return item, err
+	}
+	if values, ok := form["replace[content]"]; ok && len(values) == 1 {
+		item.Content.HTML = ""
+	}
+	if contains(form["delete[]"], "content") || form["delete[content]"] != nil {
+		item.Content = nil
+	}
+	if item.Content != nil && item.Content.Text == "" && item.Content.HTML == "" {
+		item.Content = nil
+	}
+	applyList("category", &item.Category)
+	applyList("photo", &item.Photo)
+	applyList("like-of", &item.LikeOf)
+	applyList("bookmark-of", &item.BookmarkOf)
+	applyList("repost-of", &item.RepostOf)
+	applyList("in-reply-to", &item.InReplyTo)
+	applyList("mention-of", &item.MentionOf)
+	return item, nil
+}
+
+func contains(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *micropubHandler) handleQuery(w http.ResponseWriter, r *http.Request) {

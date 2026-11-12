@@ -44,6 +44,30 @@ type storedItem struct {
 
 // ItemByUID looks an item up by its public uid, which is the last segment of
 // its permalink.
+func (b *memoryBackend) UpdateMicropubItem(ctx context.Context, channel, uid string, item microsub.Item) error {
+	data, err := json.Marshal(item)
+	if err != nil {
+		return err
+	}
+	result, err := b.database.ExecContext(ctx, `
+UPDATE "items" AS i
+SET "data" = $1
+FROM "channels" AS c
+WHERE i."channel_id" = c."id" AND c."uid" = $2 AND i."uid" = $3
+`, string(data), channel, uid)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("item %q not found in channel %q", uid, channel)
+	}
+	return nil
+}
+
 func (b *memoryBackend) ItemByUID(ctx context.Context, uid string) (storedItem, error) {
 	var si storedItem
 	var raw []byte

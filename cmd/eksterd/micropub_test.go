@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pstuifzand/ekster/pkg/microsub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -112,6 +113,35 @@ func TestParseFormItemHTMLContent(t *testing.T) {
 
 func TestUIDFromItemURLRejectsForeignPaths(t *testing.T) {
 	assert.Equal(t, "", uidFromItemURL("https://microsub.example/micropub?url=x"))
+}
+
+func TestApplyMicropubUpdate(t *testing.T) {
+	item := microsub.Item{
+		Type: "entry", ID: "stable-id", URL: "https://ekster.example/i/stable-id",
+		Name: "Old", Category: []string{"one", "two"},
+		Content: &microsub.Content{Text: "old body"},
+	}
+	form := url.Values{}
+	form.Set("replace[name]", "New")
+	form.Add("add[category]", "three")
+	form.Add("delete[category]", "one")
+	form.Set("replace[content]", "new body")
+
+	updated, err := applyMicropubUpdate(item, form)
+	require.NoError(t, err)
+	assert.Equal(t, "stable-id", updated.ID)
+	assert.Equal(t, item.URL, updated.URL)
+	assert.Equal(t, "New", updated.Name)
+	assert.Equal(t, []string{"two", "three"}, updated.Category)
+	require.NotNil(t, updated.Content)
+	assert.Equal(t, "new body", updated.Content.Text)
+}
+
+func TestApplyMicropubUpdateRejectsUnsupportedAndScalarAdd(t *testing.T) {
+	_, err := applyMicropubUpdate(microsub.Item{}, url.Values{"replace[uid]": {"other"}})
+	require.Error(t, err)
+	_, err = applyMicropubUpdate(microsub.Item{}, url.Values{"add[name]": {"extra"}})
+	require.Error(t, err)
 }
 
 func TestMicropubTargetAuthor(t *testing.T) {
