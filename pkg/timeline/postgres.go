@@ -362,7 +362,10 @@ func (p *postgresStream) MarkRead(uids []string) error {
 // Item returns the item with id for this channel
 func (p *postgresStream) ItemsByUID(uids []string) ([]microsub.Item, error) {
 
-	var items []microsub.Item
+	// A search hit can name an item the store no longer has: the bleve index
+	// is a separate file and outlives deletions. One stale uid used to fail the
+	// whole search, so skip the missing ones and return what still exists.
+	items := []microsub.Item{}
 
 	for _, uid := range uids {
 		var item microsub.Item
@@ -378,7 +381,7 @@ func (p *postgresStream) ItemsByUID(uids []string) ([]microsub.Item, error) {
 
 		err := row.Scan(&item, &createdAt, &isRead, &publishedAt)
 		if err == sql.ErrNoRows {
-			return nil, ErrItemNotFound
+			continue
 		} else if err != nil {
 			log.Println("Scan failed", err)
 			return nil, err

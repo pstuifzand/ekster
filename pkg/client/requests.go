@@ -382,6 +382,11 @@ func (c *Client) ItemSearch(ctx context.Context, channel, query string) ([]micro
 	if err != nil {
 		return []microsub.Item{}, err
 	}
+	if response.Items == nil {
+		// No hits encode as null; callers range over the result and some
+		// validate it against an array schema.
+		return []microsub.Item{}, nil
+	}
 	return response.Items, nil
 }
 

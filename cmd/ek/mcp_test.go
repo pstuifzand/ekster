@@ -67,6 +67,60 @@ func TestListFollowsEmptyChannelReturnsArray(t *testing.T) {
 	}
 }
 
+func TestSearchItemsNoResultsReturnsArray(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("action") == "search" || r.FormValue("action") == "search" {
+			_, _ = w.Write([]byte(`{"items":null,"query":"nothing"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer upstream.Close()
+
+	endpoint, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &client.Client{MicrosubEndpoint: endpoint, Token: "test-token"}
+
+	server := newMCPServer(c)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	clientSession, err := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1"}, nil).Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "search_items",
+		Arguments: map[string]any{"query": "nothing"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("tool call returned error: %#v", result.Content)
+	}
+
+	structured, ok := result.StructuredContent.(map[string]any)
+	if !ok {
+		t.Fatalf("structuredContent type = %T", result.StructuredContent)
+	}
+	items, ok := structured["items"].([]any)
+	if !ok {
+		t.Fatalf("items = %#v, want an array", structured["items"])
+	}
+	if len(items) != 0 {
+		t.Fatalf("items = %#v, want an empty array", items)
+	}
+}
+
 func TestMCPToolsExposeSchemasAndStructuredResults(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-token" {

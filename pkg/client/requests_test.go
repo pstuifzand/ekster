@@ -50,6 +50,34 @@ func TestMarkReadSendsParseableForm(t *testing.T) {
 	}
 }
 
+// TestItemSearchNoResultsIsEmptyList covers the response shape for a search
+// that matches nothing. A nil slice encodes as null, which fails callers that
+// validate an array output (the MCP search_items tool does).
+func TestItemSearchNoResultsIsEmptyList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":null,"query":"nothing"}`))
+	}))
+	defer srv.Close()
+
+	endpoint, err := url.Parse(srv.URL + "/microsub/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &Client{MicrosubEndpoint: endpoint, Token: "tok"}
+
+	items, err := c.ItemSearch(context.Background(), "global", "nothing")
+	if err != nil {
+		t.Fatalf("ItemSearch: %v", err)
+	}
+	if items == nil {
+		t.Fatal("ItemSearch returned nil, want an empty slice")
+	}
+	if len(items) != 0 {
+		t.Fatalf("ItemSearch returned %d items, want 0", len(items))
+	}
+}
+
 func TestPostFormRequestReturnsTransportError(t *testing.T) {
 	// A closed server used to panic here: the response was dereferenced before err.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))

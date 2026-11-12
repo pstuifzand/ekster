@@ -21,7 +21,44 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/blevesearch/bleve/v2"
+	"github.com/pstuifzand/ekster/pkg/microsub"
 )
+
+func TestQuerySearchReturnsMatchingIDs(t *testing.T) {
+	idx, err := bleve.NewMemOnly(bleve.NewIndexMapping())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer idx.Close()
+
+	previous := index
+	index = idx
+	t.Cleanup(func() { index = previous })
+
+	for id, channel := range map[string]string{"home-item": "home", "other-item": "elsewhere"} {
+		if err := idx.Index(id, indexItem{Item: microsub.Item{Type: "entry", Name: "Sit Like a Buddha"}, Channel: channel}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ids, err := querySearch("Buddha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 2 {
+		t.Fatalf("querySearch returned %#v, want both items", ids)
+	}
+
+	missing, err := querySearch("nomatchterm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missing) != 0 {
+		t.Fatalf("querySearch for a missing term returned %#v", missing)
+	}
+}
 
 // A search index that stops answering must be skipped, not waited on once per
 // item: 597 entries behind a wedged merge is hours of pauses that end with the

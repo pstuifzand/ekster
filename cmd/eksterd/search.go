@@ -124,18 +124,13 @@ func getString(fields map[string]interface{}, key, def string) string {
 	return def
 }
 
-func querySearch(channel, query string) ([]string, error) {
+// querySearch returns the uids of every item matching query. The result is not
+// scoped to a user: the index spans the whole instance, so the caller resolves
+// the uids against the database, where ownership lives.
+func querySearch(query string) ([]string, error) {
 	q := bleve.NewQueryStringQuery(query)
 
-	cq := bleve.NewConjunctionQuery(q)
-
-	if channel != "global" {
-		mq := bleve.NewMatchQuery(channel)
-		mq.SetField("channel")
-		cq.AddQuery(mq)
-	}
-
-	req := bleve.NewSearchRequest(cq)
+	req := bleve.NewSearchRequest(q)
 	req.Fields = []string{"*"}
 	req.Size = 100
 	res, err := index.Search(req)
