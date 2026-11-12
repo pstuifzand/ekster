@@ -25,6 +25,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -146,6 +147,72 @@ func enrichItem(ctx context.Context, fetcher fetch.Fetcher, resolver *cardResolv
 	}()
 	out = resolveAuthor(ctx, resolver, out)
 	return out
+}
+
+// enrichReferenceItems fetches a small number of linked interaction targets when
+// the incoming item did not already include their microformat data. This is
+// deliberately separate from feed refresh: feed links are never fetched here.
+func enrichReferenceItems(ctx context.Context, fetcher fetch.Fetcher, item microsub.Item) (out microsub.Item) {
+	out = item
+	defer func() {
+		if recover() != nil {
+			out = item
+		}
+	}()
+	var targets []string
+	for _, values := range [][]string{item.LikeOf, item.BookmarkOf, item.RepostOf, item.InReplyTo, item.MentionOf} {
+		for _, target := range values {
+			if target == "" {
+				continue
+			}
+			if _, ok := item.Refs[target]; ok {
+				continue
+			}
+			seen := false
+			for _, existing := range targets {
+				if existing == target {
+					seen = true
+					break
+				}
+			}
+			if !seen {
+				targets = append(targets, target)
+			}
+		}
+	}
+	if len(targets) > 5 {
+		targets = targets[:5]
+	}
+
+	for _, target := range targets {
+		parsed, err := url.Parse(target)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
+			continue
+		}
+		doc, err := readPage(ctx, fetcher, target)
+		if err != nil || !(strings.HasPrefix(strings.ToLower(doc.contentType), "text/html") || strings.HasPrefix(strings.ToLower(doc.contentType), "application/xhtml+xml")) {
+			continue
+		}
+		items, err := fetch.FeedItems(ctx, fetcher, target, doc.contentType, bytes.NewReader(doc.body))
+		if err != nil || len(items) == 0 {
+			continue
+		}
+		ref := items[0]
+		for _, candidate := range items {
+			if candidate.URL == target || candidate.UID == target {
+				ref = candidate
+				break
+			}
+		}
+		if ref.URL == "" {
+			ref.URL = target
+		}
+		if item.Refs == nil {
+			item.Refs = make(map[string]microsub.Item)
+		}
+		item.Refs[target] = ref
+	}
+	return item
 }
 
 // resolveAuthor fills in the name and photo of an author that is only a URL.

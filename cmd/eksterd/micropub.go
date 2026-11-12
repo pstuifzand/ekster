@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha1"
 	"database/sql"
 	"encoding/json"
@@ -29,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pstuifzand/ekster/pkg/fetch"
 	"github.com/pstuifzand/ekster/pkg/jf2"
 	"github.com/pstuifzand/ekster/pkg/microsub"
 
@@ -91,6 +93,7 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	*item = h.enrichReferences(r.Context(), *item)
 
 	if item.Published == "" {
 		item.Published = time.Now().Format(time.RFC3339)
@@ -143,6 +146,13 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *micropubHandler) enrichReferences(ctx context.Context, item microsub.Item) microsub.Item {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	fetcher := WithCaching(h.pool, fetch.FetcherFunc(Fetch2))
+	return enrichReferenceItems(ctx, fetcher, item)
+}
+
 func (h *micropubHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	target, err := resolveTarget(r, h.Backend.database, h.pool)
 	if err != nil {
@@ -170,6 +180,7 @@ func (h *micropubHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	updated = h.enrichReferences(r.Context(), updated)
 	if err := h.Backend.UpdateMicropubItem(r.Context(), target.Channel, uid, updated); err != nil {
 		log.Printf("could not update micropub item %s: %v", uid, err)
 		http.Error(w, "could not update item", http.StatusInternalServerError)

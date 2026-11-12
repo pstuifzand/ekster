@@ -119,6 +119,42 @@ func TestAuthorReferenceIsResolvedToTheCard(t *testing.T) {
 	}
 }
 
+func TestInteractionReferenceIsFetchedAsMicroformat(t *testing.T) {
+	const target = "https://example.com/post/1"
+	counts := map[string]int{}
+	item := microsub.Item{Type: "entry", LikeOf: []string{target}}
+	got := enrichReferenceItems(context.Background(), fakeFetcher(pages(), counts), item)
+	if counts[target] != 1 {
+		t.Fatalf("target fetched %d times, want once", counts[target])
+	}
+	ref, ok := got.Refs[target]
+	if !ok {
+		t.Fatalf("reference for %s missing: %#v", target, got.Refs)
+	}
+	if ref.Name != "Identity Assertion JWT Authorization Grant Draft 06" {
+		t.Errorf("reference name = %q", ref.Name)
+	}
+	if ref.Content == nil || !strings.Contains(ref.Content.Text, "draft -06") {
+		t.Errorf("reference content = %#v", ref.Content)
+	}
+}
+
+func TestInteractionReferenceDoesNotRefetchEmbeddedData(t *testing.T) {
+	const target = "https://example.com/post/1"
+	counts := map[string]int{}
+	item := microsub.Item{
+		LikeOf: []string{target},
+		Refs:   map[string]microsub.Item{target: {Name: "Embedded"}},
+	}
+	got := enrichReferenceItems(context.Background(), fakeFetcher(pages(), counts), item)
+	if counts[target] != 0 {
+		t.Errorf("embedded target fetched %d times, want none", counts[target])
+	}
+	if got.Refs[target].Name != "Embedded" {
+		t.Errorf("embedded reference was replaced: %#v", got.Refs[target])
+	}
+}
+
 // Twenty entries by one person must not cost twenty profile fetches.
 func TestResolvedCardsAreCached(t *testing.T) {
 	counts := map[string]int{}
