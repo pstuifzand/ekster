@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ekster</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.1/css/bulma.min.css">
+<style>.ekster-brand { display: inline-flex; align-items: center; gap: .55rem; font-weight: 700; } .ekster-brand img { display: block; border-radius: 7px; }</style>
 <link rel="micropub" href="{{ .Baseurl }}/micropub" />
 <link rel="authorization_endpoint" href="{{ .Baseurl }}/auth" />
 <link rel="token_endpoint" href="{{ .Baseurl }}/auth/token" />
@@ -14,8 +16,9 @@
   <section class="section">
             <nav class="navbar is-light" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">
-                    <a class="navbar-item" href="/">
-                        Ekster
+                    <a class="navbar-item ekster-brand" href="/">
+                        <img src="/favicon.svg" alt="" width="28" height="28">
+                        <span>Ekster</span>
                     </a>
 
                     <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="menu">

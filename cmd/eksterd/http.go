@@ -41,7 +41,7 @@ import (
 	"willnorris.com/go/microformats"
 )
 
-//go:embed templates/*.html
+//go:embed templates/*.html templates/assets/*.svg
 var templates embed.FS
 
 type mainHandler struct {
@@ -309,6 +309,17 @@ func getAppInfo(clientID string) (app, error) {
 }
 
 func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/favicon.svg" {
+		icon, err := templates.ReadFile("templates/assets/ekster-icon.svg")
+		if err != nil {
+			http.Error(w, "icon unavailable", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		_, _ = w.Write(icon)
+		return
+	}
 	conn := h.pool.Get()
 	defer conn.Close()
 
