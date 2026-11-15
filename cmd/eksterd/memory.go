@@ -579,7 +579,7 @@ func (b *memoryBackend) RefreshFeeds() {
 	span.SetAttributes(attribute.Int("feeds.processed", count))
 
 	if count > 0 {
-		_ = b.updateChannelUnreadCount("notifications")
+		_ = b.updateChannelUnreadCount(ctx, "notifications")
 	}
 	log.Printf("Processed %d feeds", count)
 }
@@ -735,7 +735,9 @@ func (b *memoryBackend) feedFailedAfter(f feed, err error, delay time.Duration) 
 }
 
 func (b *memoryBackend) addNotification(name string, feed feed, err error) {
-	_, err = b.channelAddItem("notifications", microsub.Item{
+	// No request context here: a notification is recorded after a fetch failed,
+	// outside any request.
+	_, err = b.channelAddItem(context.Background(), "notifications", microsub.Item{
 		Type: "entry",
 		Source: &microsub.Source{
 			ID:   strconv.Itoa(feed.ID),
@@ -859,7 +861,7 @@ func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (
 	if err != nil {
 		log.Println(err)
 		b.addNotification("Error while fetching feed", newFeed, err)
-		_ = b.updateChannelUnreadCount("notifications")
+		_ = b.updateChannelUnreadCount(ctx, "notifications")
 		return subFeed, err
 	}
 	defer resp.Body.Close()
@@ -1074,7 +1076,7 @@ func (b *memoryBackend) MarkRead(ctx context.Context, channel string, uids []str
 		return err
 	}
 
-	if err = b.updateChannelUnreadCount(channel); err != nil {
+	if err = b.updateChannelUnreadCount(ctx, channel); err != nil {
 		return err
 	}
 
@@ -1194,7 +1196,7 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 		}
 
 		item.Source.ID = feedID
-		added, err := b.channelAddItemWithMatcher(channel, item)
+		added, err := b.channelAddItemWithMatcher(ctx, channel, item)
 		if err != nil {
 			log.Printf("ERROR: (feedID=%s) %s\n", feedID, err)
 		}
@@ -1202,7 +1204,7 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 		processed++
 	}
 
-	err = b.updateChannelUnreadCount(channel)
+	err = b.updateChannelUnreadCount(ctx, channel)
 	if err != nil {
 		return changed, itemCount, err
 	}
@@ -1216,7 +1218,7 @@ func (b *memoryBackend) Fetch3(ctx context.Context, channel, fetchURL string) (*
 	return Fetch2(ctx, fetchURL)
 }
 
-func (b *memoryBackend) channelAddItemWithMatcher(channel string, item microsub.Item) (bool, error) {
+func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel string, item microsub.Item) (bool, error) {
 	// an item is posted
 	// check for all channels as channel
 	// if regex matches item
@@ -1254,7 +1256,7 @@ func (b *memoryBackend) channelAddItemWithMatcher(channel string, item microsub.
 
 	// Update all channels that have added items, because the include_regex matches
 	for _, value := range updatedChannels {
-		err := b.updateChannelUnreadCount(value)
+		err := b.updateChannelUnreadCount(ctx, value)
 		if err != nil {
 			log.Printf("error while updating unread count for %s: %s", value, err)
 			continue
@@ -1303,13 +1305,19 @@ func (b *memoryBackend) channelAddItemWithMatcher(channel string, item microsub.
 		}
 	}
 
-	added, err := b.channelAddItem(channel, item)
+	added, err := b.channelAddItem(ctx, channel, item)
 
 	if err != nil {
 		return added, err
 	}
 
+	// The bleve index is a second write per item, with its own segment merges.
+	// It has to be visible separately or a slow index looks like a slow query.
+	_, sspan := observability.Span(ctx, "search.index.add",
+		attribute.String("db.system", "bleve"),
+		attribute.String("channel", channel))
 	err = addToSearch(item, channel)
+	sspan.End()
 	if err != nil {
 		return added, fmt.Errorf("addToSearch in channelAddItemWithMatcher: %v", err)
 	}
@@ -1343,14 +1351,26 @@ func matchItemText(item microsub.Item, re *regexp.Regexp) bool {
 	return re.MatchString(item.Name)
 }
 
-func (b *memoryBackend) channelAddItem(channel string, item microsub.Item) (bool, error) {
+func (b *memoryBackend) channelAddItem(ctx context.Context, channel string, item microsub.Item) (bool, error) {
 	timelineBackend, err := b.getTimeline(channel)
 	if err != nil {
 		return false, err
 	}
 
+	// The store decides how a refresh's time is spent: one item is an insert into
+	// `items` plus whatever the timeline touches. Without this span the 300ms a
+	// feed costs hides inside feed.process and cannot be attributed.
+	_, span := observability.Span(ctx, "db.items.add",
+		attribute.String("db.system", "postgres"),
+		attribute.String("db.table", "items"),
+		attribute.String("channel", channel))
+	defer span.End()
+
 	added, err := timelineBackend.AddItem(item)
+	span.SetAttributes(attribute.Bool("db.item.added", added))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return added, err
 	}
 
@@ -1368,16 +1388,25 @@ var ErrNotUpdated = errors.New("timeline unread count not updated")
 // ErrNotFound is used when the timeline is not found
 var ErrNotFound = errors.New("timeline not found")
 
-func (b *memoryBackend) updateChannelUnreadCount(channel string) error {
+func (b *memoryBackend) updateChannelUnreadCount(ctx context.Context, channel string) error {
 	tl, err := b.getTimeline(channel)
 	if err != nil {
 		return err
 	}
 
+	_, span := observability.Span(ctx, "db.items.count",
+		attribute.String("db.system", "postgres"),
+		attribute.String("db.table", "items"),
+		attribute.String("channel", channel))
 	unread, err := tl.Count()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.End()
 		return ErrNotUpdated
 	}
+	span.SetAttributes(attribute.Int("db.items.unread", unread))
+	span.End()
 
 	var c = microsub.Channel{
 		UID:    channel,

@@ -123,12 +123,12 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Item published: %s (%s)", item.Published, item.URL)
 
-	_, err = h.Backend.channelAddItemWithMatcher(target.Channel, *item)
+	_, err = h.Backend.channelAddItemWithMatcher(r.Context(), target.Channel, *item)
 	if err != nil {
 		log.Printf("could not add item to channel %s: %v", target.Channel, err)
 	}
 
-	if err := h.Backend.updateChannelUnreadCount(target.Channel); err != nil {
+	if err := h.Backend.updateChannelUnreadCount(r.Context(), target.Channel); err != nil {
 		log.Printf("could not update channel unread content %s: %v", target.Channel, err)
 	}
 
