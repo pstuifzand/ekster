@@ -1,0 +1,66 @@
+# Test the server and publish static binaries. The old deployment shipped a
+# container image to ghcr.io; the new host runs systemd units.
+name: build
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vet, test and build
+        run: |
+          set -eu
+          # As the runner's own uid: a root-owned artifact in the bind-mounted
+          # workspace cannot be removed afterwards and fails the job.
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e GOCACHE=/tmp/go-cache \
+            -e CGO_ENABLED=0 -v "$PWD":/src -w /src golang:1.27 \
+            sh -c 'go vet ./... && go test ./... && \
+                   go build -trimpath -buildvcs=false -ldflags="-s -w" -o dist/eksterd ./cmd/eksterd && \
+                   go build -trimpath -buildvcs=false -ldflags="-s -w" -o dist/ek ./cmd/ek'
+          ls -l dist
+          ( cd dist && sha256sum eksterd ek > SHA256SUMS )
+
+      - name: Publish release
+        if: github.event_name != 'pull_request'
+        run: |
+          set -eu
+          SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          TAG="build-$SHORT"
+          API="${{ github.server_url }}/api/v1/repos/${{ github.repository }}"
+          auth=(-H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Content-Type: application/json")
+
+          existing=$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" "$API/releases/tags/$TAG")
+          if [ "$existing" = "200" ]; then
+            id=$(curl -s "${auth[@]}" "$API/releases/tags/$TAG" | jq -r '.id')
+            curl -s -X DELETE "${auth[@]}" "$API/releases/$id" >/dev/null
+          fi
+
+          curl -sS -f -X POST "${auth[@]}" "$API/releases" \
+            -d "{\"tag_name\":\"$TAG\",\"target_commitish\":\"${{ github.sha }}\",\"name\":\"build $SHORT\",\"body\":\"Static eksterd and ek binaries for $SHORT.\"}" \
+            -o /tmp/release.json
+          RID=$(jq -r '.id' /tmp/release.json)
+          case "$RID" in
+            ""|null) echo "could not create release:"; cat /tmp/release.json; exit 1 ;;
+          esac
+
+          # Raw bodies: Gitea stores the request body verbatim as the asset.
+          for f in dist/eksterd dist/ek dist/SHA256SUMS; do
+            curl -sS -f -X POST "${auth[@]}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary "@$f" "$API/releases/$RID/assets?name=$(basename "$f")" >/dev/null
+            echo "attached $(basename "$f")"
+          done

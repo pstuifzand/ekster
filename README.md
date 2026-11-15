@@ -8,6 +8,8 @@ The Docker image `ghci.io/pstuifzand/ekster:dev` contains the development versio
 of this server. It has dependencies on Postgresql and Redis.
 
 Use the `docker-compose.yml` file to get an idea of how to use Ekster in Docker.
+See [DEPLOY.md](DEPLOY.md) for running it behind TLS: configuration, the deploy
+checklist, migrations, backups and rollback.
 
 Start the server with database and redis using `docker-compose`.
 
