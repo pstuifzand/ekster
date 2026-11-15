@@ -1264,7 +1264,7 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 	}
 
 	// Check for the exclude regex
-	setting, _ := b.loadSetting(channel)
+	setting, _ := b.loadSetting(ctx, channel)
 
 	if len(setting.ExcludeType) > 0 {
 		for _, v := range setting.ExcludeType {
@@ -1479,7 +1479,14 @@ func Fetch2(ctx context.Context, fetchURL string) (*http.Response, error) {
 	return fetchFeedResponse(ctx, fetchURL, "", "")
 }
 
-func (b *memoryBackend) loadSetting(uid string) (channelSetting, error) {
+func (b *memoryBackend) loadSetting(ctx context.Context, uid string) (channelSetting, error) {
+	// Two queries per call, and the refresh path calls it once per item. That
+	// silently cost ~50ms of every feed, so it gets a span like any other query.
+	_, span := observability.Span(ctx, "db.channel.settings",
+		attribute.String("db.system", "postgres"),
+		attribute.String("db.table", "channels"))
+	defer span.End()
+
 	row := b.database.QueryRow(`SELECT "id" FROM "channels" WHERE "uid" = $1`, uid)
 	var channelID int
 	err := row.Scan(&channelID)

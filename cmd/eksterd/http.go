@@ -433,7 +433,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if v.UID == currentChannel {
 					page.CurrentChannel = v
 
-					setting, err := h.Backend.loadSetting(v.UID)
+					setting, err := h.Backend.loadSetting(r.Context(), v.UID)
 					if err != nil {
 						log.Println(err)
 					}
@@ -829,7 +829,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// defer h.Backend.save()
 			uid := r.FormValue("uid")
 
-			setting, err := h.Backend.loadSetting(uid)
+			setting, err := h.Backend.loadSetting(r.Context(), uid)
 			if err != nil {
 				log.Println("loadSetting", uid, err)
 				http.Redirect(w, r, "/settings", http.StatusFound)
