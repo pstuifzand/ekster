@@ -204,6 +204,15 @@ func main() {
 		shutdown = func(context.Context) error { return nil }
 	}
 
+	// Metrics are opt-in and live on their own listener: the reverse proxy in
+	// front of eksterd forwards every path, so a /metrics route on the public
+	// port would be readable by anyone who can reach the Microsub endpoint.
+	metricsShutdown, msErr := observability.StartMetricsServer(context.Background(), os.Getenv("EKSTER_METRICS_ADDR"))
+	if msErr != nil {
+		log.Printf("could not start metrics server: %v", msErr)
+		metricsShutdown = func(context.Context) error { return nil }
+	}
+
 	// The batch exporter holds spans until they are flushed, and a container
 	// gets SIGTERM, not a clean return. Flush before leaving so the work that
 	// just happened is not lost with the process.
@@ -213,6 +222,7 @@ func main() {
 		<-sigs
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		_ = metricsShutdown(ctx)
 		_ = shutdown(ctx)
 		os.Exit(0)
 	}()
@@ -220,6 +230,7 @@ func main() {
 	err = app.Run()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_ = metricsShutdown(ctx)
 	_ = shutdown(ctx)
 	cancel()
 

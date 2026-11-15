@@ -24,13 +24,19 @@ jobs:
       - name: Vet, test and build
         run: |
           set -eu
+          SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          BT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          # -trimpath and -buildvcs=false turn off Go's own VCS stamping, so the
+          # commit has to be stamped by hand; without it the server reports
+          # "dev-n/a" and two deployments look identical in the traces.
+          LD="-s -w -X main.Version=build-$SHORT -X main.CommitHash=$SHORT -X main.BuildTime=$BT"
           # As the runner's own uid: a root-owned artifact in the bind-mounted
           # workspace cannot be removed afterwards and fails the job.
           docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e GOCACHE=/tmp/go-cache \
-            -e CGO_ENABLED=0 -v "$PWD":/src -w /src golang:1.27 \
+            -e CGO_ENABLED=0 -e "LD=$LD" -v "$PWD":/src -w /src golang:1.27 \
             sh -c 'go vet ./... && go test ./... && \
-                   go build -trimpath -buildvcs=false -ldflags="-s -w" -o dist/eksterd ./cmd/eksterd && \
-                   go build -trimpath -buildvcs=false -ldflags="-s -w" -o dist/ek ./cmd/ek'
+                   go build -trimpath -buildvcs=false -ldflags="$LD" -o dist/eksterd ./cmd/eksterd && \
+                   go build -trimpath -buildvcs=false -ldflags="$LD" -o dist/ek ./cmd/ek'
           ls -l dist
           ( cd dist && sha256sum eksterd ek > SHA256SUMS )
 

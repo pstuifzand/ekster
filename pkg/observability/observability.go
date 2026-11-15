@@ -172,12 +172,14 @@ func InstrumentHTTP() http.RoundTripper {
 	return http.DefaultTransport
 }
 
-// Handler instruments an incoming HTTP handler. The span name is the route
+// Handler instruments an incoming HTTP handler with a span and, when metrics are
+// on, a request counter and a duration histogram. The span name is the route
 // rather than the path, because the path carries user ids and feed ids and a
-// span name is not a place for unbounded values. A nil skip traces everything.
+// span name is not a place for unbounded values. A nil skip traces and measures
+// everything; the skip func is the SSE stream, which never finishes.
 func Handler(route string, h http.Handler, skip func(*http.Request) bool) http.Handler {
 	if !Enabled() {
-		return h
+		return metricsMiddleware(route, h, skip)
 	}
 
 	opts := []otelhttp.Option{
@@ -190,5 +192,5 @@ func Handler(route string, h http.Handler, skip func(*http.Request) bool) http.H
 			return !skip(r)
 		}))
 	}
-	return otelhttp.NewHandler(h, route, opts...)
+	return metricsMiddleware(route, otelhttp.NewHandler(h, route, opts...), skip)
 }
