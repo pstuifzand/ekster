@@ -1184,6 +1184,26 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 		items = items[:maxItemsPerRefresh]
 	}
 
+	// One index write for the whole fetch. The flush is deferred so an aborted
+	// or failed loop still indexes the items it already stored: leaving them out
+	// of the index is how a search silently starts missing posts.
+	batch := &searchBatch{}
+	flushIndex := func() {
+		if batch.len() == 0 {
+			return
+		}
+		_, sspan := observability.Span(ctx, "search.index.batch",
+			attribute.String("db.system", "bleve"),
+			attribute.String("channel", channel),
+			attribute.Int("search.batch.size", batch.len()))
+		err := indexBatch(batch.entries)
+		sspan.End()
+		if err != nil {
+			log.Printf("ERROR: (feedID=%s) search index: %s\n", feedID, err)
+		}
+	}
+	defer flushIndex()
+
 	processed := 0
 	for _, item := range items {
 		// The caller's deadline bounds the fetch, but nothing bounded this
@@ -1196,7 +1216,7 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 		}
 
 		item.Source.ID = feedID
-		added, err := b.channelAddItemWithMatcher(ctx, channel, item)
+		added, err := b.channelAddItemWithMatcher(ctx, channel, item, batch)
 		if err != nil {
 			log.Printf("ERROR: (feedID=%s) %s\n", feedID, err)
 		}
@@ -1218,7 +1238,7 @@ func (b *memoryBackend) Fetch3(ctx context.Context, channel, fetchURL string) (*
 	return Fetch2(ctx, fetchURL)
 }
 
-func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel string, item microsub.Item) (bool, error) {
+func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel string, item microsub.Item, batch *searchBatch) (bool, error) {
 	// an item is posted
 	// check for all channels as channel
 	// if regex matches item
@@ -1311,8 +1331,14 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 		return added, err
 	}
 
-	// The bleve index is a second write per item, with its own segment merges.
-	// It has to be visible separately or a slow index looks like a slow query.
+	// Give the item to the caller's batch when there is one: a fetch writes its
+	// whole result to the index in a single commit instead of one per item.
+	// Outside a fetch (a micropub post) it is written here.
+	if batch != nil {
+		batch.add(channel, item)
+		return added, nil
+	}
+
 	_, sspan := observability.Span(ctx, "search.index.add",
 		attribute.String("db.system", "bleve"),
 		attribute.String("channel", channel))

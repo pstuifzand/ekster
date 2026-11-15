@@ -123,7 +123,7 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Item published: %s (%s)", item.Published, item.URL)
 
-	_, err = h.Backend.channelAddItemWithMatcher(r.Context(), target.Channel, *item)
+	_, err = h.Backend.channelAddItemWithMatcher(r.Context(), target.Channel, *item, nil)
 	if err != nil {
 		log.Printf("could not add item to channel %s: %v", target.Channel, err)
 	}

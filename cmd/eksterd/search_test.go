@@ -91,3 +91,60 @@ func TestIndexIsSkippedDuringItsCoolDown(t *testing.T) {
 		t.Fatal("the index was never tried again after the cool-down")
 	}
 }
+
+func TestIndexBatchWritesEveryEntryInOneCommit(t *testing.T) {
+	idx, err := bleve.NewMemOnly(bleve.NewIndexMapping())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer idx.Close()
+
+	previous := index
+	index = idx
+	previousBlocked := indexBlockedUntil
+	indexBlockedUntil = time.Time{}
+	t.Cleanup(func() {
+		index = previous
+		indexBlockedUntil = previousBlocked
+	})
+
+	batch := &searchBatch{}
+	for _, id := range []string{"a", "b", "c"} {
+		batch.add("home", microsub.Item{ID: id})
+	}
+	if got := batch.len(); got != 3 {
+		t.Fatalf("batch len = %d, want 3", got)
+	}
+
+	if err := indexBatch(batch.entries); err != nil {
+		t.Fatalf("indexBatch: %v", err)
+	}
+
+	count, err := idx.DocCount()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 3 {
+		t.Fatalf("DocCount = %d, want 3", count)
+	}
+
+	for _, id := range []string{"a", "b", "c"} {
+		doc, err := idx.Document(id)
+		if err != nil {
+			t.Fatalf("item %s: %v", id, err)
+		}
+		if doc == nil {
+			t.Fatalf("item %s missing from the index", id)
+		}
+	}
+}
+
+func TestIndexBatchIgnoresAnEmptyBatch(t *testing.T) {
+	batch := &searchBatch{}
+	if err := indexBatch(batch.entries); err != nil {
+		t.Fatalf("empty batch returned %v", err)
+	}
+	if got := batch.len(); got != 0 {
+		t.Fatalf("len = %d, want 0", got)
+	}
+}

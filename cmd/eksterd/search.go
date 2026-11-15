@@ -76,17 +76,38 @@ type indexItem struct {
 	Channel string `json:"channel"`
 }
 
-func addToSearch(item microsub.Item, channel string) error {
-	if index == nil {
-		return nil
-	}
-	if indexBlocked() {
-		return nil
-	}
+// searchEntry is one item waiting to be written to the index.
+type searchEntry struct {
+	id      string
+	channel string
+	item    microsub.Item
+}
 
+// searchBatch collects the items of one fetch so they reach bleve as a single
+// write. Every Index call takes the writer lock, commits and leaves a segment
+// behind; a Batch does that once for all of them. Ten items cost ten commits
+// that way and one this way, which is most of why a refresh was 300ms.
+type searchBatch struct {
+	entries []searchEntry
+}
+
+func (b *searchBatch) add(channel string, item microsub.Item) {
+	b.entries = append(b.entries, searchEntry{id: item.ID, channel: channel, item: item})
+}
+
+func (b *searchBatch) len() int {
+	if b == nil {
+		return 0
+	}
+	return len(b.entries)
+}
+
+// withIndexTimeout bounds a write, for the same reason single writes are
+// bounded: a segment merge that never returns must not park the refresh loop.
+func withIndexTimeout(fn func() error) error {
 	done := make(chan error, 1)
 	go func() {
-		done <- index.Index(item.ID, indexItem{item, channel})
+		done <- fn()
 	}()
 
 	timer := time.NewTimer(indexTimeout)
@@ -104,6 +125,29 @@ func addToSearch(item microsub.Item, channel string) error {
 			indexTimeout, indexCoolDown)
 		return nil
 	}
+}
+
+// indexBatch writes all entries in one commit.
+func indexBatch(entries []searchEntry) error {
+	if len(entries) == 0 || index == nil || indexBlocked() {
+		return nil
+	}
+
+	batch := index.NewBatch()
+	for _, e := range entries {
+		if err := batch.Index(e.id, indexItem{e.item, e.channel}); err != nil {
+			return fmt.Errorf("while building search batch: %v", err)
+		}
+	}
+
+	return withIndexTimeout(func() error {
+		return index.Batch(batch)
+	})
+}
+
+// addToSearch indexes a single item, for callers outside a fetch.
+func addToSearch(item microsub.Item, channel string) error {
+	return indexBatch([]searchEntry{{id: item.ID, channel: channel, item: item}})
 }
 
 func getStringArray(fields map[string]interface{}, key string) []string {
