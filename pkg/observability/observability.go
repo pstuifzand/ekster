@@ -178,8 +178,15 @@ func InstrumentHTTP() http.RoundTripper {
 // span name is not a place for unbounded values. A nil skip traces and measures
 // everything; the skip func is the SSE stream, which never finishes.
 func Handler(route string, h http.Handler, skip func(*http.Request) bool) http.Handler {
+	// The enrich step sits inside otelhttp, not around it: the span has to exist
+	// before the request's action and channel can be written onto it.
+	withRequestFields := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		enrichRequest(route, r)
+		h.ServeHTTP(w, r)
+	})
+
 	if !Enabled() {
-		return metricsMiddleware(route, h, skip)
+		return metricsMiddleware(route, withRequestFields, skip)
 	}
 
 	opts := []otelhttp.Option{
@@ -192,5 +199,5 @@ func Handler(route string, h http.Handler, skip func(*http.Request) bool) http.H
 			return !skip(r)
 		}))
 	}
-	return metricsMiddleware(route, otelhttp.NewHandler(h, route, opts...), skip)
+	return metricsMiddleware(route, otelhttp.NewHandler(withRequestFields, route, opts...), skip)
 }

@@ -49,7 +49,7 @@ func TestMetricsCountsRouteAndStatus(t *testing.T) {
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/test-count/42?uid=abc", nil))
 
 	body := scrape(t)
-	want := `ekster_http_requests_total{method="GET",route="/test-count/",status="404"} 1`
+	want := `ekster_http_requests_total{action="",method="GET",route="/test-count/",status="404"} 1`
 	if !strings.Contains(body, want) {
 		t.Fatalf("expected %q in metrics output:\n%s", want, body)
 	}
@@ -57,7 +57,7 @@ func TestMetricsCountsRouteAndStatus(t *testing.T) {
 	if strings.Contains(body, `route="/test-count/42"`) {
 		t.Fatalf("path leaked into a label:\n%s", body)
 	}
-	if !strings.Contains(body, `ekster_http_request_duration_seconds_count{method="GET",route="/test-count/"} 1`) {
+	if !strings.Contains(body, `ekster_http_request_duration_seconds_count{action="",method="GET",route="/test-count/"} 1`) {
 		t.Fatalf("duration histogram did not record the request:\n%s", body)
 	}
 }
@@ -79,7 +79,7 @@ func TestMetricsSkipsLongLivedRequests(t *testing.T) {
 	// A normal request on the same route is still measured.
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/test-events/1", nil))
 	body := scrape(t)
-	if !strings.Contains(body, `ekster_http_requests_total{method="GET",route="/test-events/",status="200"} 1`) {
+	if !strings.Contains(body, `ekster_http_requests_total{action="",method="GET",route="/test-events/",status="200"} 1`) {
 		t.Fatalf("a regular request was not counted:\n%s", body)
 	}
 }

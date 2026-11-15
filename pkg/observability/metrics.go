@@ -65,16 +65,18 @@ func initMetrics() {
 		registry.MustRegister(collectors.NewGoCollector())
 		registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
+		// action is only set for the microsub endpoint, where the route is
+		// constant and the action carries the meaning. Empty elsewhere.
 		requestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "ekster_http_requests_total",
-			Help: "HTTP requests handled, by route, method and status code.",
-		}, []string{"route", "method", "status"})
+			Help: "HTTP requests handled, by route, method, status code and microsub action.",
+		}, []string{"route", "method", "status", "action"})
 
 		requestDur = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "ekster_http_request_duration_seconds",
 			Help:    "Time spent handling an HTTP request.",
 			Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
-		}, []string{"route", "method"})
+		}, []string{"route", "method", "action"})
 
 		registry.MustRegister(requestsTotal, requestDur)
 	})
@@ -133,11 +135,18 @@ func metricsMiddleware(route string, h http.Handler, skip func(*http.Request) bo
 			h.ServeHTTP(w, r)
 			return
 		}
+		// Resolve the action before the handler runs: FormValue caches the parsed
+		// form, so the handler's own ParseForm reuses it instead of re-reading the body.
+		action := ""
+		if route == microsubRoute {
+			action = actionOf(r)
+		}
+
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		h.ServeHTTP(rec, r)
-		requestsTotal.WithLabelValues(route, r.Method, strconv.Itoa(rec.status)).Inc()
-		requestDur.WithLabelValues(route, r.Method).Observe(time.Since(start).Seconds())
+		requestsTotal.WithLabelValues(route, r.Method, strconv.Itoa(rec.status), action).Inc()
+		requestDur.WithLabelValues(route, r.Method, action).Observe(time.Since(start).Seconds())
 	})
 }
 
