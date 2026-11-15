@@ -1187,16 +1187,16 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 	// One index write for the whole fetch. The flush is deferred so an aborted
 	// or failed loop still indexes the items it already stored: leaving them out
 	// of the index is how a search silently starts missing posts.
-	batch := &searchBatch{}
+	fetch := newFetchState()
 	flushIndex := func() {
-		if batch.len() == 0 {
+		if fetch.batch.len() == 0 {
 			return
 		}
 		_, sspan := observability.Span(ctx, "search.index.batch",
 			attribute.String("db.system", "bleve"),
 			attribute.String("channel", channel),
-			attribute.Int("search.batch.size", batch.len()))
-		err := indexBatch(batch.entries)
+			attribute.Int("search.batch.size", fetch.batch.len()))
+		err := indexBatch(fetch.batch.entries)
 		sspan.End()
 		if err != nil {
 			log.Printf("ERROR: (feedID=%s) search index: %s\n", feedID, err)
@@ -1216,7 +1216,7 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 		}
 
 		item.Source.ID = feedID
-		added, err := b.channelAddItemWithMatcher(ctx, channel, item, batch)
+		added, err := b.channelAddItemWithMatcher(ctx, channel, item, fetch)
 		if err != nil {
 			log.Printf("ERROR: (feedID=%s) %s\n", feedID, err)
 		}
@@ -1238,7 +1238,50 @@ func (b *memoryBackend) Fetch3(ctx context.Context, channel, fetchURL string) (*
 	return Fetch2(ctx, fetchURL)
 }
 
-func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel string, item microsub.Item, batch *searchBatch) (bool, error) {
+// fetchState is what stays the same for every item of one fetch: the index batch,
+// each channel's settings, and the compiled exclude pattern. Looking them up per
+// item meant two queries and a regexp compile for every entry of every feed.
+//
+// The cache lives for one fetch only, so a settings change made while a refresh
+// is running is picked up by the next one instead of being cached indefinitely.
+type fetchState struct {
+	batch        *searchBatch
+	settings     map[string]channelSetting
+	excludeRegex map[string]*regexp.Regexp
+}
+
+func newFetchState() *fetchState {
+	return &fetchState{
+		batch:        &searchBatch{},
+		settings:     map[string]channelSetting{},
+		excludeRegex: map[string]*regexp.Regexp{},
+	}
+}
+
+func (f *fetchState) settingFor(ctx context.Context, b *memoryBackend, channel string) (channelSetting, *regexp.Regexp) {
+	if setting, ok := f.settings[channel]; ok {
+		return setting, f.excludeRegex[channel]
+	}
+
+	setting, err := b.loadSetting(ctx, channel)
+	if err != nil {
+		log.Printf("could not load settings for channel %s: %s\n", channel, err)
+	}
+	f.settings[channel] = setting
+
+	if setting.ExcludeRegex != "" {
+		re, err := regexp.Compile(setting.ExcludeRegex)
+		if err != nil {
+			log.Printf("error in regexp: %q: %s\n", setting.ExcludeRegex, err)
+		} else {
+			f.excludeRegex[channel] = re
+		}
+	}
+
+	return setting, f.excludeRegex[channel]
+}
+
+func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel string, item microsub.Item, fetch *fetchState) (bool, error) {
 	// an item is posted
 	// check for all channels as channel
 	// if regex matches item
@@ -1284,7 +1327,22 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 	}
 
 	// Check for the exclude regex
-	setting, _ := b.loadSetting(ctx, channel)
+	var setting channelSetting
+	var excludeRegex *regexp.Regexp
+	if fetch != nil {
+		setting, excludeRegex = fetch.settingFor(ctx, b, channel)
+	} else {
+		// Outside a fetch there is nothing to share the lookup with.
+		setting, _ = b.loadSetting(ctx, channel)
+		if setting.ExcludeRegex != "" {
+			re, err := regexp.Compile(setting.ExcludeRegex)
+			if err != nil {
+				log.Printf("error in regexp: %q: %s\n", setting.ExcludeRegex, err)
+			} else {
+				excludeRegex = re
+			}
+		}
+	}
 
 	if len(setting.ExcludeType) > 0 {
 		for _, v := range setting.ExcludeType {
@@ -1313,16 +1371,9 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 		}
 	}
 
-	if setting.ExcludeRegex != "" {
-		excludeRegex, err := regexp.Compile(setting.ExcludeRegex)
-		if err != nil {
-			log.Printf("error in regexp: %q\n", excludeRegex)
-			return false, nil
-		}
-		if matchItem(item, excludeRegex) {
-			log.Printf("Excluded %#v\n", item)
-			return false, nil
-		}
+	if excludeRegex != nil && matchItem(item, excludeRegex) {
+		log.Printf("Excluded %#v\n", item)
+		return false, nil
 	}
 
 	added, err := b.channelAddItem(ctx, channel, item)
@@ -1334,8 +1385,8 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 	// Give the item to the caller's batch when there is one: a fetch writes its
 	// whole result to the index in a single commit instead of one per item.
 	// Outside a fetch (a micropub post) it is written here.
-	if batch != nil {
-		batch.add(channel, item)
+	if fetch != nil {
+		fetch.batch.add(channel, item)
 		return added, nil
 	}
 
