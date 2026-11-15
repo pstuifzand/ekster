@@ -27,6 +27,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"log/slog"
 	"time"
 
 	"github.com/pstuifzand/ekster/pkg/util"
@@ -277,7 +278,7 @@ func (h *hubIncomingBackend) run() error {
 
 				feeds, err := h.Feeds()
 				if err != nil {
-					log.Println("Feeds failed:", err)
+					slog.Error("websub: could not list feeds", "error", errorString(err))
 					log.Println("Getting feeds for WebSub completed")
 					continue
 				}
@@ -291,7 +292,8 @@ func (h *hubIncomingBackend) run() error {
 					if feed.Callback == "" {
 						feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
 					}
-					log.Printf("Send resubscribe for %q on %q with callback %q\n", feed.URL, feed.Hub, feed.Callback)
+					slog.Info("websub: resubscribing",
+						"feed_id", feed.ID, "topic", feed.URL, "hub", feed.Hub, "callback", feed.Callback)
 					varWebsub.Add("resubscribe", 1)
 					err := h.Subscribe(&feed)
 
@@ -301,7 +303,12 @@ func (h *hubIncomingBackend) run() error {
 						failures[feed.ID]++
 						backoff := subscribeBackoff(failures[feed.ID])
 						next = time.Now().Add(backoff)
-						log.Printf("Error while subscribing: %s (retry in %s)", err, backoff)
+						slog.Warn("websub: subscription rejected",
+							"feed_id", feed.ID,
+							"topic", feed.URL,
+							"hub", feed.Hub,
+							"retry_in", backoff.String(),
+							"error", errorString(err))
 					} else {
 						delete(failures, feed.ID)
 						lease := time.Duration(feed.LeaseSeconds) * time.Second
@@ -312,7 +319,8 @@ func (h *hubIncomingBackend) run() error {
 					}
 
 					if e := h.FeedSetResubscribeAt(feed.ID, next); e != nil {
-						log.Printf("Could not set resubscribe_at for %d: %s", feed.ID, e)
+						slog.Error("websub: could not store resubscribe_at",
+							"feed_id", feed.ID, "error", errorString(e))
 					}
 				}
 

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -48,9 +49,8 @@ func (h *incomingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("%s %s\n", r.Method, r.URL)
-	log.Println(r.URL.Query())
-	log.Println(r.PostForm)
+	slog.Info("hub delivery", "method", r.Method, "subscription", r.URL.Path,
+		"query", r.URL.Query().Encode())
 
 	// find feed
 	matches := urlRegex.FindStringSubmatch(r.URL.Path)

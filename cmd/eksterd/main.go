@@ -28,6 +28,7 @@ import (
 	_ "expvar"
 	"flag"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -146,7 +147,8 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 }
 
 func main() {
-	log.Println("eksterd - microsub server", BuildVersion())
+	setupLogging()
+	slog.Info("eksterd starting", "version", BuildVersion())
 
 	var options AppOptions
 

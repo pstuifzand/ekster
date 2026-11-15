@@ -30,6 +30,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/url"
@@ -550,8 +551,7 @@ func (b *memoryBackend) run() {
 }
 
 func (b *memoryBackend) RefreshFeeds() {
-	log.Println("Feed update process started")
-	defer log.Println("Feed update process completed")
+	slog.Info("feed refresh started")
 
 	ctx, span := observability.Span(context.Background(), "feeds.refresh")
 	defer span.End()
@@ -563,11 +563,11 @@ func (b *memoryBackend) RefreshFeeds() {
 	}
 	span.SetAttributes(attribute.Int("feeds.count", len(feeds)))
 
-	log.Printf("Found %d feeds", len(feeds))
+	slog.Info("feed refresh: feeds due", "feeds", len(feeds))
 
 	count := 0
 	for _, feed := range feeds {
-		log.Println("Processing", feed.URL)
+		slog.Debug("feed refresh: fetching", feedAttrs(int64(feed.ID), feed.URL)...)
 		terr := b.refreshFeedSafely(ctx, feed)
 		if terr != nil {
 			b.addNotification("Error while fetching feed", feed, terr)
@@ -581,7 +581,7 @@ func (b *memoryBackend) RefreshFeeds() {
 	if count > 0 {
 		_ = b.updateChannelUnreadCount(ctx, "notifications")
 	}
-	log.Printf("Processed %d feeds", count)
+	slog.Info("feed refresh completed", "processed", count, "found", len(feeds))
 }
 
 // refreshFeedSafely runs one feed's refresh and turns a panic into an error.
