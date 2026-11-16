@@ -88,6 +88,16 @@ func MetricsHandler() http.Handler {
 	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 }
 
+// Register adds a collector of an application's own state to the registry. The
+// package owns the registry, and an unexported one would leave per-feed gauges
+// with nowhere to go in cmd/eksterd. Registration is independent of
+// EKSTER_METRICS: nothing is collected unless the handler is served, so a
+// deployment with metrics off behaves exactly as before.
+func Register(collector prometheus.Collector) error {
+	initMetrics()
+	return registry.Register(collector)
+}
+
 // StartMetricsServer listens on addr (host:port, normally loopback) and serves
 // /metrics there. It returns a no-op when EKSTER_METRICS is unset, so an
 // unconfigured deployment behaves exactly as before.

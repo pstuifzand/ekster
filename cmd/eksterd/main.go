@@ -215,6 +215,14 @@ func main() {
 		metricsShutdown = func(context.Context) error { return nil }
 	}
 
+	// Per-feed schedule gauges: tier and next fetch are state the ticker reads
+	// from the database, so they are exported from the same table rather than
+	// from whatever the last fetch span happened to say. Registered whether or
+	// not metrics are enabled — the registry is only served when they are.
+	if err := observability.Register(newFeedGauges(db)); err != nil {
+		log.Printf("could not register feed gauges: %v", err)
+	}
+
 	// The batch exporter holds spans until they are flushed, and a container
 	// gets SIGTERM, not a clean return. Flush before leaving so the work that
 	// just happened is not lost with the process.
