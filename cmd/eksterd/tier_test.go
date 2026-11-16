@@ -52,10 +52,35 @@ func TestTierIsClampedAtTheCeiling(t *testing.T) {
 		t.Fatalf("tier = %d, want the ceiling %d", f.Tier, maxTier)
 	}
 
-	// 2^20 minutes is about two years; if this ever reads as hours, the
-	// exponent changed meaning.
-	if interval := time.Duration(1<<maxTier) * time.Minute; interval < 700*24*time.Hour {
-		t.Fatalf("ceiling interval = %v, want a couple of years", interval)
+	// 2^16 minutes is about six weeks. A much larger interval would leave a
+	// revived feed invisible for longer than the ladder is worth.
+	if interval := time.Duration(1<<maxTier) * time.Minute; interval < 40*24*time.Hour || interval > 50*24*time.Hour {
+		t.Fatalf("ceiling interval = %v, want about 45 days", interval)
+	}
+}
+
+// A change from the top of the ladder lands at the change ceiling, not two
+// rungs down: falling from 16 to 14 would put the confirming check eleven days
+// out, which is the opposite of noticing a revival.
+func TestChangedFeedNeverLandsAboveTheChangeCeiling(t *testing.T) {
+	b := &memoryBackend{}
+	fromTop := feed{Tier: maxTier}
+
+	b.scheduleNextFetch(&fromTop, true)
+
+	if fromTop.Tier != changeCeiling {
+		t.Fatalf("tier = %d after a change from %d, want %d", fromTop.Tier, maxTier, changeCeiling)
+	}
+	if got := time.Duration(1<<fromTop.Tier) * time.Minute; got != 256*time.Minute {
+		t.Fatalf("revived feed is next fetched in %v, want 4h16m", got)
+	}
+
+	// Below the ceiling the two-rung drop still applies, so a feed already on a
+	// short interval does not fall further than it needs to.
+	below := feed{Tier: 9}
+	b.scheduleNextFetch(&below, true)
+	if below.Tier != 7 {
+		t.Fatalf("tier = %d after a change from 9, want 7", below.Tier)
 	}
 }
 

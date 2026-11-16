@@ -694,23 +694,38 @@ const (
 	// immediate regardless; this is the interval after that, so a fresh
 	// subscription is re-read within the hour instead of within two minutes.
 	startTier = 6
-	// maxTier is the floor on how often a dormant feed is asked: 2^20 minutes
-	// is about two years. Reaching it takes years of quiet, so in practice the
-	// ladder stops mattering around tier 16 (45 days).
-	maxTier = 20
+	// maxTier is the floor on how often a dormant feed is asked: 2^16 minutes is
+	// about 45 days, which still notices a feed that revives within a season.
+	// From here the climb to the next rung costs two fetches at doubling
+	// intervals, so a larger ceiling would only be reached by a feed that has
+	// been silent for years — and stay invisible for as long again.
+	maxTier = 16
+	// changeCeiling is where a changed feed lands at most, however high it had
+	// climbed: 2^8 minutes is just over four hours. The rung it would land on by falling
+	// two from tier 16 is eleven days, so the check that confirms a revival
+	// would itself be eleven days away. What matters is that the next look
+	// happens today, not how far the number fell.
+	changeCeiling = 8
 	// changeDrop is how many rungs a changed feed falls, and climbAfter is how
-	// many unchanged fetches in a row buy the next one. Falling twice as fast
-	// as climbing is what makes a feed that just published visible again soon.
+	// many unchanged fetches in a row buy the next one. Falling faster than
+	// climbing is what makes a feed that just published visible again soon.
 	changeDrop = 2
 	climbAfter = 2
 )
 
-// scheduleNextFetch applies the tier rules: a changed feed falls two tiers (and
-// is fetched sooner), a feed that did not change climbs one after two unchanged
-// fetches in a row, up to the ceiling.
+// scheduleNextFetch applies the tier rules: a changed feed falls two tiers and
+// never lands above the change ceiling, so a revival is confirmed within hours
+// rather than at the next rung; a feed that did not change climbs one tier after
+// two unchanged fetches in a row, up to the ceiling.
 func (b *memoryBackend) scheduleNextFetch(f *feed, changed bool) {
 	if changed {
 		f.Tier -= changeDrop
+		// However far it fell, a revived feed is looked at again within the
+		// change ceiling: two rungs below tier 16 would be eleven days away,
+		// and the point of noticing a change is to see what came with it.
+		if f.Tier > changeCeiling {
+			f.Tier = changeCeiling
+		}
 		// A change resets the climb. Without this, a change that arrives one
 		// fetch into a climb is handed straight back by the next quiet fetch,
 		// which makes the drop look bigger than it was.
