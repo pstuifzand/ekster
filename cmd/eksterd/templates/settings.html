@@ -1,79 +1,31 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ekster</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.1/css/bulma.min.css">
-</head>
-<body>
-    <section class="section">
-        <div class="container">
-            <nav class="navbar" role="navigation" aria-label="main navigation">
-                <div class="navbar-brand">
-                    <a class="navbar-item" href="/">
-                        Ekster
-                    </a>
+{{define "title"}}Channels - Ekster{{end}}
+{{define "content"}}
+<div class="page-head">
+    <h1>Channels</h1>
+    <p class="lede">Every channel this server holds for you. Open one to change what it keeps.</p>
+</div>
 
-                    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="menu">
-                        <span aria-hidden="true"></span>
-                        <span aria-hidden="true"></span>
-                        <span aria-hidden="true"></span>
-                    </a>
-                </div>
-
-                {{ if .Session.LoggedIn }}
-                    <div id="menu" class="navbar-menu">
-                        <a class="navbar-item" href="/settings">
-                            Settings
-                        </a>
-                        <a class="navbar-item" href="/settings/sources">
-                            Sources
-                        </a>
-                        <a class="navbar-item" href="/logs">
-                            Logs
-                        </a>
-                        <a class="navbar-item" href="{{ .Session.Me }}">
-                            Profile
-                        </a>
-                    </div>
-                {{ end }}
-            </nav>
-
-            <h1 class="title">Ekster - Microsub server</h1>
-
-            {{ if .Session.LoggedIn }}
+<div class="table-wrap">
+    <table class="table is-fullwidth is-hoverable">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>UID</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ range .Channels }}
+                <tr>
+                    <td><a href="/settings/channel?uid={{ .UID }}">{{ .Name }}</a></td>
+                    <td class="is-size-7 has-text-grey">{{ .UID }}</td>
+                </tr>
+            {{ else }}
+                <tr>
+                    <td colspan="2">No channels yet.</td>
+                </tr>
             {{ end }}
-
-            <h2 class="subtitle">Channels</h2>
-
-            <div class="channels">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>UID</th>
-                            <th>Name</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {{ range .Channels }}
-                            <tr>
-                                <td>
-                                    {{.UID}}
-                                </td>
-                                <td>
-                                    <a href="/settings/channel?uid={{ .UID }}">{{ .Name }}</a>
-                                </td>
-                            </tr>
-                        {{ else }}
-                            <tr>
-                                <td colspan="2">No channels</td>
-                            </tr>
-                        {{ end }}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </section>
-</body>
-</html>
+        </tbody>
+    </table>
+</div>
+{{end}}
+{{template "base.html" .}}

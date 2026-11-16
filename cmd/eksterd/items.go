@@ -28,6 +28,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gomodule/redigo/redis"
@@ -191,7 +192,18 @@ func renderPage(w io.Writer, filename string, data interface{}) error {
 	if err != nil {
 		return err
 	}
-	t, err := template.ParseFS(fsys, "base.html", filename)
+	// host shortens an IndieAuth address to the domain a person recognises, so
+	// the account chip in the header reads "p83.nl" instead of a full URL.
+	funcs := template.FuncMap{
+		"host": func(rawURL string) string {
+			u, err := url.Parse(rawURL)
+			if err != nil || u.Host == "" {
+				return rawURL
+			}
+			return u.Host
+		},
+	}
+	t, err := template.New("page").Funcs(funcs).ParseFS(fsys, "base.html", filename)
 	if err != nil {
 		return err
 	}

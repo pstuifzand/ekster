@@ -1,0 +1,324 @@
+/* Ekster's admin chrome. Bulma still styles the component-heavy pages
+   (tables, tags, fields), so this file owns the page frame and only overrides
+   the Bulma defaults that fight the palette. */
+
+:root {
+    --paper: #faf6f0;
+    --card: #ffffff;
+    --ink: #2b2230;
+    --muted: #6d6274;
+    --line: #e8ddd1;
+    --accent: #a8541f;
+    --accent-soft: #f5e8dc;
+    --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+a { color: var(--accent); }
+a:hover { color: var(--ink); }
+
+code, pre {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .875em;
+}
+pre {
+    background: var(--accent-soft);
+    border-radius: 10px;
+    padding: .8rem 1rem;
+    overflow-x: auto;
+}
+
+/* ---- header ------------------------------------------------------------ */
+
+.site-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(250, 246, 240, .92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+}
+
+.site-header__inner {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: .7rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+
+.brand {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: -.01em;
+    color: var(--ink);
+    text-decoration: none;
+    flex: none;
+}
+.brand:hover { color: var(--ink); }
+.brand img { display: block; width: 26px; height: 26px; border-radius: 7px; }
+
+.site-nav {
+    display: flex;
+    align-items: center;
+    gap: .15rem;
+    margin-left: .5rem;
+}
+
+.site-nav a {
+    display: block;
+    padding: .35rem .6rem;
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: .93rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.site-nav a:hover { background: var(--accent-soft); color: var(--ink); }
+.site-nav a[aria-current="page"] {
+    background: var(--accent-soft);
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.site-account {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin-left: auto;
+    min-width: 0;
+}
+
+.account-site {
+    color: var(--muted);
+    font-size: .83rem;
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.account-site:hover { color: var(--ink); }
+
+.signout {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .3rem .65rem;
+    font: inherit;
+    font-size: .83rem;
+    color: var(--muted);
+    cursor: pointer;
+}
+.signout:hover { border-color: var(--accent); color: var(--accent); }
+
+.menu-toggle {
+    display: none;
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .3rem .6rem;
+    font: inherit;
+    font-size: .85rem;
+    color: var(--ink);
+    cursor: pointer;
+}
+
+/* ---- page -------------------------------------------------------------- */
+
+.site-main {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 1.75rem 1.25rem 3.5rem;
+}
+
+.page-head { margin-bottom: 1.4rem; }
+
+.page-head h1 {
+    margin: 0;
+    font-size: 1.55rem;
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: -.015em;
+}
+
+.page-head .lede {
+    margin: .4rem 0 0;
+    max-width: 46rem;
+    color: var(--muted);
+    font-size: .95rem;
+}
+
+.crumbs {
+    margin: 0 0 .6rem;
+    font-size: .8rem;
+    color: var(--muted);
+}
+.crumbs a { color: var(--muted); }
+.crumbs span { opacity: .6; padding: 0 .35rem; }
+
+.pane {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.2rem 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.pane h2 {
+    margin: 0 0 .75rem;
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.grid {
+    display: grid;
+    gap: .9rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    margin-bottom: 1.25rem;
+}
+
+.pane-link {
+    display: block;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+    color: var(--ink);
+    text-decoration: none;
+    transition: border-color .12s ease, transform .12s ease;
+}
+.pane-link:hover { border-color: var(--accent); color: var(--ink); transform: translateY(-1px); }
+.pane-link strong { display: block; font-size: .98rem; margin-bottom: .2rem; }
+.pane-link span { color: var(--muted); font-size: .85rem; line-height: 1.45; }
+
+.field-row {
+    display: flex;
+    align-items: flex-end;
+    gap: .6rem;
+    flex-wrap: wrap;
+}
+
+.field-row .field { flex: 1 1 18rem; margin-bottom: 0; }
+
+.hint {
+    margin: .55rem 0 0;
+    color: var(--muted);
+    font-size: .83rem;
+}
+
+.table-wrap { overflow-x: auto; margin-bottom: 1.25rem; }
+
+/* ---- sign in ----------------------------------------------------------- */
+
+.signin {
+    max-width: 30rem;
+    margin: 3.5rem auto 0;
+}
+.signin .brand { font-size: 1.4rem; margin-bottom: .75rem; }
+.signin .brand img { width: 36px; height: 36px; }
+.signin h1 { margin: 0 0 .35rem; font-size: 1.5rem; letter-spacing: -.015em; }
+.signin .lede { margin: 0 0 1.5rem; color: var(--muted); }
+.signin .pane .button { margin-top: 1rem; }
+
+/* ---- footer ------------------------------------------------------------ */
+
+.site-footer {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 2.5rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .8rem;
+}
+.site-footer a { color: var(--muted); text-decoration: underline; }
+
+/* ---- Bulma overrides --------------------------------------------------- */
+
+.title, .subtitle { color: var(--ink); }
+.content h1, .content h2, .content h3, .content h4, .content h5, .content h6 { color: inherit; }
+.content p, .content li, .content dl { color: inherit; }
+
+.table { background: transparent; }
+.table th, .table td { border-color: var(--line); vertical-align: middle; }
+.table thead th {
+    border-color: var(--line);
+    color: var(--muted);
+    font-size: .74rem;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+.table.is-hoverable tbody tr:hover { background: var(--accent-soft); }
+
+.input, .select select, .textarea { border-color: var(--line); border-radius: 8px; }
+.input:focus, .select select:focus, .textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.button { border-radius: 8px; }
+.button.is-primary { background: var(--accent); border-color: var(--accent); }
+.button.is-primary:hover { background: #8f4619; border-color: #8f4619; }
+.button.is-danger.is-light {
+    background: transparent;
+    border-color: #ddbfae;
+    color: #8a2f14;
+}
+.button.is-danger.is-light:hover {
+    background: #8a2f14;
+    border-color: #8a2f14;
+    color: #fff;
+}
+
+/* Sources puts an endpoint and a token in one row. The floors keep the URL
+   readable while the two copy fields still fit the 62rem column; wider values
+   are scrolled by .table-wrap instead of being clipped mid-URL. */
+.src-endpoint { min-width: 12rem; }
+.src-token { min-width: 9rem; }
+
+.box { background: var(--card); border: 1px solid var(--line); box-shadow: none; border-radius: var(--radius); }
+.label { color: var(--ink); font-weight: 600; font-size: .85rem; }
+.help { color: var(--muted); }
+
+/* ---- narrow screens ---------------------------------------------------- */
+
+@media (max-width: 46rem) {
+    .site-header__inner { flex-wrap: wrap; gap: .5rem; }
+    .menu-toggle { display: block; }
+
+    .site-nav {
+        display: none;
+        order: 3;
+        width: 100%;
+        margin: 0;
+        flex-direction: column;
+        align-items: stretch;
+        border-top: 1px solid var(--line);
+        padding-top: .5rem;
+    }
+    .site-nav.is-open { display: flex; }
+    .site-nav a { padding: .55rem .6rem; font-size: 1rem; }
+
+    .site-account { margin-left: auto; }
+    .account-site { display: none; }
+
+    .site-main { padding: 1.25rem 1rem 2.5rem; }
+    .signin { margin-top: 1rem; }
+}

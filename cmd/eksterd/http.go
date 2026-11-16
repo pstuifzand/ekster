@@ -41,7 +41,7 @@ import (
 	"willnorris.com/go/microformats"
 )
 
-//go:embed templates/*.html templates/assets/*.svg
+//go:embed templates/*.html templates/assets/*.svg templates/assets/*.css
 var templates embed.FS
 
 type mainHandler struct {
@@ -73,11 +73,13 @@ type authTokenResponse struct {
 
 type indexPage struct {
 	Session     session
+	Nav         string
 	Baseurl     string
 	MicrosubURL string
 }
 type settingsPage struct {
 	Session session
+	Nav     string
 
 	CurrentChannel    microsub.Channel
 	CurrentSetting    channelSetting
@@ -89,11 +91,13 @@ type settingsPage struct {
 }
 type logsPage struct {
 	Session session
+	Nav     string
 }
 
 // statusPage lists every feed with the outcome of its last fetch.
 type statusPage struct {
 	Session session
+	Nav     string
 
 	Feeds   []feedStatus
 	Failing int
@@ -104,6 +108,7 @@ type statusPage struct {
 
 type authPage struct {
 	Session     session
+	Nav         string
 	Me          string
 	ClientID    string
 	Scope       string
@@ -320,6 +325,17 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(icon)
 		return
 	}
+	if r.URL.Path == "/assets/ekster.css" {
+		css, err := templates.ReadFile("templates/assets/ekster.css")
+		if err != nil {
+			http.Error(w, "stylesheet unavailable", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		_, _ = w.Write(css)
+		return
+	}
 	conn := h.pool.Get()
 	defer conn.Close()
 
@@ -349,6 +365,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page indexPage
 			page.Session = sess
+			page.Nav = "home"
 			page.Baseurl = strings.TrimRight(h.BaseURL, "/")
 			page.MicrosubURL = fmt.Sprintf("%s/microsub/%d", strings.TrimRight(h.BaseURL, "/"), sess.UserID)
 
@@ -415,6 +432,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page settingsPage
 			page.Session = sess
+			page.Nav = "settings"
 			currentChannel := r.URL.Query().Get("uid")
 			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
@@ -504,6 +522,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page statusPage
 			page.Session = sess
+			page.Nav = "status"
 			page.Feeds = feeds
 			for _, f := range feeds {
 				switch f.State {
@@ -545,6 +564,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page logsPage
 			page.Session = sess
+			page.Nav = "logs"
 
 			err = h.renderTemplate(w, "logs.html", page)
 			if err != nil {
@@ -573,6 +593,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page settingsPage
 			page.Session = sess
+			page.Nav = "settings"
 			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
 				log.Printf("ERROR: %s\n", err)
@@ -641,6 +662,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var page authPage
 			page.Session = sess
+			page.Nav = ""
 			page.Me = me
 			page.ClientID = clientID
 			page.RedirectURI = redirectURI

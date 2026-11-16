@@ -65,6 +65,7 @@ type sourceView struct {
 
 type sourcesPage struct {
 	Session session
+	Nav     string
 
 	Sources  []sourceView
 	Channels []microsub.Channel
@@ -217,6 +218,7 @@ func (h *mainHandler) handleSourcesPage(w http.ResponseWriter, r *http.Request, 
 
 	var page sourcesPage
 	page.Session = sess
+	page.Nav = "sources"
 
 	sources, err := h.Backend.SourcesGetList(r.Context())
 	if err != nil {

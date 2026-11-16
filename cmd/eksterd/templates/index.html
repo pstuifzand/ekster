@@ -1,91 +1,90 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ekster</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.1/css/bulma.min.css">
-<style>.ekster-brand { display: inline-flex; align-items: center; gap: .55rem; font-weight: 700; } .ekster-brand img { display: block; border-radius: 7px; }</style>
-<link rel="micropub" href="{{ .Baseurl }}/micropub" />
-<link rel="authorization_endpoint" href="{{ .Baseurl }}/auth" />
-<link rel="token_endpoint" href="{{ .Baseurl }}/auth/token" />
-</head>
-<body>
-<div class="container">
-  <section class="section">
-            <nav class="navbar is-light" role="navigation" aria-label="main navigation">
-                <div class="navbar-brand">
-                    <a class="navbar-item ekster-brand" href="/">
-                        <img src="/favicon.svg" alt="" width="28" height="28">
-                        <span>Ekster</span>
-                    </a>
+{{define "title"}}Ekster{{end}}
+{{define "content"}}
+{{ if .Session.LoggedIn }}
+<div class="page-head">
+    <h1>Ekster</h1>
+    <p class="lede">
+        Your Microsub server. Point a reader at the endpoint below; the channels,
+        feeds and sources it keeps for you are in the pages behind it.
+    </p>
+</div>
 
-                    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="menu">
-                        <span aria-hidden="true"></span>
-                        <span aria-hidden="true"></span>
-                        <span aria-hidden="true"></span>
-                    </a>
-                </div>
-
-                {{ if .Session.LoggedIn }}
-                    <div id="menu" class="navbar-menu">
-                        <a class="navbar-item" href="/settings">
-                            Settings
-                        </a>
-                        <a class="navbar-item" href="/settings/sources">
-                            Sources
-                        </a>
-                        <a class="navbar-item" href="/logs">
-                            Logs
-                        </a>
-                        <a class="navbar-item" href="{{ .Session.Me }}">
-                            Profile
-                        </a>
-                    </div>
-                {{ end }}
-            </nav>
-
-          <div class="content">
-            <h1 class="title">Ekster - Microsub server</h1>
-
-            {{ if .Session.LoggedIn }}
-
-                    <h2>Configuration</h2>
-                       <p>To configure Ekster with you own Indieweb website, you need to add to "microsub" endpoint as
-                       a header or <code>&lt;link&gt;</code>.</p>
-
-<pre>&lt;link rel=&quot;microsub&quot; href=&quot;{{.MicrosubURL}}&quot;&gt;</pre>
-
-                    <h2>Logout</h2>
-                    <form action="/session/logout" method="post">
-                        <button type="submit" class="button is-info">Logout</button>
-                    </form>
-            {{ else }}
-                <h2>Sign in to Ekster</h2>
-                <form action="/session" method="post">
-                    <div class="field">
-                        <label class="label" for="url"></label>
-                        <div class="control">
-                            <input type="text" name="url" id="url" class="input" placeholder="https://example.com/">
-                        </div>
-                    </div>
-                    <div class="field is-grouped">
-                        <div class="control">
-                            <button type="submit" class="button is-info">Login</button>
-                        </div>
-                    </div>
-                </form>
-            {{ end }}
-
+<div class="pane">
+    <h2>Microsub endpoint</h2>
+    <div class="field-row">
+        <div class="field">
+            <div class="control">
+                <input class="input" id="microsub-url" type="text" readonly
+                       value="{{ .MicrosubURL }}" onclick="this.select()">
+            </div>
         </div>
-        <div class="footer">
-          <p>Copyright (C) 2018 The Ekster authors.<br>
-            This program comes with ABSOLUTELY NO WARRANTY. This is free software,
-            and you are welcome to redistribute it under certain conditions.
-            See <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">Licence</a> for more details.</p>
+        <div class="control">
+            <button class="button" type="button" onclick="copyEndpoint(this)">Copy</button>
         </div>
-    </section>
     </div>
-</body>
-</html>
+    <p class="hint">
+        Your site advertises it with
+        <code>&lt;link rel="microsub" href="{{ .MicrosubURL }}"&gt;</code>
+    </p>
+</div>
+
+<div class="grid">
+    <a class="pane-link" href="/settings">
+        <strong>Channels</strong>
+        <span>Create a channel, set its blocking rules and excluded types, and see what it follows.</span>
+    </a>
+    <a class="pane-link" href="/settings/sources">
+        <strong>Sources</strong>
+        <span>Tokens that let a service outside Ekster post items into one channel.</span>
+    </a>
+    <a class="pane-link" href="/status">
+        <strong>Status</strong>
+        <span>The last fetch of every feed: HTTP status, item counts, errors, and what has gone stale.</span>
+    </a>
+    <a class="pane-link" href="/logs">
+        <strong>Logs</strong>
+        <span>What the server has been doing.</span>
+    </a>
+</div>
+{{ else }}
+<div class="signin">
+    <a class="brand" href="/">
+        <img src="/favicon.svg" alt="" width="36" height="36">
+        <span>Ekster</span>
+    </a>
+    <h1>Sign in</h1>
+    <p class="lede">
+        Ekster is a Microsub server: it holds the channels and feeds a reader reads.
+        Sign in with the address of your own site to manage them.
+    </p>
+
+    <form class="pane" action="/session" method="post">
+        <div class="field">
+            <label class="label" for="url">Your site</label>
+            <div class="control">
+                <input class="input" type="url" name="url" id="url"
+                       placeholder="https://example.com/" autocomplete="url"
+                       autocapitalize="none" spellcheck="false" required autofocus>
+            </div>
+        </div>
+        <button class="button is-primary" type="submit">Continue</button>
+    </form>
+</div>
+{{ end }}
+{{end}}
+{{define "scripts"}}
+<script>
+    function copyEndpoint(button) {
+        var input = document.getElementById('microsub-url');
+        input.select();
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(input.value);
+        } else {
+            document.execCommand('copy');
+        }
+        button.textContent = 'Copied';
+        setTimeout(function () { button.textContent = 'Copy'; }, 1500);
+    }
+</script>
+{{end}}
+{{template "base.html" .}}

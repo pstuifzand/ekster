@@ -1,128 +1,77 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ekster</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.1/css/bulma.min.css">
-</head>
-<body>
-    <section class="section">
-        <div class="container">
-            <nav class="navbar" role="navigation" aria-label="main navigation">
-                <div class="navbar-brand">
-                    <a class="navbar-item" href="/">
-                        Ekster
-                    </a>
+{{define "title"}}{{ .CurrentChannel.Name }} - Ekster{{end}}
+{{define "content"}}
+{{ $channel := .CurrentChannel }}
 
-                    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="menu">
-                        <span aria-hidden="true"></span>
-                        <span aria-hidden="true"></span>
-                        <span aria-hidden="true"></span>
-                    </a>
-                </div>
+<p class="crumbs">
+    <a href="/settings">Channels</a><span>/</span>{{ $channel.Name }}
+</p>
 
-                {{ if .Session.LoggedIn }}
-                    <div id="menu" class="navbar-menu">
-                        <a class="navbar-item" href="/settings">
-                            Settings
-                        </a>
-                        <a class="navbar-item" href="/settings/sources">
-                            Sources
-                        </a>
-                        <a class="navbar-item" href="/logs">
-                            Logs
-                        </a>
-                        <a class="navbar-item" href="{{ .Session.Me }}">
-                            Profile
-                        </a>
+<div class="page-head">
+    <h1>{{ $channel.Name }}</h1>
+    <p class="lede">What this channel keeps, and the feeds that fill it.</p>
+</div>
+
+<div class="columns">
+    <div class="column">
+        <div class="pane">
+            <h2>Settings</h2>
+            <form action="/settings/channel" method="post">
+                <input type="hidden" name="uid" value="{{ .CurrentChannel.UID }}" />
+                <div class="field">
+                    <label class="label" for="exclude_regex">Blocking regex</label>
+                    <div class="control">
+                        <input type="text" class="input" id="exclude_regex" name="exclude_regex"
+                               value="{{ .CurrentSetting.ExcludeRegex }}" placeholder="enter regex to block" />
                     </div>
-                {{ end }}
-            </nav>
-
-            <h1 class="title">Ekster - Microsub server</h1>
-
-            {{ $channel := .CurrentChannel }}
-
-            <nav class="breadcrumb" aria-label="breadcrumbs">
-                <ul>
-                    <li><a href="/settings">Settings</a></li>
-                    <li class="is-active"><a href="/setttings/channel?uid={{ .CurrentChannel }}">{{ $channel.Name }}</a></li>
-                </ul>
-            </nav>
-
-            <h2 class="subtitle is-2">{{ $channel.Name }}</h2>
-
-            <div class="columns">
-                <div class="column">
-                    <h3 class="title is-4">Settings</h3>
-                    <form action="/settings/channel" method="post">
-                        <input type="hidden" name="uid" value="{{ .CurrentChannel.UID }}" />
-                        <div class="field">
-                            <label class="label" for="exclude_regex">Blocking Regex</label>
-                            <div class="control">
-                                <input type="text" class="input" id="exclude_regex" name="exclude_regex" value="{{ .CurrentSetting.ExcludeRegex }}" placeholder="enter regex to block" />
-                            </div>
-                            <p class="help">Exclude items that don't match this regex</p>
-                        </div>
-{{/*                        <div class="field">*/}}
-{{/*                            <label class="label" for="include_regex">Global Tracking Regex</label>*/}}
-{{/*                            <div class="control">*/}}
-{{/*                                <input type="text" class="input" id="include_regex" name="include_regex" value="{{ .CurrentSetting.IncludeRegex }}" placeholder="enter regex to track items" />*/}}
-{{/*                            </div>*/}}
-{{/*                            <p class="help">Include items from all channels when this regex matches</p>*/}}
-{{/*                        </div>*/}}
-                        <div class="field">
-                            <label class="label" for="type">Channel Type</label>
-                            <div class="control">
-                                <div class="select">
-                                    <select name="type" id="type">
-                                        <option value="null" {{if eq (.CurrentSetting.ChannelType) "null" }}selected{{end}}>Null</option>
-                                        <option value="sorted-set" {{if eq (.CurrentSetting.ChannelType) "sorted-set" }}selected{{end}}>Sorted Set</option>
-                                        <option value="stream" {{if eq (.CurrentSetting.ChannelType) "stream" }}selected{{end}}>Streams</option>
-                                        <option value="postgres-stream" {{if eq (.CurrentSetting.ChannelType) "postgres-stream" }}selected{{end}}>Postgres Stream</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="field">
-                            <label for="exclude_type" class="label">Exclude Types</label>
-                            <div class="control">
-                                <div class="select is-multiple">
-                                    <select name="exclude_type" id="exclude_type" multiple>
-                                        {{ range $key, $excluded := $.ExcludedTypes }}
-                                            <option value="{{ $key }}" {{ if $excluded }}selected="selected"{{ end }}>{{ index $.ExcludedTypeNames $key }}</option>
-                                        {{ end }}
-                                    </select>
-                                </div>
-                            </div>
-                            <p class="help">Exclude items that don't match this type</p>
-                        </div>
-                        <div class="field">
-                            <div class="control">
-                                <button type="submit" class="button is-primary">Save</button>
-                            </div>
-                        </div>
-                    </form>
+                    <p class="help">Items that match this regex are not added</p>
                 </div>
-
-                <div class="column">
-                    <h3 class="title is-4">Feeds</h3>
-
-                    <div class="channel">
-                        {{ range .Feeds }}
-                            <div class="feed box">
-                                <div class="name">
-                                    <a href="{{ .URL }}">{{ .URL }}</a>
-                                </div>
-                            </div>
-                        {{ else }}
-                            <div class="no-channels">No feeds</div>
-                        {{ end }}
+                <div class="field">
+                    <label class="label" for="type">Channel type</label>
+                    <div class="control">
+                        <div class="select">
+                            <select name="type" id="type">
+                                <option value="null" {{if eq (.CurrentSetting.ChannelType) "null" }}selected{{end}}>Null</option>
+                                <option value="sorted-set" {{if eq (.CurrentSetting.ChannelType) "sorted-set" }}selected{{end}}>Sorted Set</option>
+                                <option value="stream" {{if eq (.CurrentSetting.ChannelType) "stream" }}selected{{end}}>Streams</option>
+                                <option value="postgres-stream" {{if eq (.CurrentSetting.ChannelType) "postgres-stream" }}selected{{end}}>Postgres Stream</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-            </div>
+                <div class="field">
+                    <label for="exclude_type" class="label">Excluded types</label>
+                    <div class="control">
+                        <div class="select is-multiple">
+                            <select name="exclude_type" id="exclude_type" multiple size="5">
+                                {{ range $key, $excluded := $.ExcludedTypes }}
+                                    <option value="{{ $key }}" {{ if $excluded }}selected="selected"{{ end }}>{{ index $.ExcludedTypeNames $key }}</option>
+                                {{ end }}
+                            </select>
+                        </div>
+                    </div>
+                    <p class="help">Items of a selected type are not added to this channel</p>
+                </div>
+                <div class="field">
+                    <div class="control">
+                        <button type="submit" class="button is-primary">Save</button>
+                    </div>
+                </div>
+            </form>
         </div>
-    </section>
-</body>
-</html>
+    </div>
+
+    <div class="column">
+        <div class="pane">
+            <h2>Feeds</h2>
+            {{ range .Feeds }}
+                <div class="feed">
+                    <a href="{{ .URL }}">{{ .URL }}</a>
+                </div>
+            {{ else }}
+                <p class="hint">No feeds in this channel.</p>
+            {{ end }}
+        </div>
+    </div>
+</div>
+{{end}}
+{{template "base.html" .}}

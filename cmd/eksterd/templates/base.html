@@ -1,58 +1,69 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{template "title" .}}</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.1/css/bulma.min.css">
-    <style>.ekster-brand { display: inline-flex; align-items: center; gap: .55rem; font-weight: 700; } .ekster-brand img { display: block; border-radius: 7px; }</style>
+    <link rel="stylesheet" href="/assets/ekster.css">
+    {{template "head" .}}
 </head>
 <body>
-<section class="section">
-    <div class="container">
-        <nav class="navbar" role="navigation" aria-label="main navigation">
-            <div class="navbar-brand">
-                <a class="navbar-item ekster-brand" href="/">
-                    <img src="/favicon.svg" alt="" width="28" height="28">
-                    <span>Ekster</span>
-                </a>
+<header class="site-header">
+    <div class="site-header__inner">
+        <a class="brand" href="/">
+            <img src="/favicon.svg" alt="" width="26" height="26">
+            <span>Ekster</span>
+        </a>
 
-                <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="menu">
-                    <span aria-hidden="true"></span>
-                    <span aria-hidden="true"></span>
-                    <span aria-hidden="true"></span>
-                </a>
+        {{ if .Session.LoggedIn }}
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+                Menu
+            </button>
+
+            <nav class="site-nav" id="site-nav" aria-label="main navigation">
+                <a href="/" {{ if eq .Nav "home" }}aria-current="page"{{ end }}>Home</a>
+                <a href="/settings" {{ if eq .Nav "settings" }}aria-current="page"{{ end }}>Channels</a>
+                <a href="/settings/sources" {{ if eq .Nav "sources" }}aria-current="page"{{ end }}>Sources</a>
+                <a href="/status" {{ if eq .Nav "status" }}aria-current="page"{{ end }}>Status</a>
+                <a href="/logs" {{ if eq .Nav "logs" }}aria-current="page"{{ end }}>Logs</a>
+            </nav>
+
+            <div class="site-account">
+                <a class="account-site" href="{{ .Session.Me }}" title="{{ .Session.Me }}">{{ host .Session.Me }}</a>
+                <form action="/session/logout" method="post">
+                    <button class="signout" type="submit">Sign out</button>
+                </form>
             </div>
-
-            {{ if .Session.LoggedIn }}
-                <div id="menu" class="navbar-menu">
-                    <a class="navbar-item" href="/settings">
-                        Settings
-                    </a>
-                    <a class="navbar-item" href="/settings/sources">
-                        Sources
-                    </a>
-                    <a class="navbar-item" href="/logs">
-                        Logs
-                    </a>
-                    <a class="navbar-item" href="/status">
-                        Status
-                    </a>
-                    <a class="navbar-item" href="{{ .Session.Me }}">
-                        Profile
-                    </a>
-                </div>
-            {{ end }}
-        </nav>
-
-        <h1 class="title">Ekster - Microsub server</h1>
-
-        {{template "content" .}}
+        {{ end }}
     </div>
-</section>
+</header>
+
+<main class="site-main">
+    {{template "content" .}}
+</main>
+
+<footer class="site-footer">
+    Ekster, a Microsub server. Free software under the
+    <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL-3.0</a>, with no warranty.
+</footer>
+
+<script>
+    (function () {
+        var toggle = document.querySelector('.menu-toggle');
+        var nav = document.getElementById('site-nav');
+        if (!toggle || !nav) return;
+        toggle.addEventListener('click', function () {
+            var open = nav.classList.toggle('is-open');
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    })();
+</script>
+{{template "scripts" .}}
 </body>
 </html>
-{{define "header"}}{{end}}
+{{define "title"}}Ekster{{end}}
+{{define "head"}}{{end}}
 {{define "content"}}{{end}}
-{{define "footer"}}{{end}}
+{{define "scripts"}}{{end}}
