@@ -22,6 +22,7 @@ package fetch
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -215,9 +216,9 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 		// Filter items with "published" date
 		for _, r := range results {
 			if r.UID != "" {
-				r.ID = hex.EncodeToString([]byte(r.UID))
+				r.ID = itemUID(r.UID)
 			} else if r.URL != "" {
-				r.ID = hex.EncodeToString([]byte(r.URL))
+				r.ID = itemUID(r.URL)
 			} else {
 				continue
 			}
@@ -249,7 +250,7 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 			item.Content.HTML = feedItem.ContentHTML
 			item.Content.Text = feedItem.ContentText
 			item.URL = feedItem.URL
-			item.ID = hex.EncodeToString([]byte(feedItem.ID))
+			item.ID = itemUID(feedItem.ID)
 			item.Published = feedItem.DatePublished
 
 			itemAuthor := &microsub.Card{}
@@ -292,9 +293,9 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 			}
 			item.URL = feedItem.Link
 			if feedItem.ID == "" {
-				item.ID = hex.EncodeToString([]byte(feedItem.Link))
+				item.ID = itemUID(feedItem.Link)
 			} else {
-				item.ID = hex.EncodeToString([]byte(feedItem.ID))
+				item.ID = itemUID(feedItem.ID)
 			}
 
 			itemAuthor := &microsub.Card{}
@@ -338,6 +339,29 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 	}
 
 	return items, nil
+}
+
+// uidMaxLen is the width of items."uid" (varchar(512)). An id wider than this
+// fails the insert and the entry is dropped with a driver error in the log.
+const uidMaxLen = 512
+
+// itemUID is the opaque identity ekster stores for a feed entry.
+//
+// It is the hex of the entry's own id (or link) because that is what every
+// stored item already uses, and changing the scheme would make each entry
+// arrive as a new one. Hex doubles the length though, so a source id longer
+// than 256 characters — a bookmark URL with a long query string, which is
+// exactly what a Pinboard feed carries — produced a value Postgres refused
+// and a silently missing item. Hash what does not fit: the uid is opaque, so
+// a digest dedupes a re-fetch just as well, and the "sha256:" prefix keeps it
+// from colliding with the hex of some 32-character id.
+func itemUID(value string) string {
+	encoded := hex.EncodeToString([]byte(value))
+	if len(encoded) <= uidMaxLen {
+		return encoded
+	}
+	sum := sha256.Sum256([]byte(value))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 type mention struct {
