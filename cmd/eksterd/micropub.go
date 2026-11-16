@@ -114,12 +114,10 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	item.URL = itemURL(h.BaseURL, newID)
 	item.Source = target.itemSource()
 
-	// An author the client sent wins; otherwise the source is the author.
-	if item.Author == nil || (item.Author.Name == "" && item.Author.URL == "") {
-		if author := target.itemAuthor(); author != nil {
-			item.Author = author
-		}
-	}
+	// An author the client sent wins; otherwise the source is the author. A
+	// card with nothing in it (`"author": {}`, which some senders post) is not
+	// an identity, so it falls back too instead of being stored empty.
+	item.Author = target.resolveAuthor(item.Author)
 
 	log.Printf("Item published: %s (%s)", item.Published, item.URL)
 
@@ -508,11 +506,27 @@ func (t micropubTarget) itemSource() *microsub.Source {
 // itemAuthor attributes the post to the source that sent it, so a reader shows
 // where an item came from instead of an anonymous entry. An IndieAuth token is
 // the user's own, and its posts are not attributed to a source row.
+//
+// The type is part of the card: every other author in the database is
+// {"type":"card",...} because jf2 cards carry it, and a source-authored item
+// without it is the only shape a reader has to special-case.
 func (t micropubTarget) itemAuthor() *microsub.Card {
 	if t.SourceID == 0 {
 		return nil
 	}
-	return &microsub.Card{Name: t.itemSource().Name}
+	return &microsub.Card{Type: "card", Name: t.itemSource().Name}
+}
+
+// resolveAuthor keeps an author the client sent and otherwise attributes the
+// post to the source. An empty card (`"author": {}`) is not an identity, so it
+// falls back like a missing one instead of being stored empty.
+func (t micropubTarget) resolveAuthor(sent *microsub.Card) *microsub.Card {
+	if sent == nil || (sent.Name == "" && sent.URL == "" && sent.Photo == "") {
+		if author := t.itemAuthor(); author != nil {
+			return author
+		}
+	}
+	return sent
 }
 
 // resolveTarget finds the channel a request may post to. Micropub requires the

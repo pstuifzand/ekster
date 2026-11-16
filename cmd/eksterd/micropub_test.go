@@ -148,11 +148,37 @@ func TestMicropubTargetAuthor(t *testing.T) {
 	named := micropubTarget{SourceID: 7, SourceName: "Readwise"}
 	require.NotNil(t, named.itemAuthor())
 	assert.Equal(t, "Readwise", named.itemAuthor().Name)
+	assert.Equal(t, "card", named.itemAuthor().Type, "a source author is a card like every other author")
 
 	unnamed := micropubTarget{SourceID: 7}
 	require.NotNil(t, unnamed.itemAuthor())
 	assert.Equal(t, "Source 7", unnamed.itemAuthor().Name)
+	assert.Equal(t, "card", unnamed.itemAuthor().Type)
 
 	indieauth := micropubTarget{Channel: "home"}
 	assert.Nil(t, indieauth.itemAuthor(), "an IndieAuth token has no source row to attribute")
+}
+
+// TestMicropubTargetResolveAuthor covers who ends up as the item's author: the
+// card the sender posted, unless it is empty, in which case the source must
+// name the item. Storing `"author": {}` leaves a reader with an anonymous entry
+// next to a source it could have shown.
+func TestMicropubTargetResolveAuthor(t *testing.T) {
+	target := micropubTarget{SourceID: 7, SourceName: "Readwise"}
+
+	sent := &microsub.Card{Type: "card", Name: "Peter", URL: "https://example.com/"}
+	assert.Equal(t, sent, target.resolveAuthor(sent), "an author the client sent wins")
+
+	for _, empty := range []*microsub.Card{nil, {}, {Type: "card"}} {
+		got := target.resolveAuthor(empty)
+		require.NotNil(t, got)
+		assert.Equal(t, "Readwise", got.Name)
+		assert.Equal(t, "card", got.Type)
+	}
+
+	photoOnly := &microsub.Card{Type: "card", Photo: "https://example.com/p.png"}
+	assert.Equal(t, photoOnly, target.resolveAuthor(photoOnly), "a photo is an identity too")
+
+	indieauth := micropubTarget{Channel: "home"}
+	assert.Nil(t, indieauth.resolveAuthor(nil), "no source row means no fallback author")
 }
