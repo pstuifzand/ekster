@@ -299,7 +299,9 @@ pre {
    readable while the two copy fields still fit the 62rem column; wider values
    are scrolled by .table-wrap instead of being clipped mid-URL. */
 .src-endpoint { min-width: 12rem; }
-.src-token { min-width: 9rem; }
+
+.token-cell { display: flex; align-items: center; gap: .5rem; white-space: nowrap; }
+.token-hint { color: var(--muted); font-size: .8rem; }
 
 .box { background: var(--card); border: 1px solid var(--line); box-shadow: none; border-radius: var(--radius); }
 .label { color: var(--ink); font-weight: 600; font-size: .85rem; }

@@ -56,6 +56,7 @@ type sourceView struct {
 	ChannelUID     string
 	ChannelName    string
 	Token          string
+	TokenHint      string
 	Endpoint       string
 	LegacyEndpoint string
 	Created        string
@@ -178,6 +179,16 @@ func (b *memoryBackend) SourceTouch(id int) {
 	}
 }
 
+// tokenHint is the part of a token the page shows, enough to tell two sources
+// apart without putting the whole secret on screen. The token is copied, not
+// read, so the cell needs one control instead of a masked input and a button.
+func tokenHint(token string) string {
+	if len(token) <= 6 {
+		return token
+	}
+	return token[:6] + "…"
+}
+
 func (h *mainHandler) sourceViews(ctx context.Context, sources []micropubSource) []sourceView {
 	baseURL := strings.TrimRight(h.BaseURL, "/")
 
@@ -194,6 +205,7 @@ func (h *mainHandler) sourceViews(ctx context.Context, sources []micropubSource)
 			ChannelUID:  s.ChannelUID,
 			ChannelName: s.ChannelName,
 			Token:       s.Token,
+			TokenHint:   tokenHint(s.Token),
 			Endpoint:    baseURL + "/micropub",
 			// Sources created before the endpoint learned to read a bearer
 			// token were handed this URL, so it keeps working.

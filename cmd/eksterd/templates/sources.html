@@ -51,7 +51,7 @@
                                 </div>
                                 <div class="control">
                                     <button class="button is-small" type="button"
-                                            onclick="copyField(this)">Copy</button>
+                                            onclick="copyValue(this)">Copy</button>
                                 </div>
                             </div>
                             <details>
@@ -63,21 +63,16 @@
                                     </div>
                                     <div class="control">
                                         <button class="button is-small" type="button"
-                                                onclick="copyField(this)">Copy</button>
+                                                onclick="copyValue(this)">Copy</button>
                                     </div>
                                 </div>
                             </details>
                         </td>
                         <td>
-                            <div class="field has-addons">
-                                <div class="control is-expanded src-token">
-                                    <input class="input is-small" type="password" readonly
-                                           value="{{ .Token }}" onclick="this.select()">
-                                </div>
-                                <div class="control">
-                                    <button class="button is-small" type="button"
-                                            onclick="copyField(this)">Copy</button>
-                                </div>
+                            <div class="token-cell">
+                                <code class="token-hint">{{ .TokenHint }}</code>
+                                <button class="button is-small" type="button"
+                                        data-copy="{{ .Token }}" onclick="copyValue(this)">Copy</button>
                             </div>
                         </td>
                         <td class="is-size-7">{{ .Created }}</td>
@@ -133,11 +128,15 @@
 {{end}}
 {{define "scripts"}}
 <script>
-    function copyField(button) {
-        var input = button.closest('.field').querySelector('input');
-        input.select();
+    function copyValue(button) {
+        var value = button.dataset.copy;
+        if (!value) {
+            var input = button.closest('.field').querySelector('input');
+            input.select();
+            value = input.value;
+        }
         if (navigator.clipboard) {
-            navigator.clipboard.writeText(input.value);
+            navigator.clipboard.writeText(value);
         } else {
             document.execCommand('copy');
         }
