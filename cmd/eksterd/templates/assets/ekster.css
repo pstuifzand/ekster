@@ -15,10 +15,13 @@
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; background: var(--paper); }
 
 body {
     margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
     background: var(--paper);
     color: var(--ink);
     font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -141,6 +144,8 @@ pre {
 /* ---- page -------------------------------------------------------------- */
 
 .site-main {
+    flex: 1 0 auto;
+    width: 100%;
     max-width: 62rem;
     margin: 0 auto;
     padding: 1.75rem 1.25rem 3.5rem;
@@ -241,6 +246,8 @@ pre {
 /* ---- footer ------------------------------------------------------------ */
 
 .site-footer {
+    flex: none;
+    width: 100%;
     max-width: 62rem;
     margin: 0 auto;
     padding: 1rem 1.25rem 2.5rem;
@@ -268,6 +275,7 @@ pre {
 .table.is-hoverable tbody tr:hover { background: var(--accent-soft); }
 
 .input, .select select, .textarea { border-color: var(--line); border-radius: 8px; }
+.input::placeholder, .textarea::placeholder { color: var(--muted); opacity: 1; }
 .input:focus, .select select:focus, .textarea:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 2px var(--accent-soft);
