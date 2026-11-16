@@ -687,23 +687,44 @@ func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
 	return nil
 }
 
-// scheduleNextFetch applies the tier rules: a changed feed drops a tier (and is
-// fetched sooner), a feed that did not change climbs after two unchanged
-// fetches, up to about a day between fetches at the top tier.
+// The tier ladder. The interval is 2^tier minutes, so the rung decides the
+// fetch rate and nothing else does.
+const (
+	// startTier is where a newly followed feed begins. Its first fetch is
+	// immediate regardless; this is the interval after that, so a fresh
+	// subscription is re-read within the hour instead of within two minutes.
+	startTier = 6
+	// maxTier is the floor on how often a dormant feed is asked: 2^20 minutes
+	// is about two years. Reaching it takes years of quiet, so in practice the
+	// ladder stops mattering around tier 16 (45 days).
+	maxTier = 20
+	// changeDrop is how many rungs a changed feed falls, and climbAfter is how
+	// many unchanged fetches in a row buy the next one. Falling twice as fast
+	// as climbing is what makes a feed that just published visible again soon.
+	changeDrop = 2
+	climbAfter = 2
+)
+
+// scheduleNextFetch applies the tier rules: a changed feed falls two tiers (and
+// is fetched sooner), a feed that did not change climbs one after two unchanged
+// fetches in a row, up to the ceiling.
 func (b *memoryBackend) scheduleNextFetch(f *feed, changed bool) {
 	if changed {
-		f.Tier--
+		f.Tier -= changeDrop
+		// A change resets the climb. Without this, a change that arrives one
+		// fetch into a climb is handed straight back by the next quiet fetch,
+		// which makes the drop look bigger than it was.
+		f.Unmodified = 0
 	} else {
 		f.Unmodified++
+		if f.Unmodified >= climbAfter {
+			f.Tier++
+			f.Unmodified = 0
+		}
 	}
 
-	if f.Unmodified >= 2 {
-		f.Tier++
-		f.Unmodified = 0
-	}
-
-	if f.Tier > 10 {
-		f.Tier = 10
+	if f.Tier > maxTier {
+		f.Tier = maxTier
 	}
 	if f.Tier < 0 {
 		f.Tier = 0
@@ -831,9 +852,10 @@ func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (
 
 	var feedID int
 	err = b.database.QueryRow(
-		`INSERT INTO "feeds" ("channel_id", "url", "tier", "unmodified", "next_fetch_at") VALUES ($1, $2, 1, 0, now()) ON CONFLICT ("url") DO NOTHING RETURNING "id"`,
+		`INSERT INTO "feeds" ("channel_id", "url", "tier", "unmodified", "next_fetch_at") VALUES ($1, $2, $3, 0, now()) ON CONFLICT ("url") DO NOTHING RETURNING "id"`,
 		channelID,
 		subFeed.URL,
+		startTier,
 	).Scan(&feedID)
 	if err == sql.ErrNoRows {
 		// Lost a race with a concurrent follow of the same URL. Report it the same
@@ -853,7 +875,7 @@ func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (
 		ID:          feedID,
 		UID:         uid,
 		URL:         url,
-		Tier:        1,
+		Tier:        startTier,
 		Unmodified:  0,
 		NextFetchAt: time.Now(),
 	}
