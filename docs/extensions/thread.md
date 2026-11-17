@@ -174,5 +174,9 @@ Ekster (`github.com/pstuifzand/ekster`) implements this as
 - ancestors cached as documents, not as item rows: storing a fetched ancestor
   as a row would collide with the item's uid the first time the user actually
   follows that feed, and leave it outside every timeline.
+- an ancestor that publishes no microformats becomes a card from its own
+  metadata (`og:title`, `og:description`, `og:image`, `<title>`), with a plain
+  text description. Most of the web is like that; refusing it would leave a
+  thread with nothing to show of the post it replies to.
 - the public-address check in `net.Dialer.Control`, which sees the resolved
   address and covers every redirect hop by construction.

@@ -232,3 +232,77 @@ func TestTitleOnlyFeedMakesNoRequests(t *testing.T) {
 		}
 	}
 }
+
+// The head of a live Squarespace page (keningzhu.com/journal/contact-me-ripple):
+// no microformats anywhere, only the metadata it publishes about itself. Before
+// the fallback, itemAtURL answered "publishes no entries" and a thread showed
+// one ancestor as missing instead of the post it replies to.
+const pageWithoutMicroformats = `<!DOCTYPE html>
+<html>
+<head>
+  <title>contact me: send me a ripple &mdash; kening zhu</title>
+  <meta property="og:title" content="contact me: send me a ripple &mdash; kening zhu"/>
+  <meta property="og:description" content="on making a new contact me page - and web interactions that feel more human, real, and imaginative."/>
+  <meta property="og:image" content="https://static1.squarespace.com/static/51e8148de4b01c1eb79c1977/7.21.23_contact_me.jpg"/>
+  <meta name="description" content=" on making a new contact me page  " />
+</head>
+<body><div class="sqs-block-content"><p>a page with no h-entry</p></div></body>
+</html>`
+
+func TestPageWithoutMicroformatsBecomesACard(t *testing.T) {
+	const target = "https://keningzhu.com/journal/contact-me-ripple"
+	fetcher := fakeFetcher(map[string]string{target: pageWithoutMicroformats}, nil)
+
+	item, err := itemAtURL(context.Background(), fetcher, target)
+	if err != nil {
+		t.Fatalf("itemAtURL: %v", err)
+	}
+
+	// Entities are decoded by the parser; the name is the real one.
+	if want := "contact me: send me a ripple — kening zhu"; item.Name != want {
+		t.Errorf("name = %q, want %q", item.Name, want)
+	}
+	if item.Content == nil || !strings.Contains(item.Content.Text, "web interactions that feel more human") {
+		t.Errorf("content = %#v", item.Content)
+	}
+	if len(item.Photo) != 1 || !strings.Contains(item.Photo[0], "static1.squarespace.com") {
+		t.Errorf("photo = %#v", item.Photo)
+	}
+	if item.URL != target {
+		t.Errorf("url = %q, want %q", item.URL, target)
+	}
+	// A description is text, not markup: the reader must never get HTML from
+	// a page it did not parse as a post.
+	if item.Content != nil && strings.ContainsAny(item.Content.Text, "<>") {
+		t.Errorf("content carries markup: %q", item.Content.Text)
+	}
+}
+
+func TestPageWithOnlyATitleBecomesACard(t *testing.T) {
+	const target = "https://example.com/plain"
+	fetcher := fakeFetcher(map[string]string{
+		target: `<html><head><title>Just a title</title></head><body>no entry</body></html>`,
+	}, nil)
+
+	item, err := itemAtURL(context.Background(), fetcher, target)
+	if err != nil {
+		t.Fatalf("itemAtURL: %v", err)
+	}
+	if item.Name != "Just a title" {
+		t.Errorf("name = %q", item.Name)
+	}
+	if item.Content != nil {
+		t.Errorf("content should be absent, got %#v", item.Content)
+	}
+}
+
+func TestEmptyPageIsStillMissing(t *testing.T) {
+	const target = "https://example.com/empty"
+	fetcher := fakeFetcher(map[string]string{
+		target: `<html><head></head><body></body></html>`,
+	}, nil)
+
+	if _, err := itemAtURL(context.Background(), fetcher, target); err == nil {
+		t.Fatal("a page with nothing to say must still be an error, not an empty item")
+	}
+}

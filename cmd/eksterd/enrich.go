@@ -30,9 +30,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pstuifzand/ekster/pkg/fetch"
 	"github.com/pstuifzand/ekster/pkg/microsub"
+
+	"golang.org/x/net/html"
 )
 
 // maxPageSize bounds how much of a page is read while filling in an item.
@@ -221,6 +224,15 @@ func itemAtURL(ctx context.Context, fetcher fetch.Fetcher, target string) (micro
 		return microsub.Item{}, err
 	}
 	if len(items) == 0 {
+		// Most of the web publishes no microformats at all: a Squarespace
+		// post, a Medium article, a plain blog. Refusing those would leave a
+		// thread with nothing to show of its parent, which is the one case a
+		// thread exists to fix. The page metadata is not as good as an
+		// h-entry, but it is what the page says about itself, and it is
+		// enough for a reader to render an honest link card.
+		if fallback, err := itemFromMetadata(target, doc.body); err == nil {
+			return fallback, nil
+		}
 		return microsub.Item{}, fmt.Errorf("%s publishes no entries", target)
 	}
 	out := items[0]
@@ -257,4 +269,101 @@ func resolveAuthor(ctx context.Context, resolver *cardResolver, item microsub.It
 	}
 	item.Author = &author
 	return item
+}
+
+// maxMetadataTitle and maxMetadataDescription bound what a page can put into
+// an item. A description is a summary, not the article.
+const (
+	maxMetadataTitle       = 300
+	maxMetadataDescription = 600
+)
+
+// itemFromMetadata turns a page that publishes no microformats into something
+// a reader can show: a name from og:title or <title>, a description from
+// og:description or meta description, and og:image as the photo.
+//
+// The values are text, never HTML. The page is not trusted, so the reader gets
+// plain strings it can escape; handing it markup from an unknown site would
+// make every thread a sanitizing problem.
+func itemFromMetadata(target string, body []byte) (microsub.Item, error) {
+	doc, err := html.Parse(bytes.NewReader(body))
+	if err != nil {
+		return microsub.Item{}, err
+	}
+
+	var title, description, image string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			switch strings.ToLower(n.Data) {
+			case "meta":
+				var property, name, content string
+				for _, attr := range n.Attr {
+					switch strings.ToLower(attr.Key) {
+					case "property":
+						property = strings.ToLower(strings.TrimSpace(attr.Val))
+					case "name":
+						name = strings.ToLower(strings.TrimSpace(attr.Val))
+					case "content":
+						content = strings.TrimSpace(attr.Val)
+					}
+				}
+				switch {
+				case property == "og:title", name == "og:title", name == "twitter:title":
+					if title == "" {
+						title = content
+					}
+				case property == "og:description", name == "description", name == "twitter:description":
+					if description == "" {
+						description = content
+					}
+				case property == "og:image", name == "twitter:image", name == "twitter:image:src":
+					if image == "" {
+						image = content
+					}
+				}
+			case "title":
+				if title == "" && n.FirstChild != nil && n.FirstChild.Type == html.TextNode {
+					title = strings.TrimSpace(n.FirstChild.Data)
+				}
+			}
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+
+	title = clipText(strings.Join(strings.Fields(title), " "), maxMetadataTitle)
+	description = clipText(strings.Join(strings.Fields(description), " "), maxMetadataDescription)
+
+	if title == "" && description == "" {
+		return microsub.Item{}, fmt.Errorf("%s has no title or description", target)
+	}
+
+	item := microsub.Item{
+		Type: "entry",
+		UID:  target,
+		URL:  target,
+		Name: title,
+	}
+	if description != "" {
+		item.Content = &microsub.Content{Text: description}
+	}
+	if image != "" {
+		item.Photo = []string{image}
+	}
+	return item, nil
+}
+
+// clipText cuts at a rune boundary: a byte slice would split a multi-byte
+// character and the item would fail to encode as JSON.
+func clipText(value string, limit int) string {
+	if len(value) <= limit {
+		return value
+	}
+	for limit > 0 && !utf8.RuneStart(value[limit]) {
+		limit--
+	}
+	return strings.TrimSpace(value[:limit]) + "…"
 }

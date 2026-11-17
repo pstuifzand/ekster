@@ -70,6 +70,25 @@ reasons. So the document is cached (in the HTTP cache, keyed by URL, with a
 TTL) and no item row is created. One row per URL stays the right design for the
 future, but only after items are keyed per channel.
 
+## Why an ancestor without microformats still shows up
+
+The first live test was the useful one: a post replying to
+`keningzhu.com/journal/contact-me-ripple` came back as `partial, 1 ancestor(s)
+not shown`. The parent page is a Squarespace page — 200, `text/html`, no
+h-entry anywhere. `itemAtURL` required a published entry, so the one half of
+the feature that matters most, the parent, produced nothing.
+
+Microformats are the exception on the web, not the rule: a blog on Squarespace,
+Medium or a static generator publishes `og:title` and a description and nothing
+else. So an ancestor that parses to no entries falls back to the page's own
+metadata: `og:title` or `<title>` as the name, `og:description` or the meta
+description as text content, `og:image` as the photo. Bounded in length,
+decoded by the HTML parser, and text-only — the reader escapes it, so a thread
+never becomes a sanitizing problem.
+
+That is a card, not a post. It is still better than "1 ancestor not shown",
+because the reader can now link the actual conversation.
+
 ## Why the indexes are expression indexes
 
 Measured on a test instance: `USING GIN ("data")` answers the permalink lookup
