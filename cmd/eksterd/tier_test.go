@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -12,7 +13,7 @@ func TestChangedFeedDropsTwoTiersAndResetsTheClimb(t *testing.T) {
 	b := &memoryBackend{}
 	f := feed{Tier: 10, Unmodified: 1}
 
-	b.scheduleNextFetch(&f, true)
+	b.scheduleNextFetch(context.Background(), &f, true)
 
 	if f.Tier != 8 {
 		t.Fatalf("tier = %d, want 8 (two rungs below 10)", f.Tier)
@@ -30,12 +31,12 @@ func TestUnchangedFeedClimbsOneTierPerTwoFetches(t *testing.T) {
 	b := &memoryBackend{}
 	f := feed{Tier: 10}
 
-	b.scheduleNextFetch(&f, false)
+	b.scheduleNextFetch(context.Background(), &f, false)
 	if f.Tier != 10 || f.Unmodified != 1 {
 		t.Fatalf("after one quiet fetch: tier %d, unmodified %d", f.Tier, f.Unmodified)
 	}
 
-	b.scheduleNextFetch(&f, false)
+	b.scheduleNextFetch(context.Background(), &f, false)
 	if f.Tier != 11 || f.Unmodified != 0 {
 		t.Fatalf("after two quiet fetches: tier %d, unmodified %d", f.Tier, f.Unmodified)
 	}
@@ -47,7 +48,7 @@ func TestTierIsClampedAtTheCeiling(t *testing.T) {
 	b := &memoryBackend{}
 	f := feed{Tier: maxTier, Unmodified: 1}
 
-	b.scheduleNextFetch(&f, false)
+	b.scheduleNextFetch(context.Background(), &f, false)
 	if f.Tier != maxTier {
 		t.Fatalf("tier = %d, want the ceiling %d", f.Tier, maxTier)
 	}
@@ -66,7 +67,7 @@ func TestChangedFeedNeverLandsAboveTheChangeCeiling(t *testing.T) {
 	b := &memoryBackend{}
 	fromTop := feed{Tier: maxTier}
 
-	b.scheduleNextFetch(&fromTop, true)
+	b.scheduleNextFetch(context.Background(), &fromTop, true)
 
 	if fromTop.Tier != changeCeiling {
 		t.Fatalf("tier = %d after a change from %d, want %d", fromTop.Tier, maxTier, changeCeiling)
@@ -78,7 +79,7 @@ func TestChangedFeedNeverLandsAboveTheChangeCeiling(t *testing.T) {
 	// Below the ceiling the two-rung drop still applies, so a feed already on a
 	// short interval does not fall further than it needs to.
 	below := feed{Tier: 9}
-	b.scheduleNextFetch(&below, true)
+	b.scheduleNextFetch(context.Background(), &below, true)
 	if below.Tier != 7 {
 		t.Fatalf("tier = %d after a change from 9, want 7", below.Tier)
 	}
@@ -89,7 +90,7 @@ func TestTierFloorsAtZero(t *testing.T) {
 	b := &memoryBackend{}
 	f := feed{Tier: 1}
 
-	b.scheduleNextFetch(&f, true)
+	b.scheduleNextFetch(context.Background(), &f, true)
 
 	if f.Tier != 0 {
 		t.Fatalf("tier = %d, want 0", f.Tier)

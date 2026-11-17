@@ -21,7 +21,7 @@ package timeline
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -98,7 +98,7 @@ func (timeline *redisStreamTimeline) AddItem(item microsub.Item) (bool, error) {
 
 	data, err := json.Marshal(item)
 	if err != nil {
-		log.Printf("error while creating item for redis: %v\n", err)
+		slog.Error("could not create redis item", "error", err)
 		return false, err
 	}
 

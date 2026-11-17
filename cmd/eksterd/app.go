@@ -20,7 +20,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"time"
@@ -50,7 +50,7 @@ func (app *App) Run() error {
 	app.backend.run()
 	app.hubBackend.run()
 
-	log.Printf("Listening on port %d\n", app.options.Port)
+	slog.Info("Listening on port", "port", app.options.Port)
 	return http.ListenAndServe(fmt.Sprintf(":%d", app.options.Port), nil)
 }
 

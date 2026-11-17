@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -62,14 +62,14 @@ func (c *Client) microsubGetRequest(ctx context.Context, action string, args map
 
 	if c.Logging {
 		x, _ := httputil.DumpRequestOut(req, true)
-		log.Printf("REQUEST:\n\n%s\n\n", x)
+		slog.DebugContext(ctx, "microsub request", "body", x)
 	}
 
 	res, err := client.Do(req)
 
 	if c.Logging {
 		x, _ := httputil.DumpResponse(res, true)
-		log.Printf("RESPONSE:\n\n%s\n\n", x)
+		slog.DebugContext(ctx, "microsub response", "body", x)
 	}
 
 	return res, err
@@ -95,14 +95,14 @@ func (c *Client) microsubPostRequest(ctx context.Context, action string, args ma
 
 	if c.Logging {
 		x, _ := httputil.DumpRequestOut(req, true)
-		log.Printf("REQUEST:\n\n%s\n\n", x)
+		slog.DebugContext(ctx, "microsub request", "body", x)
 	}
 
 	res, err := client.Do(req)
 
 	if c.Logging {
 		x, _ := httputil.DumpResponse(res, true)
-		log.Printf("RESPONSE:\n\n%s\n\n", x)
+		slog.DebugContext(ctx, "microsub response", "body", x)
 	}
 
 	if res.StatusCode != 200 {
@@ -419,7 +419,7 @@ func (c *Client) Events(ctx context.Context) (chan sse.Message, error) {
 		for {
 			res, err := c.microsubGetRequest(ctx, "events", nil)
 			if err != nil {
-				log.Printf("could not request events: %+v", err)
+				slog.ErrorContext(ctx, "could not request events", "error", err)
 				errorCounter++
 				if errorCounter > 5 {
 					break
@@ -429,7 +429,7 @@ func (c *Client) Events(ctx context.Context) (chan sse.Message, error) {
 
 			err = sse.Reader(res.Body, ch)
 			if err != nil {
-				log.Printf("could not create reader: %+v", err)
+				slog.ErrorContext(ctx, "could not create event reader", "error", err)
 				break
 			}
 		}

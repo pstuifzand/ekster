@@ -21,7 +21,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -45,7 +45,7 @@ func cachedCheckAuthToken(conn redis.Conn, header string, tokenEndpoint string, 
 
 	authorized, err := getCachedValue(conn, key, r)
 	if err != nil {
-		log.Printf("could not get cached auth token value: %v", err)
+		slog.Error("could not read the cached auth token", "error", err)
 	}
 
 	if authorized {
@@ -60,7 +60,7 @@ func cachedCheckAuthToken(conn redis.Conn, header string, tokenEndpoint string, 
 	if authorized {
 		err = setCachedTokenResponseValue(conn, key, r)
 		if err != nil {
-			log.Printf("could not set cached token response value: %v", err)
+			slog.Error("could not cache the token response", "error", err)
 		}
 
 		return true, nil
@@ -83,7 +83,7 @@ func checkAuthToken(header string, tokenEndpoint string, token *auth.TokenRespon
 	defer func() {
 		err := res.Body.Close()
 		if err != nil {
-			log.Printf("could not close http response body: %v", err)
+			slog.Error("could not close the token response body", "error", err)
 		}
 	}()
 

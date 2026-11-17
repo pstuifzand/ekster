@@ -28,7 +28,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -93,8 +93,8 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 		span.End()
 	}()
 
-	log.Printf("ProcessContent %s\n", fetchURL)
-	log.Println("Found " + contentType)
+	slog.DebugContext(ctx, "reading feed document", "url", fetchURL)
+	slog.DebugContext(ctx, "feed content type", "content_type", contentType)
 
 	u, _ := url.Parse(fetchURL)
 
@@ -115,7 +115,7 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 					author, ok = resolved, true
 				}
 			} else {
-				log.Printf("Could not fetch author page %s: %v", author.URL, err)
+				slog.WarnContext(ctx, "could not fetch author page", "url", author.URL, "error", err)
 			}
 		}
 
@@ -137,7 +137,7 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
 		jfeed, err := jsonfeed.Parse(body)
 		if err != nil {
-			log.Printf("Error while parsing json feed: %s\n", err)
+			slog.DebugContext(ctx, "could not parse json feed", "url", fetchURL, "error", err)
 			return feed, err
 		}
 
@@ -165,12 +165,12 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") || strings.HasPrefix(contentType, "application/xml") {
 		body, err := ioutil.ReadAll(body)
 		if err != nil {
-			log.Printf("Error while parsing rss/atom feed: %s\n", err)
+			slog.DebugContext(ctx, "could not parse rss/atom feed", "content_type", contentType, "error", err)
 			return feed, err
 		}
 		xfeed, err := rss.Parse(body)
 		if err != nil {
-			log.Printf("Error while parsing rss/atom feed: %s\n", err)
+			slog.DebugContext(ctx, "could not parse rss/atom feed", "content_type", contentType, "error", err)
 			return feed, err
 		}
 
@@ -180,9 +180,9 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 		feed.Description = xfeed.Description
 		feed.Photo = xfeed.Image.URL
 	} else {
-		log.Printf("Unknown Content-Type: %s\n", contentType)
+		slog.WarnContext(ctx, "unknown content type", "content_type", contentType)
 	}
-	log.Println("Found feed: ", feed)
+	slog.DebugContext(ctx, "found feed", "url", fetchURL, "feed", fmt.Sprint(feed))
 	return feed, nil
 }
 
@@ -201,8 +201,8 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 		span.End()
 	}()
 
-	log.Printf("ProcessContent %s\n", fetchURL)
-	log.Println("Found " + contentType)
+	slog.DebugContext(ctx, "reading feed document", "url", fetchURL)
+	slog.DebugContext(ctx, "feed content type", "content_type", contentType)
 
 	items = []microsub.Item{}
 

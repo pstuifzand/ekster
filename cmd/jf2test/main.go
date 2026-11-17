@@ -21,7 +21,8 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -29,11 +30,17 @@ import (
 )
 
 func init() {
-	f, err := os.Open(os.DevNull)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.SetOutput(f)
+	// The libraries log through slog, which the old log.SetOutput trick no longer
+	// silences. Only errors reach stderr, so the JSON on stdout stays the output.
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelError,
+	})))
+}
+
+// fail reports an error and exits non-zero.
+func fail(err error) {
+	fmt.Fprintf(os.Stderr, "%v\n", err)
+	os.Exit(1)
 }
 
 // Fetch calls http.Get
@@ -52,13 +59,13 @@ func main() {
 	url := os.Args[1]
 	resp, err := cl.Get(url)
 	if err != nil {
-		log.Fatal(err)
+		fail(err)
 	}
 	defer resp.Body.Close()
 
 	items, err := fetch.FeedItems(context.Background(), fetch.FetcherFunc(Fetch), url, resp.Header.Get("Content-Type"), resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		fail(err)
 	}
 
 	json.NewEncoder(os.Stdout).Encode(items)

@@ -126,6 +126,34 @@ show `<root span not yet received>` and the cycle's real duration is unknown. Th
 `feed.refresh` children arrive normally; treat first-span-to-last-span as a floor,
 not a total.
 
+## Logs carry the trace
+
+Every log line written with a context that has an active span carries
+`trace_id` (32 hex) and `span_id` (16 hex) as logfmt fields, in addition to the
+caller's own fields. The logging handler is wrapped once in
+`cmd/eksterd/logging.go` with `observability.LogHandler`, so nothing at a call
+site has to remember it.
+
+```
+msg="feed fetch failed, retrying" feed_id=2 url=… retry_in=2m0s failure=1 \
+  error="… returned 404" trace_id=91446c022c2f616b212fc49c8fb209ea span_id=fc5cafd555b5fa5c
+```
+
+Consequences worth knowing:
+
+- The ids come from the `context.Context`, so a line logged with
+  `slog.InfoContext(ctx, …)` joins the span that ctx carries. A plain
+  `slog.Info(…)`, or anything through the `log.Printf` bridge, has no context
+  and gets no ids — correct for startup and background lines, wrong for a
+  request path, so use the `*Context` variants inside handlers.
+- A refresh cycle is its own trace root, so its lines carry the ids of
+  `feeds.refresh` while the per-feed lines carry that feed's `feed.refresh`
+  span: same trace id, different span id.
+- `trace_id` is the field name VictoriaLogs and Grafana already understand, so
+  `trace_id:"91446c…"` finds the request's lines and the same id opens the trace.
+- Not yet covered: the WebSub resubscribe loop and the `ek` CLI log without a
+  span (both run outside a request), so their lines have no ids.
+
 ## Notes
 
 - OpenTelemetry needs Go 1.21+. `ekster` is on `go 1.23` in `go.mod`, builds on

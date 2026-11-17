@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"time"
@@ -57,10 +56,6 @@ type ExportFeed string
 type ExportChannel struct {
 	UID  string `json:"uid,omitempty"`
 	Name string `json:"channel,omitempty"`
-}
-
-func init() {
-	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
 }
 
 func loadAuth(c *client.Client, filename string) error {
@@ -183,7 +178,7 @@ Global arguments:
 
 	if len(flag.Args()) == 1 && flag.Args()[0] == "reader" {
 		if err := runReader(); err != nil {
-			log.Fatal(err)
+			fail(err)
 		}
 		return
 	}
@@ -191,23 +186,23 @@ Global arguments:
 	if len(os.Args) == 3 && os.Args[1] == "connect" {
 		err := os.MkdirAll(configDir, os.FileMode(0770))
 		if err != nil {
-			log.Fatal(err)
+			fail(err)
 		}
 
 		f, err := os.Create(fmt.Sprintf("%s/client.json", configDir))
 		if err != nil {
-			log.Fatal(err)
+			fail(err)
 		}
 		defer f.Close()
 
 		me, err := url.Parse(os.Args[2])
 		if err != nil {
-			log.Fatal(err)
+			fail(err)
 		}
 
 		endpoints, err := indieauth.GetEndpoints(me)
 		if err != nil {
-			log.Fatal(err)
+			fail(err)
 		}
 
 		clientID := "https://p83.nl/microsub-client"
@@ -215,16 +210,16 @@ Global arguments:
 
 		token, err := indieauth.Authorize(me, endpoints, clientID, scope)
 		if err != nil {
-			log.Fatal(err)
+			fail(err)
 		}
 
 		enc := json.NewEncoder(f)
 		err = enc.Encode(token)
 		if err != nil {
-			log.Fatal(err)
+			fail(err)
 		}
 
-		log.Println("Authorization successful")
+		fmt.Println("Authorization successful")
 
 		return
 	}
@@ -232,12 +227,12 @@ Global arguments:
 	var c client.Client
 	err := loadAuth(&c, fmt.Sprintf("%s/client.json", configDir))
 	if err != nil {
-		log.Fatal(err)
+		fail(err)
 	}
 
 	err = loadEndpoints(&c, c.Me, fmt.Sprintf("%s/endpoints.json", configDir))
 	if err != nil {
-		log.Fatal(err)
+		fail(err)
 	}
 
 	c.Logging = *verbose
@@ -247,7 +242,7 @@ Global arguments:
 		// requests (which contain the bearer token) even under --verbose.
 		c.Logging = false
 		if err := runMCP(&c); err != nil {
-			log.Fatal(err)
+			fail(err)
 		}
 		return
 	}
@@ -275,6 +270,14 @@ func channelID(ctx context.Context, sub microsub.Microsub, channelNameOrID strin
 	return channelNameOrID, nil
 }
 
+// fail reports an error the way a command line tool should: one plain line on
+// stderr and a non-zero exit. The CLI is read by a person at a terminal, so its
+// output stays plain text rather than logfmt key=value fields.
+func fail(err error) {
+	fmt.Fprintf(os.Stderr, "%v\n", err)
+	os.Exit(1)
+}
+
 func performCommands(sub microsub.Microsub, commands []string) {
 	if len(commands) == 0 {
 		flag.Usage()
@@ -286,7 +289,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	if len(commands) == 1 && commands[0] == "channels" {
 		channels, err := sub.ChannelsGetList(ctx)
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 
 		for _, ch := range channels {
@@ -298,7 +301,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		name := commands[1]
 		channel, err := sub.ChannelsCreate(ctx, name)
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 		fmt.Printf("%s\n", channel.UID)
 	}
@@ -308,7 +311,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 			uid, _ := channelID(ctx, sub, commands[2])
 			err := sub.ChannelsDelete(ctx, uid)
 			if err != nil {
-				log.Fatalf("An error occurred: %s\n", err)
+				fail(err)
 			}
 			fmt.Printf("Channel %s deleted\n", uid)
 		} else {
@@ -316,7 +319,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 			name := commands[2]
 			channel, err := sub.ChannelsUpdate(ctx, uid, name)
 			if err != nil {
-				log.Fatalf("An error occurred: %s\n", err)
+				fail(err)
 			}
 			fmt.Printf("Channel updated %s %s\n", channel.Name, channel.UID)
 		}
@@ -325,7 +328,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	if len(commands) == 2 && commands[0] == "mark-read" {
 		channel, err := channelID(ctx, sub, commands[1])
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 
 		marked := 0
@@ -333,7 +336,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		for {
 			timeline, err := sub.TimelineGet(ctx, "", cursor, channel)
 			if err != nil {
-				log.Fatalf("An error occurred: %s\n", err)
+				fail(err)
 			}
 
 			var ids []string
@@ -344,7 +347,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 			}
 			if len(ids) > 0 {
 				if err := sub.MarkRead(ctx, channel, ids); err != nil {
-					log.Fatalf("An error occurred: %s\n", err)
+					fail(err)
 				}
 				marked += len(ids)
 			}
@@ -353,7 +356,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 				break
 			}
 			if timeline.Paging.After == cursor {
-				log.Fatalf("Timeline paging did not advance at %s", cursor)
+				fail(fmt.Errorf("timeline paging did not advance at %s", cursor))
 			}
 			cursor = timeline.Paging.After
 		}
@@ -375,7 +378,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		}
 
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 
 		for _, item := range timeline.Items {
@@ -389,7 +392,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		query := commands[1]
 		feeds, err := sub.Search(ctx, query)
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 
 		for _, feed := range feeds {
@@ -407,7 +410,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		}
 		items, err := sub.ItemSearch(ctx, channel, query)
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 
 		for _, item := range items {
@@ -420,7 +423,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		timeline, err := sub.PreviewURL(ctx, u)
 
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 		for _, item := range timeline.Items {
 			showItem(&item)
@@ -431,7 +434,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		uid, _ := channelID(ctx, sub, commands[1])
 		feeds, err := sub.FollowGetList(ctx, uid)
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 		for _, feed := range feeds {
 			fmt.Println(feed.URL)
@@ -443,7 +446,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		u := commands[2]
 		_, err := sub.FollowURL(ctx, uid, u)
 		if err != nil {
-			log.Fatalf("ERROR: %s", err)
+			fail(err)
 		}
 		// NOTE(peter): should we show the returned feed here?
 	}
@@ -453,7 +456,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		u := commands[2]
 		err := sub.UnfollowURL(ctx, uid, u)
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 	}
 
@@ -465,7 +468,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		} else if filetype == "json" {
 			exportJSONFromMicrosub(ctx, sub)
 		} else {
-			log.Fatalf("unsupported filetype %q", filetype)
+			fail(fmt.Errorf("unsupported filetype %q", filetype))
 		}
 	}
 
@@ -478,7 +481,7 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		} else if filetype == "json" {
 			importJSONIntoMicrosub(ctx, sub, filename)
 		} else {
-			log.Fatalf("unsupported filetype %q", filetype)
+			fail(fmt.Errorf("unsupported filetype %q", filetype))
 		}
 	}
 
@@ -489,10 +492,10 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	if len(commands) == 1 && commands[0] == "events" {
 		c, err := sub.Events(ctx)
 		if err != nil {
-			log.Fatalf("could not start event listener: %+v", err)
+			fail(fmt.Errorf("could not start event listener: %w", err))
 		}
 		for msg := range c {
-			log.Printf("%s: %s", msg.Event, msg.Data)
+			fmt.Printf("%s: %s\n", msg.Event, msg.Data)
 		}
 	}
 }
@@ -504,13 +507,13 @@ func exportOPMLFromMicrosub(ctx context.Context, sub microsub.Microsub) {
 	output.Version = "1.0"
 	channels, err := sub.ChannelsGetList(ctx)
 	if err != nil {
-		log.Fatalf("An error occurred: %s\n", err)
+		fail(err)
 	}
 	for _, c := range channels {
 		var feeds []opml.Outline
 		list, err := sub.FollowGetList(ctx, c.UID)
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 		for _, f := range list {
 			feeds = append(feeds, opml.Outline{
@@ -531,7 +534,7 @@ func exportOPMLFromMicrosub(ctx context.Context, sub microsub.Microsub) {
 	}
 	xml, err := output.XML()
 	if err != nil {
-		log.Fatalf("An error occurred: %s\n", err)
+		fail(err)
 	}
 	os.Stdout.WriteString(xml)
 }
@@ -540,7 +543,7 @@ func exportJSONFromMicrosub(ctx context.Context, sub microsub.Microsub) {
 	contents := Export{Version: "1.0", Generator: "ek version " + Version}
 	channels, err := sub.ChannelsGetList(ctx)
 	if err != nil {
-		log.Fatalf("An error occurred: %s\n", err)
+		fail(err)
 	}
 	for _, c := range channels {
 		contents.Channels = append(contents.Channels, ExportChannel{UID: c.UID, Name: c.Name})
@@ -549,7 +552,7 @@ func exportJSONFromMicrosub(ctx context.Context, sub microsub.Microsub) {
 	for _, c := range channels {
 		list, err := sub.FollowGetList(ctx, c.UID)
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 		for _, f := range list {
 			contents.Feeds[c.UID] = append(contents.Feeds[c.UID], ExportFeed(f.URL))
@@ -557,7 +560,7 @@ func exportJSONFromMicrosub(ctx context.Context, sub microsub.Microsub) {
 	}
 	err = json.NewEncoder(os.Stdout).Encode(&contents)
 	if err != nil {
-		log.Fatalf("An error occurred: %s\n", err)
+		fail(err)
 	}
 }
 
@@ -565,17 +568,17 @@ func importJSONIntoMicrosub(ctx context.Context, sub microsub.Microsub, filename
 	var export Export
 	f, err := os.Open(filename)
 	if err != nil {
-		log.Fatalf("can't open file %s: %s", filename, err)
+		fail(fmt.Errorf("could not open %s: %w", filename, err))
 	}
 	defer f.Close()
 	err = json.NewDecoder(f).Decode(&export)
 	if err != nil {
-		log.Fatalf("error while reading %s: %s", filename, err)
+		fail(fmt.Errorf("could not read %s: %w", filename, err))
 	}
 	channelMap := make(map[string]microsub.Channel)
 	channels, err := sub.ChannelsGetList(ctx)
 	if err != nil {
-		log.Fatalf("an error occurred: %s\n", err)
+		fail(err)
 	}
 	for _, c := range channels {
 		channelMap[c.Name] = c
@@ -586,12 +589,12 @@ func importJSONIntoMicrosub(ctx context.Context, sub microsub.Microsub, filename
 		if ch, e := channelMap[c.Name]; !e {
 			channelCreated, err := sub.ChannelsCreate(ctx, c.Name)
 			if err != nil {
-				log.Printf("An error occurred: %q\n", err)
+				fmt.Fprintf(os.Stderr, "could not create channel %s: %v\n", c.Name, err)
 				continue
 			}
 
 			uid = channelCreated.UID
-			log.Printf("Channel created: %s\n", c.Name)
+			fmt.Printf("Channel created: %s\n", c.Name)
 		} else {
 			uid = ch.UID
 		}
@@ -600,7 +603,7 @@ func importJSONIntoMicrosub(ctx context.Context, sub microsub.Microsub, filename
 
 		feeds, err := sub.FollowGetList(ctx, uid)
 		if err != nil {
-			log.Fatalf("An error occurred: %s\n", err)
+			fail(err)
 		}
 
 		for _, f := range feeds {
@@ -612,10 +615,10 @@ func importJSONIntoMicrosub(ctx context.Context, sub microsub.Microsub, filename
 			if _, e := feedMap[string(feed)]; !e {
 				_, err := sub.FollowURL(ctx, uid, string(feed))
 				if err != nil {
-					log.Printf("An error occurred: %s\n", err)
+					fmt.Fprintf(os.Stderr, "could not follow %s: %v\n", feed, err)
 					continue
 				}
-				log.Printf("Feed followed: %s\n", string(feed))
+				fmt.Printf("Feed followed: %s\n", string(feed))
 			}
 		}
 	}
@@ -625,18 +628,18 @@ func importOPMLIntoMicrosub(ctx context.Context, sub microsub.Microsub, filename
 	channelMap := make(map[string]microsub.Channel)
 	channels, err := sub.ChannelsGetList(ctx)
 	if err != nil {
-		log.Fatalf("an error occurred: %s\n", err)
+		fail(err)
 	}
 	for _, c := range channels {
 		channelMap[c.Name] = c
 	}
 	xml, err := opml.NewOPMLFromFile(filename)
 	if err != nil {
-		log.Fatalf("An error occurred: %s\n", err)
+		fail(err)
 	}
 	for _, c := range xml.Body.Outlines {
 		if c.HTMLURL != "" {
-			log.Printf("First row item has url: %s\n", c.HTMLURL)
+			fmt.Printf("First row item has url: %s\n", c.HTMLURL)
 			continue
 		}
 		if len(c.Outlines) == 0 {
@@ -648,12 +651,12 @@ func importOPMLIntoMicrosub(ctx context.Context, sub microsub.Microsub, filename
 		if ch, e := channelMap[c.Text]; !e {
 			channelCreated, err := sub.ChannelsCreate(ctx, c.Text)
 			if err != nil {
-				log.Printf("An error occurred: %q\n", err)
+				fmt.Fprintf(os.Stderr, "could not create channel %s: %v\n", c.Text, err)
 				continue
 			}
 
 			uid = channelCreated.UID
-			log.Printf("Channel created: %s\n", c.Text)
+			fmt.Printf("Channel created: %s\n", c.Text)
 		} else {
 			uid = ch.UID
 		}
@@ -662,7 +665,7 @@ func importOPMLIntoMicrosub(ctx context.Context, sub microsub.Microsub, filename
 
 		feeds, err := sub.FollowGetList(ctx, uid)
 		if err != nil {
-			log.Fatalf("An error occurred: %q\n", err)
+			fail(err)
 		}
 
 		for _, f := range feeds {
@@ -677,20 +680,20 @@ func importOPMLIntoMicrosub(ctx context.Context, sub microsub.Microsub, filename
 			} else if f.XMLURL != "" {
 				url = f.XMLURL
 			} else {
-				log.Println("Missing htmlUrl and xmlUrl attributes")
+				fmt.Fprintln(os.Stderr, "missing htmlUrl and xmlUrl attributes")
 				continue
 			}
 
 			if _, e := feedMap[url]; !e {
 				_, err := sub.FollowURL(ctx, uid, url)
 				if err != nil {
-					log.Printf("An error occurred while following feed %s: %q\n", url, err)
+					fmt.Fprintf(os.Stderr, "could not follow %s: %v\n", url, err)
 					continue
 				}
 
-				log.Printf("Feed followed: %s\n", url)
+				fmt.Printf("Feed followed: %s\n", url)
 			} else {
-				log.Printf("Feed not followed: %s\n", url)
+				fmt.Printf("Feed not followed: %s\n", url)
 			}
 		}
 	}

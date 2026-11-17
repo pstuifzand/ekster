@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"log/slog"
 	"math"
 	"net/http"
@@ -145,7 +144,7 @@ func (b *memoryBackend) AuthTokenAccepted(header string, r *auth.TokenResponse, 
 	defer func() {
 		err := conn.Close()
 		if err != nil {
-			log.Printf("could not close redis connection: %v", err)
+			slog.Error("could not close redis connection", "error", err)
 		}
 	}()
 	return cachedCheckAuthToken(conn, header, endpoint, r)
@@ -227,7 +226,7 @@ func (b *memoryBackend) ChannelsCreate(ctx context.Context, name string) (micros
 			userID,
 		)
 		if err != nil {
-			log.Println("channels insert", err)
+			slog.ErrorContext(ctx, "could not create channel", "name", name, "error", err)
 			if !shouldRetryWithNewUID(err, try) {
 				return channel, err
 			}
@@ -313,7 +312,7 @@ WHERE next_fetch_at IS NULL OR next_fetch_at < now()
 		err = rows.Scan(&feedID, &feedURL, &UID, &tier, &unmodified, &nextFetchAt,
 			&etag, &lastModified, &failures)
 		if err != nil {
-			log.Printf("while scanning feeds: %s", err)
+			slog.Error("could not scan feed row", "error", err)
 			continue
 		}
 
@@ -343,7 +342,7 @@ WHERE next_fetch_at IS NULL OR next_fetch_at < now()
 	return feeds, rows.Err()
 }
 
-func (b *memoryBackend) recordFeedOutcome(feedID, httpStatus int, fetchErr error, itemCount int, succeeded bool) {
+func (b *memoryBackend) recordFeedOutcome(ctx context.Context, feedID, httpStatus int, fetchErr error, itemCount int, succeeded bool) {
 	if succeeded {
 		_, err := b.database.Exec(`
 UPDATE "feeds"
@@ -352,7 +351,8 @@ SET "last_fetch_at" = now(), "last_http_status" = $2, "last_error" = NULL,
 WHERE "id" = $1
 `, feedID, httpStatus, itemCount)
 		if err != nil {
-			log.Printf("could not record fetch outcome for feed %d: %s", feedID, err)
+			slog.ErrorContext(ctx, "could not record fetch outcome",
+				"feed_id", feedID, "error", errorString(err))
 		}
 		return
 	}
@@ -376,7 +376,8 @@ SET "last_fetch_at" = now(), "last_http_status" = $2, "last_error" = $3
 WHERE "id" = $1
 `, feedID, status, message)
 	if err != nil {
-		log.Printf("could not record fetch outcome for feed %d: %s", feedID, err)
+		slog.ErrorContext(ctx, "could not record fetch outcome",
+			"feed_id", feedID, "error", errorString(err))
 	}
 }
 
@@ -551,10 +552,12 @@ func (b *memoryBackend) run() {
 }
 
 func (b *memoryBackend) RefreshFeeds() {
-	slog.Info("feed refresh started")
-
 	ctx, span := observability.Span(context.Background(), "feeds.refresh")
 	defer span.End()
+
+	// The refresh is its own trace root (no request made it happen), so its
+	// log lines join that trace rather than floating free in the log.
+	slog.InfoContext(ctx, "feed refresh started")
 
 	feeds, err := b.getFeeds()
 	if err != nil {
@@ -563,11 +566,11 @@ func (b *memoryBackend) RefreshFeeds() {
 	}
 	span.SetAttributes(attribute.Int("feeds.count", len(feeds)))
 
-	slog.Info("feed refresh: feeds due", "feeds", len(feeds))
+	slog.InfoContext(ctx, "feed refresh: feeds due", "feeds", len(feeds))
 
 	count := 0
 	for _, feed := range feeds {
-		slog.Debug("feed refresh: fetching", feedAttrs(int64(feed.ID), feed.URL)...)
+		slog.DebugContext(ctx, "feed refresh: fetching", feedAttrs(int64(feed.ID), feed.URL)...)
 		terr := b.refreshFeedSafely(ctx, feed)
 		if terr != nil {
 			b.addNotification("Error while fetching feed", feed, terr)
@@ -581,7 +584,7 @@ func (b *memoryBackend) RefreshFeeds() {
 	if count > 0 {
 		_ = b.updateChannelUnreadCount(ctx, "notifications")
 	}
-	slog.Info("feed refresh completed", "processed", count, "found", len(feeds))
+	slog.InfoContext(ctx, "feed refresh completed", "processed", count, "found", len(feeds))
 }
 
 // refreshFeedSafely runs one feed's refresh and turns a panic into an error.
@@ -598,7 +601,8 @@ func (b *memoryBackend) refreshFeedSafely(parent context.Context, f feed) (err e
 	)
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("recovered while refreshing %s: %v\n%s", f.URL, r, debug.Stack())
+			slog.ErrorContext(ctx, "feed refresh panicked",
+				"feed_id", f.ID, "url", f.URL, "panic", fmt.Sprint(r), "stack", string(debug.Stack()))
 			err = fmt.Errorf("panic while refreshing %s: %v", f.URL, r)
 		}
 		if err != nil {
@@ -623,14 +627,14 @@ func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
 	// that dies has to be a row someone can look at, not a log line nobody
 	// reads; /status is built from these columns.
 	defer func() {
-		b.recordFeedOutcome(f.ID, httpStatus, err, itemCount, succeeded)
+		b.recordFeedOutcome(ctx, f.ID, httpStatus, err, itemCount, succeeded)
 	}()
 
 	// The validators from the last body make the request conditional: an
 	// unchanged feed costs the host a header comparison and costs us no body.
 	resp, fetchErr := fetchFeedResponse(ctx, f.URL, f.ETag, f.LastModified)
 	if fetchErr != nil {
-		return b.feedFailed(f, fmt.Errorf("fetch of %s: %w", f.URL, fetchErr))
+		return b.feedFailed(ctx, f, fmt.Errorf("fetch of %s: %w", f.URL, fetchErr))
 	}
 	defer resp.Body.Close()
 	httpStatus = resp.StatusCode
@@ -640,9 +644,10 @@ func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
 		// Nothing changed, so there is nothing to parse and the validators
 		// stay as they are.
 		succeeded = true
-		b.scheduleNextFetch(&f, false)
+		b.scheduleNextFetch(ctx, &f, false)
 		if uerr := b.updateFeed(f); uerr != nil {
-			log.Printf("Error: while updating feed %v: %v", f, uerr)
+			slog.ErrorContext(ctx, "could not update feed",
+				"feed_id", f.ID, "url", f.URL, "error", errorString(uerr))
 		}
 		trace.SpanFromContext(ctx).SetAttributes(
 			attribute.Bool("feed.changed", false),
@@ -661,7 +666,7 @@ func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
 			// is cheaper than being blocked.
 			delay = retryAfterDelay(resp, delay, time.Now())
 		}
-		return b.feedFailedAfter(f, err, delay)
+		return b.feedFailedAfter(ctx, f, err, delay)
 	}
 
 	f.ETag = resp.Header.Get("ETag")
@@ -670,16 +675,17 @@ func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
 	var changed bool
 	changed, itemCount, err = b.ProcessContent(ctx, f.UID, fmt.Sprintf("%d", f.ID), f.URL, resp.Header.Get("Content-Type"), resp.Body)
 	if err != nil {
-		return b.feedFailedAfter(f, fmt.Errorf("in ProcessContent of %s: %w", f.URL, err), failureDelay(f.Failures+1))
+		return b.feedFailedAfter(ctx, f, fmt.Errorf("in ProcessContent of %s: %w", f.URL, err), failureDelay(f.Failures+1))
 	}
 	succeeded = true
 	f.Failures = 0
-	b.scheduleNextFetch(&f, changed)
+	b.scheduleNextFetch(ctx, &f, changed)
 
 	trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("feed.changed", changed))
 
 	if uerr := b.updateFeed(f); uerr != nil {
-		log.Printf("Error: while updating feed %v: %v", f, uerr)
+		slog.ErrorContext(ctx, "could not update feed",
+			"feed_id", f.ID, "url", f.URL, "error", errorString(uerr))
 		// don't return error, because it becomes a notification
 		return nil
 	}
@@ -717,7 +723,7 @@ const (
 // never lands above the change ceiling, so a revival is confirmed within hours
 // rather than at the next rung; a feed that did not change climbs one tier after
 // two unchanged fetches in a row, up to the ceiling.
-func (b *memoryBackend) scheduleNextFetch(f *feed, changed bool) {
+func (b *memoryBackend) scheduleNextFetch(ctx context.Context, f *feed, changed bool) {
 	if changed {
 		f.Tier -= changeDrop
 		// However far it fell, a revived feed is looked at again within the
@@ -749,24 +755,30 @@ func (b *memoryBackend) scheduleNextFetch(f *feed, changed bool) {
 
 	f.NextFetchAt = time.Now().Add(minutes * time.Minute)
 
-	log.Printf("Next Fetch in %d minutes at %v", minutes, f.NextFetchAt.Format(time.RFC3339))
+	slog.DebugContext(ctx, "next fetch scheduled",
+		"feed_id", f.ID, "url", f.URL,
+		"in_minutes", int(minutes), "at", f.NextFetchAt.Format(time.RFC3339))
 }
 
 // feedFailed pushes the next attempt out on the failure schedule. Without this
 // the feed's next_fetch_at never advances when a fetch errors, so a feed that
 // answers 404 is fetched on every ticker tick: a request a minute, forever,
 // from a reader the host cannot even identify.
-func (b *memoryBackend) feedFailed(f feed, err error) error {
-	return b.feedFailedAfter(f, err, failureDelay(f.Failures+1))
+func (b *memoryBackend) feedFailed(ctx context.Context, f feed, err error) error {
+	return b.feedFailedAfter(ctx, f, err, failureDelay(f.Failures+1))
 }
 
-func (b *memoryBackend) feedFailedAfter(f feed, err error, delay time.Duration) error {
+func (b *memoryBackend) feedFailedAfter(ctx context.Context, f feed, err error, delay time.Duration) error {
 	f.Failures++
 	f.NextFetchAt = time.Now().Add(delay)
 	if uerr := b.updateFeed(f); uerr != nil {
-		log.Printf("while recording the failed fetch of %s: %s", f.URL, uerr)
+		slog.ErrorContext(ctx, "could not record the failed fetch",
+			"feed_id", f.ID, "url", f.URL, "error", errorString(uerr))
 	}
-	log.Printf("Retry %s in %s (failure %d)", f.URL, delay.Round(time.Second), f.Failures)
+	slog.WarnContext(ctx, "feed fetch failed, retrying",
+		"feed_id", f.ID, "url", f.URL,
+		"retry_in", delay.Round(time.Second).String(), "failure", f.Failures,
+		"error", errorString(err))
 	return err
 }
 
@@ -791,12 +803,12 @@ func (b *memoryBackend) addNotification(name string, feed feed, err error) {
 		Published: time.Now().Format(time.RFC3339),
 	})
 	if err != nil {
-		log.Printf("ERROR: %s", err)
+		slog.Error("could not record notification item", "error", err)
 	}
 }
 
 func (b *memoryBackend) TimelineGet(ctx context.Context, before, after, channel string) (microsub.Timeline, error) {
-	log.Printf("TimelineGet %s\n", channel)
+	slog.DebugContext(ctx, "timeline get", "channel", channel, "before", before, "after", after)
 
 	// Check if feed exists
 	_, err := b.FollowGetList(ctx, channel)
@@ -896,7 +908,7 @@ func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (
 	}
 	resp, err := b.Fetch3(ctx, uid, subFeed.URL)
 	if err != nil {
-		log.Println(err)
+		slog.ErrorContext(ctx, "could not fetch feed", "url", subFeed.URL, "error", err)
 		b.addNotification("Error while fetching feed", newFeed, err)
 		_ = b.updateChannelUnreadCount(ctx, "notifications")
 		return subFeed, err
@@ -924,7 +936,7 @@ func checkURL(u string) bool {
 	resp, err := http.Head(testURL.String())
 
 	if err != nil {
-		log.Printf("Error while HEAD %s: %v\n", u, err)
+		slog.Error("could not HEAD url", "url", u, "error", err)
 		return false
 	}
 
@@ -1020,10 +1032,10 @@ func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Fe
 	cachingFetch := WithCaching(b.pool, fetch.FetcherFunc(Fetch2))
 
 	for _, u := range urls {
-		log.Println(u)
+		slog.DebugContext(ctx, "search: trying url", "url", u)
 		resp, err := cachingFetch.Fetch(u)
 		if err != nil {
-			log.Printf("Error while fetching %s: %v\n", u, err)
+			slog.DebugContext(ctx, "search: could not fetch url", "url", u, "error", err)
 			continue
 		}
 		defer resp.Body.Close()
@@ -1031,13 +1043,13 @@ func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Fe
 		fetchURL, err := url.Parse(u)
 		md := microformats.Parse(resp.Body, fetchURL)
 		if err != nil {
-			log.Printf("Error while fetching %s: %v\n", u, err)
+			slog.DebugContext(ctx, "search: could not fetch url", "url", u, "error", err)
 			continue
 		}
 
 		feedResp, err := cachingFetch.Fetch(fetchURL.String())
 		if err != nil {
-			log.Printf("Error in fetch of %s - %v\n", fetchURL, err)
+			slog.DebugContext(ctx, "search: could not fetch feed", "url", fetchURL.String(), "error", err)
 			continue
 		}
 		defer feedResp.Body.Close()
@@ -1045,7 +1057,7 @@ func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Fe
 		// TODO: Combine FeedHeader and FeedItems so we can use it here
 		parsedFeed, err := fetch.FeedHeader(ctx, cachingFetch, fetchURL.String(), feedResp.Header.Get("Content-Type"), feedResp.Body)
 		if err != nil {
-			log.Printf("Error in parse of %s - %v\n", fetchURL, err)
+			slog.DebugContext(ctx, "search: could not parse feed", "url", fetchURL.String(), "error", err)
 			continue
 		}
 
@@ -1055,12 +1067,12 @@ func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Fe
 		if alts, e := md.Rels["alternate"]; e {
 			for _, alt := range alts {
 				relURL := md.RelURLs[alt]
-				log.Printf("alternate found with type %s %#v\n", relURL.Type, relURL)
+				slog.DebugContext(ctx, "search: alternate link found", "type", relURL.Type, "link", fmt.Sprint(relURL))
 
 				if strings.HasPrefix(relURL.Type, "text/html") || strings.HasPrefix(relURL.Type, "application/json") || strings.HasPrefix(relURL.Type, "application/xml") || strings.HasPrefix(relURL.Type, "text/xml") || strings.HasPrefix(relURL.Type, "application/rss+xml") || strings.HasPrefix(relURL.Type, "application/atom+xml") {
 					feedResp, err := cachingFetch.Fetch(alt)
 					if err != nil {
-						log.Printf("Error in fetch of %s - %v\n", alt, err)
+						slog.DebugContext(ctx, "search: could not fetch alternate", "url", alt, "error", err)
 						continue
 					}
 					// FIXME: don't defer in for loop (possible memory leak)
@@ -1068,7 +1080,7 @@ func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Fe
 
 					parsedFeed, err := fetch.FeedHeader(ctx, cachingFetch, alt, feedResp.Header.Get("Content-Type"), feedResp.Body)
 					if err != nil {
-						log.Printf("Error in parse of %s - %v\n", alt, err)
+						slog.DebugContext(ctx, "search: could not parse alternate", "url", alt, "error", err)
 						continue
 					}
 
@@ -1236,7 +1248,8 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 		err := indexBatch(fetch.batch.entries)
 		sspan.End()
 		if err != nil {
-			log.Printf("ERROR: (feedID=%s) search index: %s\n", feedID, err)
+			slog.ErrorContext(ctx, "could not add items to the search index",
+				"feed_id", feedID, "error", errorString(err))
 		}
 	}
 	defer flushIndex()
@@ -1255,7 +1268,8 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 		item.Source.ID = feedID
 		added, err := b.channelAddItemWithMatcher(ctx, channel, item, fetch)
 		if err != nil {
-			log.Printf("ERROR: (feedID=%s) %s\n", feedID, err)
+			slog.ErrorContext(ctx, "could not store item",
+				"feed_id", feedID, "channel", channel, "error", errorString(err))
 		}
 		changed = changed || added
 		processed++
@@ -1271,7 +1285,7 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 
 // Fetch3 fills stuff
 func (b *memoryBackend) Fetch3(ctx context.Context, channel, fetchURL string) (*http.Response, error) {
-	log.Printf("Fetching channel=%s fetchURL=%s\n", channel, fetchURL)
+	slog.DebugContext(ctx, "fetching for channel", "channel", channel, "url", fetchURL)
 	return Fetch2(ctx, fetchURL)
 }
 
@@ -1302,14 +1316,16 @@ func (f *fetchState) settingFor(ctx context.Context, b *memoryBackend, channel s
 
 	setting, err := b.loadSetting(ctx, channel)
 	if err != nil {
-		log.Printf("could not load settings for channel %s: %s\n", channel, err)
+		slog.ErrorContext(ctx, "could not load channel settings",
+			"channel", channel, "error", errorString(err))
 	}
 	f.settings[channel] = setting
 
 	if setting.ExcludeRegex != "" {
 		re, err := regexp.Compile(setting.ExcludeRegex)
 		if err != nil {
-			log.Printf("error in regexp: %q: %s\n", setting.ExcludeRegex, err)
+			slog.ErrorContext(ctx, "channel exclude_regex does not compile",
+				"channel", channel, "regex", setting.ExcludeRegex, "error", errorString(err))
 		} else {
 			f.excludeRegex[channel] = re
 		}
@@ -1331,12 +1347,10 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 	// 	if setting.IncludeRegex != "" {
 	// 		re, err := regexp.Compile(setting.IncludeRegex)
 	// 		if err != nil {
-	// 			log.Printf("error in regexp: %q, %s\n", setting.IncludeRegex, err)
 	// 			return false, nil
 	// 		}
 	//
 	// 		if matchItem(item, re) {
-	// 			log.Printf("Included %#v\n", item)
 	// 			added, err := b.channelAddItem(channelKey, item)
 	// 			if err != nil {
 	// 				continue
@@ -1358,7 +1372,8 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 	for _, value := range updatedChannels {
 		err := b.updateChannelUnreadCount(ctx, value)
 		if err != nil {
-			log.Printf("error while updating unread count for %s: %s", value, err)
+			slog.ErrorContext(ctx, "could not update unread count",
+				"channel", value, "error", errorString(err))
 			continue
 		}
 	}
@@ -1374,7 +1389,8 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 		if setting.ExcludeRegex != "" {
 			re, err := regexp.Compile(setting.ExcludeRegex)
 			if err != nil {
-				log.Printf("error in regexp: %q: %s\n", setting.ExcludeRegex, err)
+				slog.ErrorContext(ctx, "channel exclude_regex does not compile",
+					"channel", channel, "regex", setting.ExcludeRegex, "error", errorString(err))
 			} else {
 				excludeRegex = re
 			}
@@ -1409,7 +1425,8 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 	}
 
 	if excludeRegex != nil && matchItem(item, excludeRegex) {
-		log.Printf("Excluded %#v\n", item)
+		slog.DebugContext(ctx, "item excluded by channel setting",
+			"channel", channel, "item", item.URL)
 		return false, nil
 	}
 
@@ -1552,13 +1569,13 @@ func WithCaching(pool *redis.Pool, ff fetch.Fetcher) fetch.Fetcher {
 
 		data, err := redis.Bytes(conn.Do("GET", cacheKey))
 		if err == nil {
-			log.Printf("HIT %s\n", fetchURL)
+			slog.DebugContext(ctx, "http cache hit", "url", fetchURL)
 			trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("http.cache.hit", true))
 			rd := bufio.NewReader(bytes.NewReader(data))
 			return http.ReadResponse(rd, req)
 		}
 
-		log.Printf("MISS %s\n", fetchURL)
+		slog.DebugContext(ctx, "http cache miss", "url", fetchURL)
 		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("http.cache.hit", false))
 
 		resp, err := ff.FetchWithContext(ctx, fetchURL)

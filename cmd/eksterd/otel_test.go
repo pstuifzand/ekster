@@ -20,6 +20,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -94,6 +95,33 @@ func TestFeedParsingProducesNestedSpans(t *testing.T) {
 		}
 		if child.SpanContext().TraceID() != parse.SpanContext().TraceID() {
 			t.Errorf("%s is in another trace than feed.parse", name)
+		}
+	}
+}
+
+// A line logged inside a request has to carry the same ids as the span the
+// request produced. That is the whole point of wrapping the log handler: one
+// VictoriaLogs query finds the request's lines and its trace at once.
+func TestRequestLogsCarryTheSpanIDs(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318")
+	buf := logfmtOutput(t)
+	recorder := recordSpans(t)
+
+	handler := observability.Handler("/incoming/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		slog.InfoContext(r.Context(), "hub delivery", "subscription", r.URL.Path)
+	}), nil)
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/incoming/24", nil))
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("got %d spans, want 1: %v", len(spans), spanNames(spans))
+	}
+
+	sc := spans[0].SpanContext()
+	line := buf.String()
+	for _, want := range []string{"trace_id=" + sc.TraceID().String(), "span_id=" + sc.SpanID().String()} {
+		if !strings.Contains(line, want) {
+			t.Errorf("request log line %q is missing %q", line, want)
 		}
 	}
 }

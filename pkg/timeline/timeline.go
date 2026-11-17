@@ -26,7 +26,7 @@ package timeline
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 
 	"github.com/pstuifzand/ekster/pkg/microsub"
 
@@ -63,7 +63,7 @@ func Create(channel, timelineType string, pool *redis.Pool, db *sql.DB) Backend 
 		timeline := &postgresStream{database: db, channel: channel}
 		err := timeline.Init()
 		if err != nil {
-			log.Printf("Error while creating %s: %v", channel, err)
+			slog.Error("could not create timeline", "channel", channel, "error", err)
 			return nil
 		}
 		return timeline

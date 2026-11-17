@@ -20,10 +20,13 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/pstuifzand/ekster/pkg/observability"
 )
 
 // setupLogging installs a logfmt logger for the whole process.
@@ -33,18 +36,29 @@ import (
 // fails for one feed then becomes `feed_id:123` in a query instead of a substring
 // match on a sentence that also matches three other lines.
 //
+// The handler is wrapped in observability.LogHandler, so every line logged with
+// a context that carries a span also carries trace_id and span_id: a request's
+// log lines and its trace are then one story instead of two searches. Lines from
+// the log package have no context and get no ids - which is honest, they belong
+// to no request - so anything in a traced path should use slog's *Context calls.
+//
 // Package log keeps working. Its output is routed through slog, so an
 // unconverted log.Printf call still emits one logfmt line instead of a second
 // format in the same stream - mixed formats are worse than no fields, because
 // unpack_logfmt would silently produce nothing for half the lines.
 func setupLogging() {
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: logLevel(),
-	})
-	slog.SetDefault(slog.New(handler))
+	slog.SetDefault(slog.New(newLogHandler(os.Stderr)))
 
 	log.SetFlags(0)
 	log.SetOutput(slogWriter{})
+}
+
+// newLogHandler is the one place ekster's log format is built, so a test can
+// assert the wiring the process actually runs instead of a copy of it.
+func newLogHandler(w io.Writer) slog.Handler {
+	return observability.LogHandler(slog.NewTextHandler(w, &slog.HandlerOptions{
+		Level: logLevel(),
+	}))
 }
 
 // logLevel reads EKSTER_LOG_LEVEL, defaulting to info.

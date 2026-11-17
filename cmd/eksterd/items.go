@@ -26,7 +26,7 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -120,7 +120,7 @@ func (h *itemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	stored, err := h.Backend.ItemByUID(r.Context(), uid)
 	if err != nil {
-		log.Printf("item %q: %v", uid, err)
+		slog.ErrorContext(r.Context(), "could not read item", "uid", uid, "error", err)
 		http.NotFound(w, r)
 		return
 	}
@@ -153,7 +153,7 @@ func (h *itemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := renderPage(w, "item.html", page); err != nil {
-		log.Printf("could not render item page: %v", err)
+		slog.ErrorContext(r.Context(), "could not render the item page", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}
 }

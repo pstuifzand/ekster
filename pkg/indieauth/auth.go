@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -89,7 +89,7 @@ func GetEndpoints(me *url.URL) (Endpoints, error) {
 			} else if link.Rel == "microsub" {
 				endpoints.MicrosubEndpoint = link.URL
 			} else {
-				log.Printf("Skipping unsupported rels in Link header: %s %s\n", link.Rel, link.URL)
+				slog.Debug("skipping unsupported rel in Link header", "rel", link.Rel, "url", link.URL)
 			}
 		}
 	}
@@ -134,7 +134,7 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 
 	authorizationURL := CreateAuthorizationURL(*authURL, me.String(), redirectURI, redirectURI, state, scope)
 
-	log.Printf("Browse to %s\n", authorizationURL)
+	slog.Info("authorization required", "url", authorizationURL)
 
 	shutdown := make(chan struct{}, 1)
 
@@ -144,7 +144,7 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 		code = r.URL.Query().Get("code")
 		responseState := r.URL.Query().Get("state")
 		if state != responseState {
-			log.Println("Wrong state response")
+			slog.Error("authorization state does not match")
 		}
 		fmt.Fprintln(w, `<div style="width:100%;height:100%;display: flex; align-items: center; justify-content: center;">You can close this window, proceed on the command line</div>`)
 		close(shutdown)
@@ -161,14 +161,14 @@ func Authorize(me *url.URL, endpoints Endpoints, clientID, scope string) (TokenR
 		// We received an interrupt signal, shut down.
 		if err := srv.Shutdown(context.Background()); err != nil {
 			// Error from closing listeners, or context timeout:
-			log.Printf("HTTP server Shutdown: %v", err)
+			slog.Debug("authorization server shutdown", "error", err)
 		}
 		close(idleConnsClosed)
 	}()
 
 	if err := srv.Serve(ln); err != http.ErrServerClosed {
 		// Error starting or closing listener:
-		log.Printf("HTTP server ListenAndServe: %v", err)
+		slog.Error("authorization server stopped", "error", err)
 	}
 
 	<-idleConnsClosed

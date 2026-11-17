@@ -23,7 +23,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"runtime/debug"
@@ -115,7 +115,7 @@ func (r *cardResolver) Card(ctx context.Context, u string) (microsub.Card, bool)
 
 	doc, err := readPage(ctx, r.fetcher, u)
 	if err != nil {
-		log.Printf("could not resolve author %s: %s\n", u, err)
+		slog.DebugContext(ctx, "could not resolve author", "url", u, "error", err)
 		return microsub.Card{}, false
 	}
 	header, err := fetch.FeedHeader(ctx, r.fetcher, u, doc.contentType, bytes.NewBuffer(doc.body))
@@ -142,7 +142,8 @@ func enrichItem(ctx context.Context, fetcher fetch.Fetcher, resolver *cardResolv
 	out = item
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("recovered while enriching %s: %v\n%s", item.URL, r, debug.Stack())
+			slog.ErrorContext(ctx, "enrichment panicked",
+				"url", item.URL, "panic", fmt.Sprint(r), "stack", string(debug.Stack()))
 		}
 	}()
 	out = resolveAuthor(ctx, resolver, out)

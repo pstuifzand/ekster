@@ -27,7 +27,7 @@ import (
 	"embed"
 	_ "expvar"
 	"flag"
-	"log"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -63,10 +63,6 @@ type AppOptions struct {
 //go:embed db/migrations/*.sql
 var migrations embed.FS
 
-func init() {
-	log.SetFlags(log.Lshortfile | log.Ldate | log.Ltime)
-}
-
 func newPool(addr string) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:     3,
@@ -97,7 +93,7 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 		userIDStr := strings.TrimPrefix(r.URL.Path, "/microsub/")
 		userID, err := strconv.Atoi(userIDStr)
 		if err != nil {
-			log.Println(r.URL.Path, "does not contain a user id")
+			slog.WarnContext(r.Context(), "path has no user id", "path", r.URL.Path)
 			deny(w, "No user id found in url", http.StatusBadRequest)
 			return
 		}
@@ -106,7 +102,7 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 		row := b.database.QueryRow(`SELECT "url", "token_endpoint" FROM "users" WHERE "id" = $1`, userID)
 		err = row.Scan(&me, &tokenEndpoint)
 		if err == sql.ErrNoRows {
-			log.Println("no user found with id", userID)
+			slog.WarnContext(r.Context(), "no user found", "user_id", userID)
 			deny(w, "No user found with id", http.StatusBadRequest)
 			return
 		}
@@ -125,16 +121,16 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 
 		authorized, err := b.AuthTokenAccepted(authorization, &token, tokenEndpoint)
 		if err != nil {
-			log.Printf("token not accepted: %v", err)
+			slog.ErrorContext(r.Context(), "token not accepted", "error", err)
 		}
 		if !authorized {
-			log.Printf("Token could not be validated")
+			slog.WarnContext(r.Context(), "token could not be validated")
 			deny(w, "Can't validate token", http.StatusForbidden)
 			return
 		}
 
 		if token.Me != me {
-			log.Printf("Missing \"me\" in token response: %#v\n", token)
+			slog.ErrorContext(r.Context(), "token response has no me")
 			http.Error(w, "Wrong me", http.StatusForbidden)
 			return
 		}
@@ -162,16 +158,17 @@ func main() {
 	flag.Parse()
 
 	if options.AuthEnabled {
-		log.Println("Using auth")
+		slog.Info("authentication enabled")
 	} else {
-		log.Println("Authentication disabled")
+		slog.Info("authentication disabled")
 	}
 
 	if options.BaseURL == "" {
 		if envVar, e := os.LookupEnv("EKSTER_BASEURL"); e {
 			options.BaseURL = envVar
 		} else {
-			log.Fatal("EKSTER_BASEURL environment variable not found, please set with external url, -baseurl url option")
+			slog.Error("EKSTER_BASEURL is not set", "flag", "-baseurl")
+			os.Exit(1)
 		}
 	}
 
@@ -179,22 +176,26 @@ func main() {
 	options.pool = pool
 	db, err := sql.Open("postgres", options.DatabaseURL)
 	if err != nil {
-		log.Fatalf("database open failed: %s", err)
+		slog.Error("could not open the database", "error", err)
+		os.Exit(1)
 	}
 	options.database = db
 
 	err = runMigrations(db)
 	if err != nil {
-		log.Fatalf("Error with migrations: %s", err)
+		slog.Error("migrations failed", "error", err)
+		os.Exit(1)
 	}
 	db, err = sql.Open("postgres", options.DatabaseURL)
 	if err != nil {
-		log.Fatalf("database open failed: %s", err)
+		slog.Error("could not open the database", "error", err)
+		os.Exit(1)
 	}
 	options.database = db
 	app, err := NewApp(options)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("could not create the app", "error", err)
+		os.Exit(1)
 	}
 
 	// Tracing is opt-in. With OTEL_EXPORTER_OTLP_ENDPOINT set, spans are sent
@@ -202,7 +203,7 @@ func main() {
 	// not keep the server down, so it degrades to a log line.
 	shutdown, err := observability.Setup(context.Background(), "ekster", BuildVersion())
 	if err != nil {
-		log.Printf("could not start tracing: %v", err)
+		slog.Error("could not start tracing", "error", err)
 		shutdown = func(context.Context) error { return nil }
 	}
 
@@ -211,7 +212,7 @@ func main() {
 	// port would be readable by anyone who can reach the Microsub endpoint.
 	metricsShutdown, msErr := observability.StartMetricsServer(context.Background(), os.Getenv("EKSTER_METRICS_ADDR"))
 	if msErr != nil {
-		log.Printf("could not start metrics server: %v", msErr)
+		slog.Error("could not start the metrics server", "error", msErr)
 		metricsShutdown = func(context.Context) error { return nil }
 	}
 
@@ -220,7 +221,7 @@ func main() {
 	// from whatever the last fetch span happened to say. Registered whether or
 	// not metrics are enabled — the registry is only served when they are.
 	if err := observability.Register(newFeedGauges(db)); err != nil {
-		log.Printf("could not register feed gauges: %v", err)
+		slog.Error("could not register the feed gauges", "error", err)
 	}
 
 	// The batch exporter holds spans until they are flushed, and a container
@@ -246,7 +247,8 @@ func main() {
 
 	db.Close()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("eksterd stopped", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -256,7 +258,7 @@ type Log struct {
 
 // Printf for migrations logs
 func (l Log) Printf(format string, v ...interface{}) {
-	log.Printf(format, v...)
+	slog.Info(strings.TrimRight(fmt.Sprintf(format, v...), "\n"))
 }
 
 // Verbose returns false
@@ -279,12 +281,12 @@ func runMigrations(db *sql.DB) error {
 	}
 	defer m.Close()
 	m.Log = &Log{}
-	log.Println("Running migrations")
+	slog.Info("running migrations")
 	if err = m.Up(); err != nil {
 		if err != migrate.ErrNoChange {
 			return err
 		}
 	}
-	log.Println("Migrations are up")
+	slog.Info("migrations are up")
 	return nil
 }

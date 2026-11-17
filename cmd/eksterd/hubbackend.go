@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"log/slog"
 	"time"
 
@@ -88,7 +87,7 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 }
 
 func (h *hubIncomingBackend) CreateFeed(topic string) (int64, error) {
-	log.Println("CreateFeed", topic)
+	slog.Debug("websub: creating feed", "topic", topic)
 	db := h.database
 
 	secret := util.RandStringBytes(32)
@@ -109,13 +108,13 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 
 	hubURL, err := websub.GetHubURL(client, topic)
 	if err != nil {
-		log.Printf("WebSub Hub URL not found for topic=%s\n", topic)
+		slog.Warn("websub: no hub url for topic", "topic", topic)
 		return 0, err
 	}
 
 	callbackURL := fmt.Sprintf("%s/incoming/%d", h.baseURL, subscriptionID)
 
-	log.Printf("WebSub Hub URL found for topic=%q hub=%q callback=%q\n", topic, hubURL, callbackURL)
+	slog.Info("websub: hub found", "topic", topic, "hub", hubURL, "callback", callbackURL)
 
 	if err == nil && hubURL != "" {
 		_, err := db.Exec(`UPDATE subscriptions SET hub = $1, callback = $2 WHERE id = $3`, hubURL, callbackURL, subscriptionID)
@@ -135,7 +134,7 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 }
 
 func (h *hubIncomingBackend) UpdateFeed(ctx context.Context, processor ContentProcessor, subscriptionID int64, contentType string, body io.Reader) error {
-	log.Println("UpdateFeed", subscriptionID)
+	slog.Debug("websub: updating feed", "subscription", subscriptionID)
 
 	db := h.database
 	// Process all channels that contains this feed
@@ -168,14 +167,14 @@ where s.id = $1
 
 		err = rows.Scan(&topic, &channel, &feedID, &channelName)
 		if err != nil {
-			log.Println(err)
+			slog.Error("websub: could not scan subscription row", "error", err)
 			continue
 		}
 
-		log.Printf("Updating feed %s %q in %q (%s)\n", feedID, topic, channelName, channel)
+		slog.Info("websub: updating feed", "feed_id", feedID, "topic", topic, "channel_name", channelName)
 		_, _, err = processor.ProcessContent(ctx, channel, feedID, topic, contentType, buf)
 		if err != nil {
-			log.Printf("could not process content for channel %s: %s", channelName, err)
+			slog.Error("websub: could not process content", "channel_name", channelName, "error", err)
 		}
 
 		// Reader#Seek never fails when whence exists
@@ -234,7 +233,7 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 			&feed.ResubscribeAt,
 		)
 		if err != nil {
-			log.Println("Feeds: scan subscriptions:", err)
+			slog.Error("websub: could not list subscriptions", "error", err)
 			continue
 		}
 		feeds = append(feeds, feed)
@@ -244,7 +243,7 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 }
 
 func (h *hubIncomingBackend) Subscribe(feed *Feed) error {
-	log.Println("Subscribe", feed.URL)
+	slog.Debug("websub: subscribing", "feed", feed.URL)
 	// A hub that accepts the connection but never answers would otherwise block
 	// the whole renewal loop for every other feed.
 	client := identifyingClient(30 * time.Second)
@@ -273,19 +272,19 @@ func (h *hubIncomingBackend) run() error {
 		for {
 			select {
 			case <-ticker.C:
-				log.Println("Getting feeds for WebSub started")
+				slog.Debug("websub: resubscribe pass started")
 				varWebsub.Add("runs", 1)
 
 				feeds, err := h.Feeds()
 				if err != nil {
 					slog.Error("websub: could not list feeds", "error", errorString(err))
-					log.Println("Getting feeds for WebSub completed")
+					slog.Debug("websub: resubscribe pass completed")
 					continue
 				}
 
-				log.Printf("Found %d feeds", len(feeds))
+				slog.Info("websub: feeds to check", "feeds", len(feeds))
 				for _, feed := range feeds {
-					log.Printf("Looking at %s\n", feed.URL)
+					slog.Debug("websub: looking at feed", "url", feed.URL)
 					if feed.ResubscribeAt != nil && time.Now().Before(*feed.ResubscribeAt) {
 						continue
 					}
@@ -324,7 +323,7 @@ func (h *hubIncomingBackend) run() error {
 					}
 				}
 
-				log.Println("Getting feeds for WebSub completed")
+				slog.Debug("websub: resubscribe pass completed")
 			case <-quit:
 				ticker.Stop()
 				return

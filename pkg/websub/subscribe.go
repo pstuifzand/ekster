@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -105,7 +105,7 @@ func parseBodyLinks(client *http.Client, topic string) (string, error) {
 		dec := json.NewDecoder(resp.Body)
 		err := dec.Decode(&feed)
 		if err != nil {
-			log.Printf("error while parsing json feed: %s\n", err)
+			slog.Debug("could not parse json feed", "topic", topic, "error", err)
 			return "", err
 		}
 

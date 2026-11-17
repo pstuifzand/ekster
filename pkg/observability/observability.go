@@ -26,7 +26,7 @@ package observability
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -105,12 +105,13 @@ func Setup(ctx context.Context, serviceName, serviceVersion string) (func(contex
 		propagation.Baggage{},
 	))
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
-		log.Printf("opentelemetry: %v", err)
+		slog.Error("opentelemetry", "error", err)
 	}))
 
 	InstrumentHTTP()
 
-	log.Printf("tracing enabled: %s %s to %q", serviceName, serviceVersion, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+	slog.Info("tracing enabled", "service", serviceName, "version", serviceVersion,
+		"endpoint", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
 
 	return tp.Shutdown, nil
 }

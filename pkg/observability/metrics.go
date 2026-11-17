@@ -20,7 +20,7 @@ package observability
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -122,10 +122,10 @@ func StartMetricsServer(ctx context.Context, addr string) (func(context.Context)
 
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			log.Printf("metrics server stopped: %v", err)
+			slog.Error("metrics server stopped", "error", err)
 		}
 	}()
-	log.Printf("metrics: serving /metrics on %s", ln.Addr())
+	slog.Info("metrics: serving /metrics", "addr", ln.Addr().String())
 
 	return srv.Shutdown, nil
 }

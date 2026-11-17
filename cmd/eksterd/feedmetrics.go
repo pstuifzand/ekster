@@ -2,7 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -81,7 +81,7 @@ func (g *feedGauges) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		// Emit nothing rather than a zero: a tier of 0 and a fetch due in 1970
 		// would both look like facts on the dashboard.
-		log.Printf("metrics: per-feed schedule: %v", err)
+		slog.Error("metrics: could not read the per-feed schedule", "error", err)
 		return
 	}
 	for _, f := range feeds {

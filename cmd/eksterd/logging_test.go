@@ -20,11 +20,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"log"
 	"log/slog"
 	"strings"
 	"testing"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // logfmtOutput installs a buffer-backed logfmt handler for the duration of a test
@@ -37,7 +40,9 @@ func logfmtOutput(t *testing.T) *bytes.Buffer {
 	previousWriter := log.Writer()
 	previousFlags := log.Flags()
 
-	slog.SetDefault(slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	// The production handler, not a copy of it: a test that builds its own
+	// TextHandler cannot notice the trace wrapper going missing.
+	slog.SetDefault(slog.New(newLogHandler(buf)))
 	log.SetFlags(0)
 	log.SetOutput(slogWriter{})
 
@@ -83,6 +88,28 @@ func TestStructuredFieldsAppearAsKeyValuePairs(t *testing.T) {
 		"hub=https://hub.example.com/",
 		`error="422 Unprocessable Entity"`,
 	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("missing %q in %q", want, line)
+		}
+	}
+}
+
+// A line logged with a request's context has to carry trace_id and span_id,
+// because that is how VictoriaLogs joins it to the trace of the request.
+func TestLogLinesCarryTheRequestTraceIDs(t *testing.T) {
+	buf := logfmtOutput(t)
+
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID{0xde, 0xad, 0xbe, 0xef, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c},
+		SpanID:     trace.SpanID{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88},
+		TraceFlags: trace.FlagsSampled,
+	})
+	ctx := trace.ContextWithSpanContext(context.Background(), sc)
+
+	slog.InfoContext(ctx, "hub delivery", "subscription", "/incoming/24")
+
+	line := buf.String()
+	for _, want := range []string{"trace_id=" + sc.TraceID().String(), "span_id=" + sc.SpanID().String()} {
 		if !strings.Contains(line, want) {
 			t.Fatalf("missing %q in %q", want, line)
 		}

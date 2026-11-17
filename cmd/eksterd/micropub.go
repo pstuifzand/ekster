@@ -24,7 +24,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"strings"
@@ -51,7 +51,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		err := r.Body.Close()
 		if err != nil {
-			log.Printf("could not close request body: %v", err)
+			slog.ErrorContext(r.Context(), "could not close request body", "error", err)
 		}
 	}()
 
@@ -77,7 +77,7 @@ func (h *micropubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	target, err := resolveTarget(r, h.Backend.database, h.pool)
 	if err != nil {
-		log.Println(err)
+		slog.ErrorContext(r.Context(), "micropub request could not be authorized", "error", err)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -89,7 +89,7 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	item, err := parseIncomingItem(r)
 	if err != nil {
-		log.Println(err)
+		slog.ErrorContext(r.Context(), "could not parse the incoming item", "channel", target.Channel, "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -104,7 +104,7 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	newID, err := generateItemID(conn, target.Channel)
 	if err != nil {
-		log.Println(err)
+		slog.ErrorContext(r.Context(), "could not generate an item id", "channel", target.Channel, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -119,15 +119,15 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	// an identity, so it falls back too instead of being stored empty.
 	item.Author = target.resolveAuthor(item.Author)
 
-	log.Printf("Item published: %s (%s)", item.Published, item.URL)
+	slog.InfoContext(r.Context(), "item published", "published", item.Published, "url", item.URL, "channel", target.Channel)
 
 	_, err = h.Backend.channelAddItemWithMatcher(r.Context(), target.Channel, *item, nil)
 	if err != nil {
-		log.Printf("could not add item to channel %s: %v", target.Channel, err)
+		slog.ErrorContext(r.Context(), "could not add item to channel", "channel", target.Channel, "error", err)
 	}
 
 	if err := h.Backend.updateChannelUnreadCount(r.Context(), target.Channel); err != nil {
-		log.Printf("could not update channel unread content %s: %v", target.Channel, err)
+		slog.ErrorContext(r.Context(), "could not update channel unread count", "channel", target.Channel, "error", err)
 	}
 
 	h.Backend.SourceTouch(target.SourceID)
@@ -140,7 +140,7 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(map[string]string{"url": item.URL}); err != nil {
-		log.Println(err)
+		slog.ErrorContext(r.Context(), "could not write the created item response", "error", err)
 	}
 }
 
@@ -180,7 +180,7 @@ func (h *micropubHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	updated = h.enrichReferences(r.Context(), updated)
 	if err := h.Backend.UpdateMicropubItem(r.Context(), target.Channel, uid, updated); err != nil {
-		log.Printf("could not update micropub item %s: %v", uid, err)
+		slog.ErrorContext(r.Context(), "could not update micropub item", "uid", uid, "channel", target.Channel, "error", err)
 		http.Error(w, "could not update item", http.StatusInternalServerError)
 		return
 	}
@@ -337,7 +337,7 @@ func (h *micropubHandler) handleSourceQuery(w http.ResponseWriter, r *http.Reque
 
 	timeline, err := h.Backend.TimelineGet(r.Context(), "", "", target.Channel)
 	if err != nil {
-		log.Printf("q=source for %s: %v", target.Channel, err)
+		slog.ErrorContext(r.Context(), "could not read the channel timeline", "channel", target.Channel, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -371,7 +371,7 @@ type micropubPostType struct {
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Println(err)
+		slog.Error("could not write JSON response", "error", err)
 	}
 }
 

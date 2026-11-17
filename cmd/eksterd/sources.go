@@ -24,7 +24,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -175,7 +175,7 @@ func (b *memoryBackend) SourceTouch(id int) {
 		return
 	}
 	if _, err := b.database.Exec(`UPDATE "sources" SET "last_used_at" = now() WHERE "id" = $1`, id); err != nil {
-		log.Printf("could not update last_used_at for source %d: %v", id, err)
+		slog.Error("could not update source last_used_at", "source_id", id, "error", err)
 	}
 }
 
@@ -234,7 +234,7 @@ func (h *mainHandler) handleSourcesPage(w http.ResponseWriter, r *http.Request, 
 
 	sources, err := h.Backend.SourcesGetList(r.Context())
 	if err != nil {
-		log.Printf("ERROR: %s\n", err)
+		slog.ErrorContext(r.Context(), "could not list sources", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -242,7 +242,7 @@ func (h *mainHandler) handleSourcesPage(w http.ResponseWriter, r *http.Request, 
 
 	page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 	if err != nil {
-		log.Printf("ERROR: %s\n", err)
+		slog.ErrorContext(r.Context(), "could not list channels", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -276,7 +276,7 @@ func (h *mainHandler) handleSourceCreate(w http.ResponseWriter, r *http.Request,
 
 	source, err := h.Backend.SourceCreate(r.Context(), channelUID, name)
 	if err != nil {
-		log.Printf("could not create source: %v", err)
+		slog.ErrorContext(r.Context(), "could not create source", "error", err)
 		http.Redirect(w, r, "/settings/sources?error="+url.QueryEscape(err.Error()), http.StatusFound)
 		return
 	}
@@ -297,7 +297,7 @@ func (h *mainHandler) handleSourceDelete(w http.ResponseWriter, r *http.Request,
 	}
 
 	if err := h.Backend.SourceDelete(r.Context(), id); err != nil {
-		log.Printf("could not delete source %d: %v", id, err)
+		slog.ErrorContext(r.Context(), "could not delete source", "source_id", id, "error", err)
 		http.Redirect(w, r, "/settings/sources?error="+url.QueryEscape(err.Error()), http.StatusFound)
 		return
 	}
@@ -320,7 +320,7 @@ func (h *mainHandler) pageSession(w http.ResponseWriter, r *http.Request, conn r
 
 	sess, err := loadSession(c.Value, conn)
 	if err != nil {
-		log.Printf("ERROR: %s\n", err)
+		slog.ErrorContext(r.Context(), "could not read the page session", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return "", session{}, false
 	}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -79,7 +78,7 @@ func runReader() error {
 	server := &http.Server{Handler: localOnly(mux, ln.Addr().String()), ReadHeaderTimeout: 5 * time.Second}
 	fmt.Printf("Ek Reader: %s\n", baseURL)
 	if err := exec.Command("xdg-open", baseURL).Start(); err != nil {
-		log.Printf("Open %s in your browser", baseURL)
+		fmt.Printf("Open %s in your browser\n", baseURL)
 	}
 	return server.Serve(ln)
 }

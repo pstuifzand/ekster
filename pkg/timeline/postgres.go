@@ -24,7 +24,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -383,7 +383,7 @@ func (p *postgresStream) ItemsByUID(uids []string) ([]microsub.Item, error) {
 		if err == sql.ErrNoRows {
 			continue
 		} else if err != nil {
-			log.Println("Scan failed", err)
+			slog.Error("could not scan items", "error", err)
 			return nil, err
 		}
 

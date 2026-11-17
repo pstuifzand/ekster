@@ -26,7 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 
@@ -70,10 +70,6 @@ func NewMicrosubHandler(backend microsub.Microsub) (http.Handler, *sse.Broker) {
 func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
-	// log.Printf("Incoming request: %s %s\n", r.Method, r.URL)
-	// log.Println(r.URL.Query())
-	// log.Println(r.PostForm)
-
 	if r.Method == http.MethodOptions {
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 		w.Header().Add("Access-Control-Allow-Methods", "GET, POST")
@@ -88,7 +84,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if action == "channels" {
 			channels, err := h.backend.ChannelsGetList(r.Context())
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not list channels", "error", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -98,7 +94,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "timeline" {
 			timeline, err := h.backend.TimelineGet(r.Context(), values.Get("before"), values.Get("after"), values.Get("channel"))
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not read the timeline", "channel", values.Get("channel"), "error", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -106,7 +102,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "preview" {
 			timeline, err := h.backend.PreviewURL(r.Context(), values.Get("url"))
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not preview url", "url", values.Get("url"), "error", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -115,7 +111,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			channel := values.Get("channel")
 			following, err := h.backend.FollowGetList(r.Context(), channel)
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not list the followed feeds", "channel", channel, "error", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -125,7 +121,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "events" {
 			events, err := h.backend.Events(r.Context())
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not start the event stream", "error", err)
 				http.Error(w, "could not start sse connection", http.StatusInternalServerError)
 			}
 
@@ -145,7 +141,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			err = sse.WriteMessages(w, events)
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not write the event stream", "error", err)
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 			}
 		} else {
@@ -165,7 +161,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if method == "delete" {
 				err := h.backend.ChannelsDelete(r.Context(), uid)
 				if err != nil {
-					log.Println(err)
+					slog.ErrorContext(r.Context(), "could not delete channel", "channel", uid, "error", err)
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
@@ -176,7 +172,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if uid == "" {
 				channel, err := h.backend.ChannelsCreate(r.Context(), name)
 				if err != nil {
-					log.Println(err)
+					slog.ErrorContext(r.Context(), "could not create channel", "name", name, "error", err)
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
@@ -184,7 +180,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			} else if name != "" {
 				channel, err := h.backend.ChannelsUpdate(r.Context(), uid, name)
 				if err != nil {
-					log.Println(err)
+					slog.ErrorContext(r.Context(), "could not update channel", "channel", uid, "error", err)
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
@@ -244,7 +240,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					})
 					return
 				}
-				log.Printf("Searching for %s in %s (%d results)", query, channel, len(items))
+				slog.DebugContext(r.Context(), "search", "query", query, "channel", channel, "results", len(items))
 				respondJSON(w, map[string]interface{}{
 					"query": query,
 					"items": items,
@@ -280,7 +276,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				} else {
 					// A client that drops its body (no Content-Type, say) used to get 200
 					// here and report success; the entries stayed unread with no way to tell.
-					log.Println("No uids specified for mark read")
+					slog.WarnContext(r.Context(), "mark_read called without any entries", "channel", channel)
 					http.Error(w, "mark_read requires at least one entry", http.StatusBadRequest)
 					return
 				}

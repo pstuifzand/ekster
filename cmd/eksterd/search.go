@@ -20,7 +20,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -121,8 +121,8 @@ func withIndexTimeout(fn func() error) error {
 		return nil
 	case <-timer.C:
 		blockIndex()
-		log.Printf("the search index did not answer within %s; indexing paused for %s",
-			indexTimeout, indexCoolDown)
+		slog.Error("the search index did not answer; indexing paused",
+			"timeout", indexTimeout.String(), "cooldown", indexCoolDown.String())
 		return nil
 	}
 }

@@ -21,7 +21,7 @@ package timeline
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -93,7 +93,7 @@ func (timeline *redisSortedSetTimeline) Items(before, after string) (microsub.Ti
 		itemID := itemScores[i]
 		itemJSON, err := redis.Bytes(conn.Do("HGET", itemID, "Data"))
 		if err != nil {
-			log.Println(err)
+			slog.Error("could not read timeline", "error", err)
 			continue
 		}
 		itemJSONs = append(itemJSONs, itemJSON)
@@ -104,7 +104,7 @@ func (timeline *redisSortedSetTimeline) Items(before, after string) (microsub.Ti
 		err := json.Unmarshal(obj, &item)
 		if err != nil {
 			// FIXME: what should we do if one of the items doen't unmarshal?
-			log.Println(err)
+			slog.Error("could not read timeline", "error", err)
 			continue
 		}
 		item.Read = false

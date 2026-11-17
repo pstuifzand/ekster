@@ -21,7 +21,8 @@ package jf2
 
 import (
 	"bytes"
-	"log"
+	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -45,7 +46,7 @@ func simplifyRefItem(k string, v []interface{}) (string, bool, microsub.Item) {
 		case string:
 			return t, false, item
 		default:
-			log.Printf("simplifyRefItem(%s, %+v): unsupported type %T", k, v, t)
+			slog.Debug("simplifyRefItem: unsupported type", "key", k, "type", fmt.Sprintf("%T", t))
 		}
 	}
 
@@ -80,7 +81,7 @@ func simplifyContent(k string, v []interface{}) *microsub.Content {
 			}
 		}
 	default:
-		log.Printf("simplifyContent(%s, %+v): unsupported type %T", k, v, t)
+		slog.Debug("simplifyContent: unsupported type", "key", k, "type", fmt.Sprintf("%T", t))
 		return nil
 	}
 	return &content
@@ -224,7 +225,7 @@ func simplifyToItem(itemType string, item map[string][]interface{}, author micro
 				}
 			}
 		default:
-			log.Printf("simplifyToItem: not supported: %s => %v\n", k, v)
+			slog.Debug("simplifyToItem: property not supported", "key", k, "value", fmt.Sprint(v))
 		}
 	}
 
@@ -274,7 +275,7 @@ func simplifyCard(v interface{}) (microsub.Card, bool) {
 	case map[string]interface{}:
 		return simplifyCardFromProperties(author, t)
 	default:
-		log.Printf("simplifyCard: different type %T\n", t)
+		slog.Debug("simplifyCard: unexpected type", "type", fmt.Sprintf("%T", t))
 	}
 
 	return author, false
@@ -307,7 +308,7 @@ func simplifyCardFromProperties2(card *microsub.Card, properties map[string]inte
 				case "latitude":
 					card.Latitude = p
 				default:
-					log.Printf("In simplifyCard: unknown property %q with value %q\n", ik, p)
+					slog.Debug("simplifyCard: unknown property", "property", ik, "value", fmt.Sprint(p))
 				}
 			}
 		}
@@ -328,7 +329,7 @@ func simplifyCardFromProperties(card microsub.Card, hcard map[string]interface{}
 				simplifyCardFromProperties2(&card, p)
 			}
 		default:
-			log.Printf("In simplifyCardFromProperties: unknown property %q with value %q\n", ik, vk)
+			slog.Debug("simplifyCardFromProperties: unknown property", "property", ik, "value", fmt.Sprint(vk))
 		}
 	}
 
@@ -356,7 +357,7 @@ func simplifyCardFromMicroformat(card microsub.Card, microformat *microformats.M
 			case "latitude":
 				card.Latitude = p
 			default:
-				log.Printf("In simplifyCard: unknown property %q with value %q\n", ik, p)
+				slog.Debug("simplifyCard: unknown property", "property", ik, "value", fmt.Sprint(p))
 			}
 		}
 	}

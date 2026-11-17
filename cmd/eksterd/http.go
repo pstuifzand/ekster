@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -341,7 +341,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err := r.ParseForm()
 	if err != nil {
-		log.Println(err)
+		slog.ErrorContext(r.Context(), "could not parse the request form", "error", err)
 		http.Error(w, fmt.Sprintf("Bad Request: %s", err.Error()), http.StatusBadRequest)
 		return
 	}
@@ -401,7 +401,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				sess.LoggedIn = true
 				saveSession(sessionVar, &sess, conn)
-				log.Printf("SESSION: %#v\n", sess)
+				slog.InfoContext(r.Context(), "login succeeded", "me", sess.Me)
 				if sess.NextURI != "" {
 					http.Redirect(w, r, sess.NextURI, http.StatusFound)
 				} else {
@@ -419,7 +419,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
 			if err != nil {
-				log.Printf("ERROR: %s\n", err)
+				slog.ErrorContext(r.Context(), "could not load session", "path", r.URL.Path, "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -436,13 +436,13 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			currentChannel := r.URL.Query().Get("uid")
 			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
-				log.Printf("ERROR: %s\n", err)
+				slog.ErrorContext(r.Context(), "could not list channels", "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
 			page.Feeds, err = h.Backend.FollowGetList(r.Context(), currentChannel)
 			if err != nil {
-				log.Printf("ERROR: %s\n", err)
+				slog.ErrorContext(r.Context(), "could not list feeds", "channel", currentChannel, "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -453,7 +453,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 					setting, err := h.Backend.loadSetting(r.Context(), v.UID)
 					if err != nil {
-						log.Println(err)
+						slog.ErrorContext(r.Context(), "could not load channel settings", "channel", v.UID, "error", err)
 					}
 					page.CurrentSetting = setting
 
@@ -494,7 +494,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
 			if err != nil {
-				log.Printf("ERROR: %s\n", err)
+				slog.ErrorContext(r.Context(), "could not load session", "path", r.URL.Path, "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -507,7 +507,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			feeds, err := h.Backend.FeedStatuses()
 			if err != nil {
-				log.Printf("ERROR: %s\n", err)
+				slog.ErrorContext(r.Context(), "could not read the feed statuses", "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -515,7 +515,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/status.json" {
 				w.Header().Set("Content-Type", "application/json")
 				if err := json.NewEncoder(w).Encode(feeds); err != nil {
-					log.Printf("ERROR: %s\n", err)
+					slog.ErrorContext(r.Context(), "could not write the status JSON", "error", err)
 				}
 				return
 			}
@@ -551,7 +551,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
 			if err != nil {
-				log.Printf("ERROR: %s\n", err)
+				slog.ErrorContext(r.Context(), "could not load session", "path", r.URL.Path, "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -580,7 +580,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sessionVar := c.Value
 			sess, err := loadSession(sessionVar, conn)
 			if err != nil {
-				log.Printf("ERROR: %s\n", err)
+				slog.ErrorContext(r.Context(), "could not load session", "path", r.URL.Path, "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -596,7 +596,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.Nav = "settings"
 			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
-				log.Printf("ERROR: %s\n", err)
+				slog.ErrorContext(r.Context(), "could not list channels", "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -618,7 +618,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			sess, err := loadSession(sessionVar, conn)
 			if err != nil {
-				log.Printf("ERROR: %s\n", err)
+				slog.ErrorContext(r.Context(), "could not load session", "path", r.URL.Path, "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -655,7 +655,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			_, err = conn.Do("HMSET", redis.Args{}.Add("state:"+state).AddFlat(&authReq)...)
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not store the authorization request", "error", err)
 				fmt.Fprintf(w, "ERROR: %q\n", err)
 				return
 			}
@@ -670,14 +670,14 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			page.State = state
 			page.Channels, err = h.Backend.ChannelsGetList(r.Context())
 			if err != nil {
-				log.Printf("ERROR: %s\n", err)
+				slog.ErrorContext(r.Context(), "could not list channels", "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
 
 			app, err := getAppInfo(clientID)
 			if err != nil {
-				log.Println(err)
+				slog.DebugContext(r.Context(), "could not read app info", "client_id", clientID, "error", err)
 			}
 			page.App = app
 
@@ -718,7 +718,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				)
 				err = row.Scan(&userID)
 				if err != nil {
-					log.Println("error while scanning after creating user", err)
+					slog.ErrorContext(r.Context(), "could not read the new user id", "error", err)
 				}
 			}
 
@@ -760,14 +760,14 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			values, err := redis.Values(conn.Do("HGETALL", "state:"+state))
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not read the authorization state", "error", err)
 				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
 			var auth authRequest
 			err = redis.ScanStruct(values, &auth)
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not decode the authorization request", "error", err)
 				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
@@ -775,30 +775,28 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			auth.Channel = channel
 			_, err = conn.Do("HMSET", redis.Args{}.Add("code:"+code).AddFlat(&auth)...)
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not store the authorization code", "error", err)
 				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
 			_, err = conn.Do("EXPIRE", "code:"+code, 5*60)
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not set the authorization code expiry", "error", err)
 				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
 
 			redirectURI, err := url.Parse(auth.RedirectURI)
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not parse the redirect URI", "error", err)
 				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
-			log.Println(redirectURI)
 			q := redirectURI.Query()
 			q.Add("code", code)
 			q.Add("state", auth.State)
 			redirectURI.RawQuery = q.Encode()
 
-			log.Println(redirectURI)
 			http.Redirect(w, r, redirectURI.String(), http.StatusFound)
 			return
 		} else if r.URL.Path == "/auth/token" {
@@ -815,21 +813,21 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			values, err := redis.Values(conn.Do("HGETALL", "code:"+code))
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not read the authorization code", "error", err)
 				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
 			var auth authRequest
 			err = redis.ScanStruct(values, &auth)
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not decode the authorization code", "error", err)
 				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
 			token := util.RandStringBytes(32)
 			_, err = conn.Do("HMSET", redis.Args{}.Add("token:"+token).AddFlat(&auth)...)
 			if err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not store the access token", "error", err)
 				fmt.Fprintf(w, "ERROR: %q", err)
 				return
 			}
@@ -843,7 +841,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			w.Header().Add("Content-Type", "application/json")
 			if err := json.NewEncoder(w).Encode(&res); err != nil {
-				log.Println(err)
+				slog.ErrorContext(r.Context(), "could not write the token response", "error", err)
 				return
 			}
 			return
@@ -853,7 +851,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			setting, err := h.Backend.loadSetting(r.Context(), uid)
 			if err != nil {
-				log.Println("loadSetting", uid, err)
+				slog.ErrorContext(r.Context(), "could not load channel settings", "channel", uid, "error", err)
 				http.Redirect(w, r, "/settings", http.StatusFound)
 				return
 			}
@@ -864,7 +862,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if excludeRegex != "" {
 				_, err = regexp.Compile(excludeRegex)
 				if err != nil {
-					log.Println("exclude_regex is not a regex", excludeRegex, err)
+					slog.ErrorContext(r.Context(), "exclude_regex is not a valid regexp", "channel", uid, "regex", excludeRegex, "error", err)
 					http.Redirect(w, r, "/settings/channel?uid="+uid, http.StatusFound)
 					return
 				}
@@ -873,7 +871,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if includeRegex != "" {
 				_, err = regexp.Compile(includeRegex)
 				if err != nil {
-					log.Println("include_regex is not a regex", includeRegex, err)
+					slog.ErrorContext(r.Context(), "include_regex is not a valid regexp", "channel", uid, "regex", includeRegex, "error", err)
 					http.Redirect(w, r, "/settings/channel?uid="+uid, http.StatusFound)
 					return
 				}
@@ -890,7 +888,7 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			err = h.Backend.saveSetting(uid, setting)
 			if err != nil {
-				log.Println("saveSetting", uid, setting, err)
+				slog.ErrorContext(r.Context(), "could not save channel settings", "channel", uid, "error", err)
 			}
 
 			http.Redirect(w, r, "/settings", http.StatusFound)
