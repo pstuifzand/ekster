@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gilliek/go-opml/opml"
@@ -154,6 +155,9 @@ Commands:
 	query QUERY CHANNEL          search for items matching QUERY in CHANNEL
 
 	preview URL                  show items from the feed at URL
+
+	thread TARGET                show the conversation around an entry (_id or URL)
+	thread UID TARGET            the same, scoped to channel UID
 
 	follow UID                   show follow list for channel UID
 	follow UID URL               follow URL on channel UID
@@ -386,6 +390,42 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		}
 
 		fmt.Printf("Before: %s, After: %s\n", timeline.Paging.Before, timeline.Paging.After)
+	}
+
+	if len(commands) >= 2 && commands[0] == "thread" {
+		channel := ""
+		target := commands[1]
+		if len(commands) == 3 {
+			var err error
+			channel, err = channelID(ctx, sub, commands[1])
+			if err != nil {
+				fail(err)
+			}
+			target = commands[2]
+		} else if len(commands) > 3 {
+			fail(fmt.Errorf("thread takes a target, or a channel and a target"))
+		}
+
+		var thread microsub.Thread
+		var err error
+		if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+			thread, err = sub.ThreadGet(ctx, channel, "", target, 0)
+		} else {
+			thread, err = sub.ThreadGet(ctx, channel, target, "", 0)
+		}
+		if err != nil {
+			fail(err)
+		}
+
+		for i := range thread.Items {
+			showItem(&thread.Items[i])
+		}
+
+		status := "complete"
+		if thread.Thread.Partial {
+			status = fmt.Sprintf("partial, %d ancestor(s) not shown", thread.Thread.Missing)
+		}
+		fmt.Printf("Thread: %s (%s)\n", thread.Thread.Root, status)
 	}
 
 	if len(commands) == 2 && commands[0] == "search" {

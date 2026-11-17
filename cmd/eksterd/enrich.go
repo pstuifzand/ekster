@@ -190,23 +190,9 @@ func enrichReferenceItems(ctx context.Context, fetcher fetch.Fetcher, item micro
 		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
 			continue
 		}
-		doc, err := readPage(ctx, fetcher, target)
-		if err != nil || !(strings.HasPrefix(strings.ToLower(doc.contentType), "text/html") || strings.HasPrefix(strings.ToLower(doc.contentType), "application/xhtml+xml")) {
+		ref, err := itemAtURL(ctx, fetcher, target)
+		if err != nil {
 			continue
-		}
-		items, err := fetch.FeedItems(ctx, fetcher, target, doc.contentType, bytes.NewReader(doc.body))
-		if err != nil || len(items) == 0 {
-			continue
-		}
-		ref := items[0]
-		for _, candidate := range items {
-			if candidate.URL == target || candidate.UID == target {
-				ref = candidate
-				break
-			}
-		}
-		if ref.URL == "" {
-			ref.URL = target
 		}
 		if item.Refs == nil {
 			item.Refs = make(map[string]microsub.Item)
@@ -214,6 +200,40 @@ func enrichReferenceItems(ctx context.Context, fetcher fetch.Fetcher, item micro
 		item.Refs[target] = ref
 	}
 	return item
+}
+
+// itemAtURL fetches one document and returns the entry it publishes for that
+// URL: the page itself when it is an h-entry, otherwise the first entry the
+// page lists. Reference enrichment and threads both need this, and for the
+// same reason: an interaction target is only useful to a reader once it is an
+// item like any other.
+func itemAtURL(ctx context.Context, fetcher fetch.Fetcher, target string) (microsub.Item, error) {
+	doc, err := readPage(ctx, fetcher, target)
+	if err != nil {
+		return microsub.Item{}, err
+	}
+	contentType := strings.ToLower(doc.contentType)
+	if !strings.HasPrefix(contentType, "text/html") && !strings.HasPrefix(contentType, "application/xhtml+xml") {
+		return microsub.Item{}, fmt.Errorf("%s answers %s, not a page", target, doc.contentType)
+	}
+	items, err := fetch.FeedItems(ctx, fetcher, target, doc.contentType, bytes.NewReader(doc.body))
+	if err != nil {
+		return microsub.Item{}, err
+	}
+	if len(items) == 0 {
+		return microsub.Item{}, fmt.Errorf("%s publishes no entries", target)
+	}
+	out := items[0]
+	for _, candidate := range items {
+		if candidate.URL == target || candidate.UID == target {
+			out = candidate
+			break
+		}
+	}
+	if out.URL == "" {
+		out.URL = target
+	}
+	return out, nil
 }
 
 // resolveAuthor fills in the name and photo of an author that is only a URL.

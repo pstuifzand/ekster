@@ -66,6 +66,12 @@ func (b *NullBackend) TimelineGet(ctx context.Context, before, after, channel st
 	}, nil
 }
 
+// ThreadGet finds no thread: the null backend stores no entries, so every
+// conversation is missing.
+func (b *NullBackend) ThreadGet(ctx context.Context, channel, entry, url string, depth int) (microsub.Thread, error) {
+	return microsub.Thread{Items: []microsub.Item{}}, microsub.ErrNotFound
+}
+
 // FollowGetList implements the follow list command
 func (b *NullBackend) FollowGetList(ctx context.Context, uid string) ([]microsub.Feed, error) {
 	return []microsub.Feed{

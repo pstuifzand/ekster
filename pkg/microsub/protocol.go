@@ -125,6 +125,65 @@ type Timeline struct {
 	Paging Pagination `json:"paging"`
 }
 
+// Constants for Thread depth: the default walk up the in-reply-to chain, and
+// the hard cap a server enforces whatever the client asks for. A conversation
+// is capped rather than paged, so the cap is the only thing standing between a
+// request and an unbounded number of outbound fetches.
+const (
+	DefaultThreadDepth = 10
+	MaxThreadDepth     = 20
+)
+
+// ThreadInfo describes the conversation a Thread response covers.
+//
+// Root is the permalink of the topmost ancestor that could be resolved.
+// Partial says the server knows of ancestors it could not return, and Missing
+// is how many of them it knows about: the count behind "earlier posts on the
+// original site". A thread is never presented as the complete conversation,
+// because the server only ever sees the part of it that is indexed.
+type ThreadInfo struct {
+	Root    string `json:"root,omitempty"`
+	Partial bool   `json:"partial"`
+	Missing int    `json:"missing"`
+}
+
+// Thread is the conversation around one entry.
+//
+// Items are in conversation order: the root first, then the known replies
+// ordered by published ascending. Each item keeps its in-reply-to, so a client
+// rebuilds the tree without a second request. There is deliberately no paging
+// object: a conversation is not a page, and servers cap a thread instead.
+type Thread struct {
+	Items  []Item     `json:"items"`
+	Thread ThreadInfo `json:"thread"`
+}
+
+// MarshalJSON writes a thread response. An entry outside the user's channels
+// carries no _id, because there is no channel in which it could be marked
+// read, so it must not claim a read state either: _is_read on such an entry
+// would be a fact the server invented.
+func (t Thread) MarshalJSON() ([]byte, error) {
+	items := make([]map[string]interface{}, 0, len(t.Items))
+	for _, item := range t.Items {
+		raw, err := json.Marshal(item)
+		if err != nil {
+			return nil, err
+		}
+		var fields map[string]interface{}
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, err
+		}
+		if item.ID == "" {
+			delete(fields, "_is_read")
+		}
+		items = append(items, fields)
+	}
+	return json.Marshal(struct {
+		Items  []map[string]interface{} `json:"items"`
+		Thread ThreadInfo               `json:"thread"`
+	}{items, t.Thread})
+}
+
 // Feed is one microsub feed.
 type Feed struct {
 	Type        string `json:"type"`
@@ -143,6 +202,12 @@ type Microsub interface {
 	ChannelsDelete(ctx context.Context, uid string) error
 
 	TimelineGet(ctx context.Context, before, after, channel string) (Timeline, error)
+
+	// ThreadGet returns the conversation around one entry: the root first,
+	// then the known replies. entry is an _id inside the user's channels and
+	// url is a permalink; exactly one of them is used. depth bounds the walk
+	// up the in-reply-to chain.
+	ThreadGet(ctx context.Context, channel, entry, url string, depth int) (Thread, error)
 
 	MarkRead(ctx context.Context, channel string, entry []string) error
 

@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/pstuifzand/ekster/pkg/microsub"
@@ -199,6 +200,47 @@ func (c *Client) TimelineGet(ctx context.Context, before, after, channel string)
 		return microsub.Timeline{}, err
 	}
 	return timeline, nil
+}
+
+// ThreadGet gets the conversation around one entry: the root first, then the
+// replies the server knows about, oldest first.
+//
+// It is the extension action=timeline&method=thread, so a server without it
+// answers 400 and the caller can fall back to showing the entry alone.
+func (c *Client) ThreadGet(ctx context.Context, channel, entry, url string, depth int) (microsub.Thread, error) {
+	args := make(map[string]string)
+	args["method"] = "thread"
+	args["channel"] = channel
+	if entry != "" {
+		args["entry"] = entry
+	}
+	if url != "" {
+		args["url"] = url
+	}
+	if depth > 0 {
+		args["depth"] = strconv.Itoa(depth)
+	}
+	res, err := c.microsubGetRequest(ctx, "timeline", args)
+	if err != nil {
+		return microsub.Thread{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return microsub.Thread{}, fmt.Errorf("HTTP Status is not 200, but %d, error while reading body", res.StatusCode)
+		}
+		return microsub.Thread{}, fmt.Errorf("HTTP Status is not 200, but %d: %s", res.StatusCode, body)
+	}
+	dec := json.NewDecoder(res.Body)
+	var thread microsub.Thread
+	if err := dec.Decode(&thread); err != nil {
+		return microsub.Thread{}, err
+	}
+	if thread.Items == nil {
+		thread.Items = []microsub.Item{}
+	}
+	return thread, nil
 }
 
 // PreviewURL gets a Timeline for a url from a Microsub server

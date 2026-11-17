@@ -92,6 +92,12 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"channels": channels,
 			})
 		} else if action == "timeline" {
+			// thread is a read about a post, so it belongs on the GET side
+			// even though mark_read and friends are POSTs.
+			if values.Get("method") == "thread" {
+				h.handleThread(w, r, values)
+				return
+			}
 			timeline, err := h.backend.TimelineGet(r.Context(), values.Get("before"), values.Get("after"), values.Get("channel"))
 			if err != nil {
 				slog.ErrorContext(r.Context(), "could not read the timeline", "channel", values.Get("channel"), "error", err)
@@ -249,6 +255,14 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "timeline" || r.PostForm.Get("action") == "timeline" {
 			method := values.Get("method")
 
+			if method == "thread" || r.PostForm.Get("method") == "thread" {
+				// A client that only POSTs still gets thread: the method
+				// parameter is what names it, and the form is where the
+				// parameters are.
+				h.handleThread(w, r, r.Form)
+				return
+			}
+
 			if method == "mark_read" || r.PostForm.Get("method") == "mark_read" {
 				values = r.Form
 				channel := values.Get("channel")
@@ -281,7 +295,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			} else {
-				http.Error(w, fmt.Sprintf("unknown method in timeline %s\n", method), http.StatusInternalServerError)
+				http.Error(w, fmt.Sprintf("unknown method in timeline %s\n", method), http.StatusBadRequest)
 				return
 			}
 

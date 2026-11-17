@@ -100,3 +100,51 @@ func Test_MarshalUnreadIntNonZero(t *testing.T) {
 		assert.Equal(t, "1884844", string(bytes))
 	}
 }
+
+// A thread item outside the user's channels has no _id, so it must not carry a
+// read state either: there is no channel in which it could have been read.
+func Test_MarshalThreadHidesStateOutsideChannels(t *testing.T) {
+	thread := Thread{
+		Items: []Item{
+			{Type: "entry", UID: "https://ann.example/root", URL: "https://ann.example/root"},
+			{Type: "entry", ID: "b3d1", UID: "https://bob.example/re", URL: "https://bob.example/re", Read: true},
+		},
+		Thread: ThreadInfo{Root: "https://ann.example/root", Partial: true, Missing: 2},
+	}
+
+	bytes, err := json.Marshal(thread)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	var got struct {
+		Items  []map[string]interface{} `json:"items"`
+		Thread ThreadInfo               `json:"thread"`
+	}
+	if !assert.NoError(t, json.Unmarshal(bytes, &got)) {
+		return
+	}
+	if !assert.Len(t, got.Items, 2) {
+		return
+	}
+
+	_, hasID := got.Items[0]["_id"]
+	_, hasRead := got.Items[0]["_is_read"]
+	assert.False(t, hasID, "an entry outside the channels must not carry an _id")
+	assert.False(t, hasRead, "an entry without an _id must not claim a read state")
+
+	assert.Equal(t, "b3d1", got.Items[1]["_id"])
+	assert.Equal(t, true, got.Items[1]["_is_read"])
+	assert.True(t, got.Thread.Partial)
+	assert.Equal(t, 2, got.Thread.Missing)
+}
+
+// A thread that finds nothing is an empty list, not null: the client renders
+// what it gets, and null is a shape it has to guard against.
+func Test_MarshalThreadEmptyItemsIsArray(t *testing.T) {
+	bytes, err := json.Marshal(Thread{Items: []Item{}})
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Contains(t, string(bytes), `"items":[]`)
+}

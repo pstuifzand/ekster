@@ -26,3 +26,9 @@ import "errors"
 // insert a duplicate row or steal the feed from the channel that owns it: the
 // handler answers 409 Conflict instead of a 500 carrying the constraint error.
 var ErrFeedAlreadyFollowed = errors.New("feed is already followed in another channel")
+
+// ErrNotFound is returned when a request names an entry, a channel or a post
+// that the requesting user may not see. It maps to 404, not 401: the entry may
+// exist in another user's channel, and its existence is not the caller's
+// business.
+var ErrNotFound = errors.New("not found")
