@@ -4,7 +4,16 @@
 
 ### Added
 
+- Following a bare search term in the feed follower: the search now offers the matching Hacker News stories and comments as ordinary feeds (`hnrss.org`), so a subject like "postgres" can be followed, previewed and unfollowed like any other feed.
 - Use the fetched HTML page's title and URL as the fallback feed author when no author card is available.
+
+### Changed
+
+- A search feed polls on a fixed sixteen-minute rung instead of the tier ladder, which would let a stream that never goes quiet climb to hours and then days, and it gets a twenty-second fetch budget because `hnrss.org` renders the query on demand (11s cold, 0.5s cached) rather than serving a static file.
+
+### Fixed
+
+- Read the entry's own author from `dc:creator` (RSS 2.0 and RSS 1.0) and atom `<author><name>`; every entry of an RSS or atom feed was stored with the feed's title as its author, so a search feed showed twenty entries all written by the feed itself.
 
 ## [0.10.0] - 2026-11-11
 
