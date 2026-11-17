@@ -34,6 +34,15 @@ func TestIsSearchFeed(t *testing.T) {
 	assert.False(t, isSearchFeed("not a url at all"))
 }
 
+// hnrss renders the query when it is asked (0.5s cached, 11s cold), so the five
+// seconds that suit a static feed file expired on every cold query and the feed
+// looked permanently broken while it was working.
+func TestFetchBudgetGivesSearchFeedsMoreTime(t *testing.T) {
+	assert.Equal(t, feedFetchTimeout, fetchBudget("https://p83.nl/"))
+	assert.Equal(t, searchFeedTimeout, fetchBudget("https://hnrss.org/newest?q=postgres"))
+	assert.Greater(t, searchFeedTimeout, feedFetchTimeout)
+}
+
 // The ladder is for feeds that publish rarely. A search never goes quiet, so it
 // must not climb: applied to "postgres", two quiet fetches would put it at two
 // hours and a week would put it out of sight.

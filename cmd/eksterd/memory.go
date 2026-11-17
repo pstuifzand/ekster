@@ -614,8 +614,26 @@ func (b *memoryBackend) refreshFeedSafely(parent context.Context, f feed) (err e
 	return b.refreshFeed(ctx, f)
 }
 
+// feedFetchTimeout is the budget for one feed refresh. A static feed file is a
+// small download and five seconds is generous for it.
+const feedFetchTimeout = 5 * time.Second
+
+// searchFeedTimeout is the budget for a search rendered as RSS. hnrss builds the
+// answer when it is asked: measured 0.5s cached and 11s cold, with one query
+// hanging past a minute. Five seconds therefore turned a healthy feed into
+// "context deadline exceeded" on every cold query. Twenty seconds still keeps a
+// stalled host from parking the refresh loop for everyone else.
+const searchFeedTimeout = 20 * time.Second
+
+func fetchBudget(raw string) time.Duration {
+	if isSearchFeed(raw) {
+		return searchFeedTimeout
+	}
+	return feedFetchTimeout
+}
+
 func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, fetchBudget(f.URL))
 	defer cancel()
 
 	var (
