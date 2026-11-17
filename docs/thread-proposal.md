@@ -89,6 +89,21 @@ never becomes a sanitizing problem.
 That is a card, not a post. It is still better than "1 ancestor not shown",
 because the reader can now link the actual conversation.
 
+## Why references are separate from the conversation
+
+The second live complaint was the same shape one level out: an entry whose
+`mention-of` names another post came back as a thread of one. The entry is not
+answering anything — there is no `in-reply-to` — but it is *about* something,
+and a reader shows that post or shows nothing.
+
+Putting the mentioned post in the chain would be wrong: a mention has no
+direction and no order, and `thread.root` would then claim a parent that does
+not exist. So `refs` is a separate map, keyed by the URL the property names,
+resolved the same way an ancestor is (indexed copy first, then one bounded
+fetch) and capped. A like, a repost and a bookmark are the same situation and
+come through the same map; the anchor's own arrays tell a client which is
+which.
+
 ## Why the indexes are expression indexes
 
 Measured on a test instance: `USING GIN ("data")` answers the permalink lookup

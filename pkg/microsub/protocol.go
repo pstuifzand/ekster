@@ -154,8 +154,14 @@ type ThreadInfo struct {
 // rebuilds the tree without a second request. There is deliberately no paging
 // object: a conversation is not a page, and servers cap a thread instead.
 type Thread struct {
-	Items  []Item     `json:"items"`
-	Thread ThreadInfo `json:"thread"`
+	Items []Item `json:"items"`
+	// Refs are the posts the anchor refers to without answering them:
+	// mention-of, like-of, repost-of, bookmark-of. They are not the
+	// conversation, so they are not in Items; they are what the entry is
+	// about, and without them a thread on a post that only mentions another
+	// post would be a single item and nothing else.
+	Refs   map[string]Item `json:"refs,omitempty"`
+	Thread ThreadInfo      `json:"thread"`
 }
 
 // MarshalJSON writes a thread response. An entry outside the user's channels
@@ -165,23 +171,46 @@ type Thread struct {
 func (t Thread) MarshalJSON() ([]byte, error) {
 	items := make([]map[string]interface{}, 0, len(t.Items))
 	for _, item := range t.Items {
-		raw, err := json.Marshal(item)
+		fields, err := threadFields(item)
 		if err != nil {
 			return nil, err
 		}
-		var fields map[string]interface{}
-		if err := json.Unmarshal(raw, &fields); err != nil {
-			return nil, err
-		}
-		if item.ID == "" {
-			delete(fields, "_is_read")
-		}
 		items = append(items, fields)
 	}
+
+	var refs map[string]map[string]interface{}
+	if len(t.Refs) > 0 {
+		refs = make(map[string]map[string]interface{}, len(t.Refs))
+		for target, item := range t.Refs {
+			fields, err := threadFields(item)
+			if err != nil {
+				return nil, err
+			}
+			refs[target] = fields
+		}
+	}
+
 	return json.Marshal(struct {
-		Items  []map[string]interface{} `json:"items"`
-		Thread ThreadInfo               `json:"thread"`
-	}{items, t.Thread})
+		Items  []map[string]interface{}          `json:"items"`
+		Refs   map[string]map[string]interface{} `json:"refs,omitempty"`
+		Thread ThreadInfo                        `json:"thread"`
+	}{items, refs, t.Thread})
+}
+
+// threadFields is one item as JSON, without a read state it cannot have.
+func threadFields(item Item) (map[string]interface{}, error) {
+	raw, err := json.Marshal(item)
+	if err != nil {
+		return nil, err
+	}
+	var fields map[string]interface{}
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, err
+	}
+	if item.ID == "" {
+		delete(fields, "_is_read")
+	}
+	return fields, nil
 }
 
 // Feed is one microsub feed.

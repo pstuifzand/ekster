@@ -255,3 +255,68 @@ func TestThreadOverHTTP(t *testing.T) {
 	assert.Equal(t, "https://ann.example/root", got.Thread.Root)
 	assert.False(t, got.Thread.Partial)
 }
+
+// seedMention stores an entry that refers to another post without answering it.
+func seedMention(t *testing.T, db *sql.DB, channelID int, uid, url, mentionOf string) {
+	t.Helper()
+
+	item := microsub.Item{Type: "entry", UID: uid, URL: url, MentionOf: []string{mentionOf}}
+	data, err := json.Marshal(item)
+	require.NoError(t, err)
+
+	_, err = db.Exec(`INSERT INTO items (channel_id, uid, data, published_at) VALUES ($1, $2, $3, now())`,
+		channelID, uid, data)
+	require.NoError(t, err, uid)
+}
+
+// An entry that mentions another post and answers nothing is a thread of one,
+// which is not useful. The mentioned post comes back as a reference: it is not
+// the conversation, so it is not in Items.
+func TestThreadResolvesMentions(t *testing.T) {
+	db, backend := threadTestBackend(t)
+
+	seedThreadItem(t, db, 1, "mentioned-uid", "https://david.example/compass", "", "2026-11-09T10:00:00Z")
+	seedMention(t, db, 1, "anchor-uid", "https://jeremy.example/compass", "https://david.example/compass")
+
+	ctx := userid.NewContext(context.Background(), 1)
+	thread, err := backend.ThreadGet(ctx, "", "anchor-uid", "", 0)
+	require.NoError(t, err)
+
+	require.Len(t, thread.Items, 1, "a mention is not an ancestor, so the conversation is one entry")
+	assert.Equal(t, "https://jeremy.example/compass", thread.Items[0].URL)
+
+	ref, ok := thread.Refs["https://david.example/compass"]
+	require.True(t, ok, "the mentioned post must be a reference")
+	assert.Equal(t, "mentioned-uid", ref.ID, "the indexed copy keeps its _id")
+}
+
+// A mention that cannot be resolved is skipped, not fatal: the thread is still
+// true without it. A private address is the cheapest way to make the fetch fail
+// without the network deciding the test.
+func TestThreadMentionThatCannotBeResolvedIsSkipped(t *testing.T) {
+	db, backend := threadTestBackend(t)
+
+	seedMention(t, db, 1, "anchor-uid", "https://jeremy.example/compass", "http://127.0.0.1/private")
+
+	ctx := userid.NewContext(context.Background(), 1)
+	thread, err := backend.ThreadGet(ctx, "", "anchor-uid", "", 0)
+	require.NoError(t, err)
+
+	assert.Len(t, thread.Items, 1)
+	assert.Empty(t, thread.Refs)
+}
+
+// The reference lookup is scoped like everything else: another user's copy of
+// the mentioned post is not the caller's to see.
+func TestThreadMentionOfAnotherUsersEntryIsNotUsed(t *testing.T) {
+	db, backend := threadTestBackend(t)
+
+	seedThreadItem(t, db, 2, "theirs-uid", "http://127.0.0.1/private", "", "2026-11-09T10:00:00Z")
+	seedMention(t, db, 1, "anchor-uid", "https://jeremy.example/compass", "http://127.0.0.1/private")
+
+	ctx := userid.NewContext(context.Background(), 1)
+	thread, err := backend.ThreadGet(ctx, "", "anchor-uid", "", 0)
+	require.NoError(t, err)
+
+	assert.Empty(t, thread.Refs, "a reference resolved from another user's channel would leak it")
+}

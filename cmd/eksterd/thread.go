@@ -42,6 +42,7 @@ const (
 	threadBudget       = 12 * time.Second
 	maxThreadItems     = 200
 	maxReplyLevels     = 3
+	maxThreadRefs      = 5
 )
 
 // ThreadGet returns the conversation around one entry.
@@ -168,12 +169,84 @@ func (b *memoryBackend) ThreadGet(ctx context.Context, channel, entry, targetURL
 
 	return microsub.Thread{
 		Items: items,
+		Refs:  b.threadReferences(ctx, userID, anchor, chain, fetcher),
 		Thread: microsub.ThreadInfo{
 			Root:    root,
 			Partial: partial,
 			Missing: missing,
 		},
 	}, nil
+}
+
+// threadReferences resolves the posts the anchor refers to without answering
+// them: mention-of, like-of, repost-of, bookmark-of.
+//
+// They are not the conversation and do not belong in the walked chain, but
+// leaving them out makes a thread on a post that only mentions another post
+// answer with a single item and nothing else. An indexed copy wins over a
+// fetch, and a reference that cannot be resolved is skipped rather than
+// failing the request: the thread is still true without it.
+func (b *memoryBackend) threadReferences(ctx context.Context, userID int, anchor microsub.Item, chain []microsub.Item, fetcher fetch.Fetcher) map[string]microsub.Item {
+	inChain := map[string]bool{}
+	for _, item := range chain {
+		for _, ref := range []string{item.URL, item.UID} {
+			if ref != "" {
+				inChain[ref] = true
+			}
+		}
+	}
+
+	var targets []string
+	seen := map[string]bool{}
+	for _, values := range [][]string{anchor.MentionOf, anchor.LikeOf, anchor.RepostOf, anchor.BookmarkOf} {
+		for _, target := range values {
+			if target == "" || seen[target] || inChain[target] || target == anchor.URL {
+				continue
+			}
+			seen[target] = true
+			targets = append(targets, target)
+		}
+	}
+
+	refs := map[string]microsub.Item{}
+	for i, target := range targets {
+		if i >= maxThreadRefs {
+			break
+		}
+
+		if local, ok, err := b.threadItem(ctx, userID, "", target); err == nil && ok {
+			refs[target] = local
+			continue
+		}
+		// The feed may already have carried the target's microformats. Use
+		// them rather than paying a fetch for what is already here, but only
+		// if they say something: a bare url is not a card.
+		if embedded, ok := anchor.Refs[target]; ok && (embedded.Name != "" || embedded.Content != nil) {
+			refs[target] = embedded
+			continue
+		}
+		if ctx.Err() != nil {
+			break
+		}
+
+		fetchCtx, cancel := context.WithTimeout(ctx, threadFetchTimeout)
+		item, err := itemAtURL(fetchCtx, fetcher, target)
+		cancel()
+		if err != nil {
+			slog.DebugContext(ctx, "thread reference could not be resolved",
+				"url", target, "error", err)
+			continue
+		}
+		// Fetched, so outside the user's channels: no _id, no read state.
+		item.ID = ""
+		item.Read = false
+		refs[target] = item
+	}
+
+	if len(refs) == 0 {
+		return nil
+	}
+	return refs
 }
 
 // threadAnchor resolves the entry the client asked about. An unknown _id is

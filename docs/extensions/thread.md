@@ -71,6 +71,14 @@ identical.
       "author": { "type": "card", "name": "Bob", "url": "https://bob.example/" }
     }
   ],
+  "refs": {
+    "https://dan.example/2026/11/earlier": {
+      "type": "entry",
+      "url": "https://dan.example/2026/11/earlier",
+      "name": "Earlier thoughts",
+      "content": { "text": "The post this one is about." }
+    }
+  },
   "thread": {
     "root": "https://ann.example/2026/11/on-threads",
     "partial": true,
@@ -78,6 +86,14 @@ identical.
   }
 }
 ```
+
+`refs` are the posts the entry refers to without answering them: `mention-of`,
+`like-of`, `repost-of`, `bookmark-of`, keyed by the URL named in the property.
+They are not the conversation and are not in `items`, but a thread on a post
+that only mentions another post would otherwise be a single item and nothing
+else. Each reference is resolved the same way an ancestor is: the indexed copy
+if there is one, otherwise a bounded fetch, capped in number. A reference that
+cannot be resolved is omitted rather than failing the request.
 
 `items` is in conversation order: the root first, then every known reply ordered
 by `published` ascending. Each item keeps its `in-reply-to`, so a client
@@ -119,7 +135,7 @@ announced over `events`.
 carry `_id` and `_is_read`. An entry the server fetched from outside the
 channels MUST NOT carry `_id`, and MUST NOT carry `_is_read`: there is no
 channel in which it could be marked read, so a read state on it would be a fact
-the server invented.
+the server invented. This applies to `refs` as much as to `items`.
 
 **Another user's entries are never visible.** Scoping is by token, not by
 `_id`. An entry owned by another user's channel MUST be indistinguishable from

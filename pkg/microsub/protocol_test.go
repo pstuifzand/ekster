@@ -148,3 +148,47 @@ func Test_MarshalThreadEmptyItemsIsArray(t *testing.T) {
 	}
 	assert.Contains(t, string(bytes), `"items":[]`)
 }
+
+// A reference is not the conversation, so it lives outside Items — and it gets
+// the same treatment: no _id, no read state, because there is no channel in
+// which it could have been read.
+func Test_MarshalThreadCarriesReferences(t *testing.T) {
+	thread := Thread{
+		Items: []Item{{Type: "entry", ID: "a1", URL: "https://jeremy.example/compass"}},
+		Refs: map[string]Item{
+			"https://david.example/compass": {Type: "entry", URL: "https://david.example/compass", Name: "Thinking about compass"},
+		},
+		Thread: ThreadInfo{Root: "https://jeremy.example/compass"},
+	}
+
+	bytes, err := json.Marshal(thread)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	var got struct {
+		Items []map[string]interface{}          `json:"items"`
+		Refs  map[string]map[string]interface{} `json:"refs"`
+	}
+	if !assert.NoError(t, json.Unmarshal(bytes, &got)) {
+		return
+	}
+
+	ref, ok := got.Refs["https://david.example/compass"]
+	if !assert.True(t, ok, "the reference must be in refs") {
+		return
+	}
+	_, hasRead := ref["_is_read"]
+	assert.False(t, hasRead, "a reference outside the channels must not claim a read state")
+	assert.Equal(t, "Thinking about compass", ref["name"])
+	assert.Len(t, got.Items, 1)
+}
+
+// No references is an absent field, not an empty object.
+func Test_MarshalThreadWithoutReferences(t *testing.T) {
+	bytes, err := json.Marshal(Thread{Items: []Item{{Type: "entry", ID: "a1"}}})
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.NotContains(t, string(bytes), `"refs"`)
+}

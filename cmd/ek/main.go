@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -419,6 +420,21 @@ func performCommands(sub microsub.Microsub, commands []string) {
 
 		for i := range thread.Items {
 			showItem(&thread.Items[i])
+		}
+
+		if len(thread.Refs) > 0 {
+			targets := make([]string, 0, len(thread.Refs))
+			for target := range thread.Refs {
+				targets = append(targets, target)
+			}
+			sort.Strings(targets)
+
+			fmt.Println()
+			for _, target := range targets {
+				item := thread.Refs[target]
+				fmt.Printf("Referenced: %s\n", target)
+				showItem(&item)
+			}
 		}
 
 		status := "complete"
