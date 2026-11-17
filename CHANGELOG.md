@@ -4,8 +4,10 @@
 
 ### Added
 
+- `ek thread`, and the `action=timeline&method=thread` extension behind it: the conversation around an entry, root first and the known replies oldest first, with `thread.partial` and `thread.missing` saying what the answer does not contain. Ancestors are walked up `in-reply-to` and fetched when missing; replies come only from what is already indexed. Documented in `docs/extensions/thread.md`.
 - Following a bare search term in the feed follower: the search now offers the matching Hacker News stories and comments as ordinary feeds (`hnrss.org`), so a subject like "postgres" can be followed, previewed and unfollowed like any other feed.
 - Use the fetched HTML page's title and URL as the fallback feed author when no author card is available.
+- A fetched page that publishes no microformats becomes a card from its own metadata (`og:title`, `og:description`, `og:image`, `<title>`), so a thread shows the post an entry replies to even on Squarespace, Medium or a plain blog.
 
 ### Changed
 
