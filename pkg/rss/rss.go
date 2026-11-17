@@ -247,16 +247,32 @@ func (f *Feed) String() string {
 
 // Item represents a single story.
 type Item struct {
-	Title      string    `json:"title"`
-	Summary    string    `json:"summary"`
-	Content    string    `json:"content"`
-	Category   string    `json:"category"`
-	Link       string    `json:"link"`
+	Title    string `json:"title"`
+	Summary  string `json:"summary"`
+	Content  string `json:"content"`
+	Category string `json:"category"`
+	Link     string `json:"link"`
+	// Author is the entry's own author, when the document names one. It is
+	// empty for the many feeds that only name an author for the whole feed,
+	// and the caller then falls back to the feed title.
+	Author     string    `json:"author"`
 	Date       time.Time `json:"date"`
 	DateValid  bool
 	ID         string       `json:"id"`
 	Enclosures []*Enclosure `json:"enclosures"`
 	Read       bool         `json:"read"`
+}
+
+// itemAuthor picks the first candidate an entry gives for its own author.
+// Formats disagree about where that lives (dc:creator, <author>, an atom
+// person), so each parser passes its candidates in the order it trusts.
+func itemAuthor(candidates ...string) string {
+	for _, c := range candidates {
+		if s := strings.TrimSpace(c); s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 func (i *Item) String() string {

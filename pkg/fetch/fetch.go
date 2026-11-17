@@ -300,9 +300,17 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 
 			itemAuthor := &microsub.Card{}
 			itemAuthor.Type = "card"
-			itemAuthor.Name = feed.Title
-			itemAuthor.URL = feed.Link
-			itemAuthor.Photo = feed.Image.URL
+			if name := strings.TrimSpace(feedItem.Author); name != "" {
+				// The entry names its own author (dc:creator, atom person —
+				// hnrss, WordPress, most news feeds). The feed's link and icon
+				// belong to the publication, not to this person, so the card
+				// carries the name alone and the reader falls back to initials.
+				itemAuthor.Name = name
+			} else {
+				itemAuthor.Name = feed.Title
+				itemAuthor.URL = feed.Link
+				itemAuthor.Photo = feed.Image.URL
+			}
 			item.Author = itemAuthor
 
 			item.Published = feedItem.Date.Format(time.RFC3339)

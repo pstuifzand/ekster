@@ -88,6 +88,7 @@ func parseRSS1(data []byte) (*Feed, error) {
 		next.Summary = item.Description
 		next.Content = item.Content
 		next.Link = item.Link
+		next.Author = itemAuthor(item.Creator)
 		if item.Date != "" {
 			next.Date, err = parseTime(item.Date)
 			if err == nil {
@@ -146,8 +147,10 @@ type rss1_0Item struct {
 	PubDate     string   `xml:"pubDate"`
 	Date        string   `xml:"date"`
 	DateValid   bool
-	ID          string            `xml:"guid"`
-	Enclosures  []rss1_0Enclosure `xml:"enclosure"`
+	// RSS 1.0 (RDF) has no author element of its own: dc:creator is the author.
+	Creator    string            `xml:"http://purl.org/dc/elements/1.1/ creator"`
+	ID         string            `xml:"guid"`
+	Enclosures []rss1_0Enclosure `xml:"enclosure"`
 }
 
 type rss1_0Enclosure struct {

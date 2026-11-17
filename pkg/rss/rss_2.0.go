@@ -96,6 +96,7 @@ func parseRSS2(data []byte) (*Feed, error) {
 		next.Content = item.Content
 		next.Category = item.Category
 		next.Link = item.Link
+		next.Author = itemAuthor(item.Creator, item.Author)
 		if item.Date != "" {
 			next.Date, err = parseTime(item.Date)
 			if err == nil {
@@ -162,8 +163,13 @@ type rss2_0Item struct {
 	PubDate     string   `xml:"pubDate"`
 	Date        string   `xml:"date"`
 	DateValid   bool
-	ID          string            `xml:"guid"`
-	Enclosures  []rss2_0Enclosure `xml:"enclosure"`
+	// dc:creator is how RSS 2.0 actually says who wrote an entry — hnrss,
+	// WordPress, Drupal and most news feeds use it. Plain <author> is an email
+	// address per the spec, so it is the fallback, not the first choice.
+	Creator    string            `xml:"http://purl.org/dc/elements/1.1/ creator"`
+	Author     string            `xml:"author"`
+	ID         string            `xml:"guid"`
+	Enclosures []rss2_0Enclosure `xml:"enclosure"`
 }
 
 type rss2_0Enclosure struct {

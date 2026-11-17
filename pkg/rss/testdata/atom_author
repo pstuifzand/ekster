@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Example blog</title>
+  <link href="https://example.com/" rel="alternate"/>
+  <updated>2026-11-01T10:00:00Z</updated>
+  <entry>
+    <title>A post with an author</title>
+    <link href="https://example.com/post" rel="alternate"/>
+    <id>https://example.com/post</id>
+    <updated>2026-11-01T10:00:00Z</updated>
+    <author><name>Brad Enslen</name><uri>https://ramblinggit.com/</uri></author>
+    <content type="html">&lt;p&gt;Words.&lt;/p&gt;</content>
+  </entry>
+  <entry>
+    <title>A post with no author of its own</title>
+    <link href="https://example.com/other" rel="alternate"/>
+    <id>https://example.com/other</id>
+    <updated>2026-10-31T10:00:00Z</updated>
+    <content type="html">&lt;p&gt;More words.&lt;/p&gt;</content>
+  </entry>
+</feed>

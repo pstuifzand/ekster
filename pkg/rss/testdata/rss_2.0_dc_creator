@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Hacker News - Newest: "postgres"</title>
+    <link>https://news.ycombinator.com/</link>
+    <description>Links for the intellectually curious, ranked by readers.</description>
+    <item>
+      <title>Postgres 19 is late because so many more bugs are being found now</title>
+      <description>&lt;p&gt;Points: 172&lt;/p&gt;</description>
+      <pubDate>Sat, 31 Oct 2026 01:38:56 +0000</pubDate>
+      <link>http://rhaas.blogspot.com/2026/10/postgres-19-is-late-and-its-ais-fault.html</link>
+      <guid>https://news.ycombinator.com/item?id=45701234</guid>
+      <dc:creator>yonasb</dc:creator>
+    </item>
+    <item>
+      <title>An entry whose feed names no author</title>
+      <description>&lt;p&gt;Points: 3&lt;/p&gt;</description>
+      <pubDate>Sat, 31 Oct 2026 09:00:00 +0000</pubDate>
+      <link>https://example.com/anonymous</link>
+      <guid>https://news.ycombinator.com/item?id=45709999</guid>
+    </item>
+  </channel>
+</rss>
