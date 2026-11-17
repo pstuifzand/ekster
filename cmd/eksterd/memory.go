@@ -717,6 +717,12 @@ const (
 	// climbing is what makes a feed that just published visible again soon.
 	changeDrop = 2
 	climbAfter = 2
+	// searchFeedTier is the rung a search feed stays on: 2^4 minutes, just
+	// over a quarter of an hour. A search answers with what was said, not with
+	// what was published, so it never goes quiet and the ladder has nothing to
+	// measure. Sixteen minutes is fresh enough to read and cheap enough for the
+	// service that renders it.
+	searchFeedTier = 4
 )
 
 // scheduleNextFetch applies the tier rules: a changed feed falls two tiers and
@@ -724,6 +730,20 @@ const (
 // rather than at the next rung; a feed that did not change climbs one tier after
 // two unchanged fetches in a row, up to the ceiling.
 func (b *memoryBackend) scheduleNextFetch(ctx context.Context, f *feed, changed bool) {
+	if isSearchFeed(f.URL) {
+		// A search feed is a stream, not a publication. The ladder exists to
+		// stop asking a blog that has not written since 2019, and it earns its
+		// keep there; applied to "postgres on Hacker News" it would take a
+		// quiet week and turn a live stream into one that is read once a day.
+		f.Tier = searchFeedTier
+		f.NextFetchAt = time.Now().Add(time.Duration(1<<searchFeedTier) * time.Minute)
+
+		slog.DebugContext(ctx, "next fetch scheduled",
+			"feed_id", f.ID, "url", f.URL, "search", true,
+			"in_minutes", 1<<searchFeedTier, "at", f.NextFetchAt.Format(time.RFC3339))
+		return
+	}
+
 	if changed {
 		f.Tier -= changeDrop
 		// However far it fell, a revived feed is looked at again within the
@@ -1020,6 +1040,74 @@ ORDER BY i."published_at" DESC NULLS LAST, i."id" DESC
 	return items, rows.Err()
 }
 
+// hackerNewsFeedURL wraps a Hacker News search in the RSS that ekster already
+// knows how to poll.
+//
+// hnrss.org renders any of the site's queries as an ordinary feed, which is the
+// whole win: following, previewing, the tier ladder, the channel's exclude
+// rules and unfollowing keep working untouched, because a search is just
+// another URL. The price is that the feed is only as fast and as reliable as
+// hnrss itself — measured from the droplet's side at 0.5s when cached, 11s
+// cold, and 502 when its own upstream call failed — against the five seconds a
+// refresh gets. A search feed that times out is retried on the failure
+// schedule; a native fetcher that calls the Hacker News API directly would be
+// the fix if that turns out to matter.
+func hackerNewsFeedURL(kind, term string) string {
+	v := url.Values{"q": {term}}
+	if kind == "newest" {
+		// Unfiltered, the newest matching stories are mostly one-point
+		// submissions. Fifty points is roughly where a discussion has started,
+		// and the number is in the URL for anyone who disagrees.
+		v.Set("points", "50")
+	}
+	return "https://hnrss.org/" + kind + "?" + v.Encode()
+}
+
+// isSearchFeed reports whether a followed URL is a search rendered as RSS. It is
+// the one place that knows the difference, and it decides only the polling
+// schedule: everything else — preview, follow, unfollow, items, read state —
+// treats a search feed as the feed it is.
+func isSearchFeed(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+	return host == "hnrss.org"
+}
+
+// searchFeedsFor lists the feeds a bare search term names.
+//
+// The follower's box takes a name, an address or a feed URL. For a term like
+// "postgres" every address it guesses is a host that does not exist, so the
+// modal used to answer the one query a reader most often types — a subject —
+// with "no feeds matched".
+func searchFeedsFor(query string) []microsub.Feed {
+	term := strings.TrimSpace(query)
+	if !isSearchTerm(term) {
+		return []microsub.Feed{}
+	}
+
+	label := fmt.Sprintf("%q", term)
+	return []microsub.Feed{
+		{Type: "feed", URL: hackerNewsFeedURL("newest", term), Name: "Hacker News: stories about " + label},
+		{Type: "feed", URL: hackerNewsFeedURL("newcomments", term), Name: "Hacker News: comments about " + label},
+	}
+}
+
+// isSearchTerm separates a subject from an address. A URL has a scheme or a
+// slash, and a hostname has a dot and no space; only what is left is a subject
+// worth searching for.
+func isSearchTerm(term string) bool {
+	if term == "" || strings.Contains(term, "://") || strings.Contains(term, "/") {
+		return false
+	}
+	if strings.Contains(term, ".") && !strings.Contains(term, " ") {
+		return false
+	}
+	return true
+}
+
 func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Feed, error) {
 	ctx, span := observability.Span(ctx, "feeds.search", attribute.String("search.query", query))
 	defer span.End()
@@ -1028,6 +1116,13 @@ func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Fe
 
 	// needs to be like this, because we get a null result otherwise in the json output
 	feeds := []microsub.Feed{}
+
+	// A bare term is a subject, not a hostname: the URL guesses below are
+	// addresses that do not exist, so answer the word with a feed about it
+	// before trying them.
+	suggested := searchFeedsFor(query)
+	feeds = append(feeds, suggested...)
+	span.SetAttributes(attribute.Int("feeds.suggested", len(suggested)))
 
 	cachingFetch := WithCaching(b.pool, fetch.FetcherFunc(Fetch2))
 
