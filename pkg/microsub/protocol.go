@@ -113,6 +113,29 @@ type Source struct {
 	Photo string `json:"photo"`
 }
 
+// MarshalJSON writes an item, except that a read state is only written for an
+// item that has a channel to be read in. A nested ref, a scraped card and a
+// fetched ancestor have no _id, so `_is_read: false` on one of them is a fact
+// the server invented — and a reader that trusts it is being told something
+// about a post the user never subscribed to.
+func (i Item) MarshalJSON() ([]byte, error) {
+	// The alias has no MarshalJSON of its own, so this cannot recurse.
+	type plain Item
+	raw, err := json.Marshal(plain(i))
+	if err != nil {
+		return nil, err
+	}
+	if i.ID != "" {
+		return raw, nil
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, err
+	}
+	delete(fields, "_is_read")
+	return json.Marshal(fields)
+}
+
 // Pagination contains information about paging
 type Pagination struct {
 	After  string `json:"after,omitempty"`

@@ -192,3 +192,41 @@ func Test_MarshalThreadWithoutReferences(t *testing.T) {
 	}
 	assert.NotContains(t, string(bytes), `"refs"`)
 }
+
+// A read state is a fact about a channel. An item with no _id has no channel to
+// be read in, so it must not claim one — and a nested ref is the case that made
+// this visible: the stored ref carried `_is_read: false` for a post the user
+// never subscribed to.
+func Test_MarshalItemOmitsReadStateWithoutChannel(t *testing.T) {
+	ref := Item{Type: "entry", URL: "https://asteriskmag.com/issues/16/"}
+	raw, err := json.Marshal(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]interface{}
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := fields["_is_read"]; ok {
+		t.Fatalf("a ref with no _id must not carry _is_read: %s", raw)
+	}
+	if fields["url"] != "https://asteriskmag.com/issues/16/" {
+		t.Fatalf("the rest of the item must survive: %s", raw)
+	}
+
+	// An item that does have a channel keeps saying whether it was read.
+	item := Item{Type: "entry", URL: "https://adactio.com/links/22833", ID: "16656400", Read: true}
+	raw, err = json.Marshal(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if fields["_is_read"] != true {
+		t.Fatalf("an item in a channel must still carry its read state: %s", raw)
+	}
+	if fields["_id"] != "16656400" {
+		t.Fatalf("an item in a channel must still carry its id: %s", raw)
+	}
+}
