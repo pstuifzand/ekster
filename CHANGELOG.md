@@ -17,6 +17,9 @@
 
 ### Fixed
 
+- A JSON Feed produces items: item parsing required `application/json` and `application/feed+json` at once, which no media type satisfies, so a followed JSON feed previewed fine and then stored nothing. One predicate now names the media types both parsers accept, with and without a charset.
+- Read a JSON Feed entry's author from the version 1.1 `authors` array as well as the 1.0 `author` object, and keep a byline that is only a name instead of replacing it with the feed's author.
+- A notification names the feed it came from by its host (`news.ycombinator.com`) rather than by the url of the feed document, which the reader drew on the entry line as a raw link.
 - An entry whose feed names no author has no author at all, instead of the feed's identity written into a person-shaped field. Which feed carried the entry is `_source`'s job: a reader shows the publication when there is no byline and both when there is one, as in the approved entry line (author · source · time).
 - Read the entry's own author from `dc:creator` (RSS 2.0 and RSS 1.0) and atom `<author><name>`; every entry of an RSS or atom feed was stored with the feed's title as its author, so a search feed showed twenty entries all written by the feed itself.
 - A Micropub JSON body that sends `content` as a plain string is kept as text instead of being dropped while the request still answered 201, and `mark_read` with no entries and no `Content-Type` keeps answering 400; both silent failures now have regression tests.
