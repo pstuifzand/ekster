@@ -17,6 +17,9 @@
 
 ### Fixed
 
+- An entry of a JSON Feed that carries no `id` is keyed by its permalink, so it no longer shares one row with every other id-less entry of that feed; an entry with neither an id nor a url is skipped as unaddressable.
+- An entry of a JSON Feed that carries no `date_published` is kept: the date falls back to `date_modified`, then to the same zero time the RSS path gives an undated entry, instead of an empty string the store rejects.
+- An item that reaches the store without an id gets its own uid. The empty string was the key every such item shared, which is why each feed failure overwrote the previous notification in the notifications channel.
 - A JSON Feed produces items: item parsing required `application/json` and `application/feed+json` at once, which no media type satisfies, so a followed JSON feed previewed fine and then stored nothing. One predicate now names the media types both parsers accept, with and without a charset.
 - Read a JSON Feed entry's author from the version 1.1 `authors` array as well as the 1.0 `author` object, and keep a byline that is only a name instead of replacing it with the feed's author.
 - A notification names the feed it came from by its host (`news.ycombinator.com`) rather than by the url of the feed document, which the reader drew on the entry line as a raw link.
