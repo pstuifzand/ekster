@@ -68,13 +68,12 @@ func TestFeedItemsAuthorComesFromTheEntry(t *testing.T) {
 		assert.Empty(t, items[0].Author.Photo)
 	}
 
-	// With nothing per-entry to go on, the publication is named by its host,
-	// not by the feed title — that title is a channel name and made every
-	// author line read "Hacker News - Newest: \"postgres\"".
-	if assert.NotNil(t, items[1].Author) {
-		assert.Equal(t, "news.ycombinator.com", items[1].Author.Name)
-		assert.Equal(t, "https://news.ycombinator.com/", items[1].Author.URL, "the link stays, so the reader can follow the publication")
-	}
+	// An entry the feed wrote itself names nobody, so it has no author. The
+	// feed is not a person: it used to be stamped here, which put a channel
+	// title ("Hacker News - Newest: \"postgres\"") on every author line and,
+	// later, a host in a person-shaped card. Which feed carried the entry is
+	// item.Source's job, and a reader shows that when there is no byline.
+	assert.Nil(t, items[1].Author)
 }
 
 // A Shopify-style blog names its feed "Site - Blog section" and gives each
@@ -114,8 +113,6 @@ func TestFeedItemsAuthorForAtomEntryWithoutOne(t *testing.T) {
 		assert.Empty(t, items[0].Author.URL)
 	}
 
-	if assert.NotNil(t, items[1].Author) {
-		assert.Equal(t, "bulletjournal.com", items[1].Author.Name, "the publication, not the feed's whole title")
-		assert.Equal(t, "https://bulletjournal.com/blogs/bulletjournalist", items[1].Author.URL)
-	}
+	// Same rule: no byline means no author card, not a publication wearing one.
+	assert.Nil(t, items[1].Author)
 }

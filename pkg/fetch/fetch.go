@@ -131,6 +131,7 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 
 		feed.Type = "feed"
 		feed.URL = fetchURL
+		feed.HomePage = fetchURL
 		feed.Name = author.Name
 		feed.Photo = author.Photo
 		feed.Author = author
@@ -151,6 +152,10 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 
 		if feed.URL == "" {
 			feed.URL = fetchURL
+		}
+		feed.HomePage = jfeed.HomePageURL
+		if feed.HomePage == "" {
+			feed.HomePage = feed.URL
 		}
 		feed.Photo = jfeed.Icon
 
@@ -177,6 +182,10 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 		feed.Type = "feed"
 		feed.Name = xfeed.Title
 		feed.URL = fetchURL
+		feed.HomePage = xfeed.Link
+		if feed.HomePage == "" {
+			feed.HomePage = fetchURL
+		}
 		feed.Description = xfeed.Description
 		feed.Photo = xfeed.Image.URL
 	} else {
@@ -298,28 +307,19 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 				item.ID = itemUID(feedItem.ID)
 			}
 
-			itemAuthor := &microsub.Card{}
-			itemAuthor.Type = "card"
 			if name := strings.TrimSpace(feedItem.Author); name != "" {
 				// The entry names its own author (dc:creator, atom person —
 				// hnrss, WordPress, most news feeds). The feed's link and icon
 				// belong to the publication, not to this person, so the card
 				// carries the name alone and the reader falls back to initials.
-				itemAuthor.Name = name
-			} else {
-				// Nobody is named for this entry, so attribute it to the
-				// publication by its host, not by the feed title: a title is a
-				// channel name ("Bullet Journal - The Bullet Journalist"), and
-				// stamping it here puts that whole string on every author line.
-				itemAuthor.Name = hostName(feed.Link)
-				itemAuthor.URL = feed.Link
-				itemAuthor.Photo = feed.Image.URL
-				if itemAuthor.Name == "" {
-					// No usable site link either; the title is all there is.
-					itemAuthor.Name = feed.Title
-				}
+				item.Author = &microsub.Card{Type: "card", Name: name}
 			}
-			item.Author = itemAuthor
+			// A feed that names nobody leaves the entry without an author. It
+			// used to be filled with the feed's identity, which put a
+			// publication into a person-shaped field ("Bullet Journal - The
+			// Bullet Journalist" on every author line). Which feed carried the
+			// entry is already stated once, in item.Source; a reader shows that
+			// when there is no byline, and shows both when there is one.
 
 			item.Published = feedItem.Date.Format(time.RFC3339)
 			items = append(items, item)
@@ -385,11 +385,11 @@ type mention struct {
 	Item microsub.Item
 }
 
-// hostName is the publisher identity of a site url: the bare host, without
-// "www.". The database already renders url-only authors that way, and a host
-// reads as a publication ("bulletjournal.com") where the feed title reads as a
-// channel name ("Bullet Journal - The Bullet Journalist").
-func hostName(link string) string {
+// HostName is the publisher identity of a site url: the bare host, without
+// "www.". A host reads as a publication ("bulletjournal.com") where a feed
+// title reads as a channel name ("Bullet Journal - The Bullet Journalist"),
+// which is why an item's source is named this way.
+func HostName(link string) string {
 	u, err := url.Parse(link)
 	if err != nil || u.Host == "" {
 		return ""

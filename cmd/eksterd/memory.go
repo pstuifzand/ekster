@@ -1267,17 +1267,33 @@ func ProcessSourcedItems(ctx context.Context, fetcher fetch.Fetcher, fetchURL, c
 
 	var source *microsub.Source
 	if header, err := fetch.FeedHeader(ctx, fetcher, fetchURL, contentType, bytes.NewBuffer(bodyBytes)); err == nil {
+		// _id is the feed the user followed, which is what an unfollow sends;
+		// url is the publication's own site, because a reader who clicks the
+		// source wants the paper, not an XML document. The name is the
+		// publication too: the feed title is a channel label ("Bullet Journal -
+		// The Bullet Journalist") and reads wrong on an entry line, so the host
+		// carries the name and the title is only the fallback for a feed that
+		// names no site at all.
+		homePage := header.HomePage
+		if homePage == "" {
+			homePage = header.URL
+		}
+		name := fetch.HostName(homePage)
+		if name == "" {
+			name = header.Name
+		}
 		source = &microsub.Source{
 			ID:    header.URL,
-			URL:   header.URL,
-			Name:  header.Name,
+			URL:   homePage,
+			Name:  name,
 			Photo: header.Photo,
 		}
 		span.SetAttributes(attribute.String("feed.name", header.Name))
 	} else {
 		source = &microsub.Source{
-			ID:  fetchURL,
-			URL: fetchURL,
+			ID:   fetchURL,
+			URL:  fetchURL,
+			Name: fetch.HostName(fetchURL),
 		}
 	}
 

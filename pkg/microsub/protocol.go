@@ -244,6 +244,12 @@ type Feed struct {
 	Photo       string `json:"photo,omitempty"`
 	Description string `json:"description,omitempty"`
 	Author      Card   `json:"author,omitempty"`
+	// HomePage is the publication's own site, which a feed names separately
+	// from the URL of the feed document. It is deliberately not serialized: a
+	// follow item's url is the feed the user subscribed to (and what an
+	// unfollow sends), while an item's _source.url is the page a reader should
+	// be handed when they click the publication.
+	HomePage string `json:"-"`
 }
 
 // Microsub is the main protocol that should be implemented by a backend
