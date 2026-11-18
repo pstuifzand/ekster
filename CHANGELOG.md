@@ -12,6 +12,7 @@
 
 ### Changed
 
+- A request with no `Authorization` token, and a token that is simply not cached yet, are logged below error: scavengers probe the authenticated paths constantly and a cache miss is the normal first use of a token, so both wrote ERROR lines (about forty a day for the miss alone) next to the failures worth reading. A cache that cannot be read at all keeps its error line.
 - An entry's `_source` now says where a reader should go: `_id` is the feed that was followed (what an unfollow sends), `url` is the publication's own site instead of the feed document, and `name` is the publication's host (`zoetermeersdagblad.nl`) rather than the feed title, which is a channel label ("Bullet Journal - The Bullet Journalist"). A feed with no site link keeps its own URL, and the title remains the last resort.
 - A search feed polls on a fixed sixteen-minute rung instead of the tier ladder, which would let a stream that never goes quiet climb to hours and then days, and it gets a twenty-second fetch budget because `hnrss.org` renders the query on demand (11s cold, 0.5s cached) rather than serving a static file.
 
