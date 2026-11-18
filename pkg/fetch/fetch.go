@@ -79,6 +79,16 @@ func htmlPageTitle(page []byte) string {
 	return findTitle(doc)
 }
 
+// isJSONFeed names the media types a JSON Feed arrives as. Version 1.1 moved
+// to application/feed+json while keeping application/json for compatibility,
+// and either may carry a charset. Header parsing and item parsing must agree on
+// this set: a feed whose header is accepted and whose items are rejected
+// previews fine and then fails every refresh with "unknown content-type".
+func isJSONFeed(contentType string) bool {
+	return strings.HasPrefix(contentType, "application/json") ||
+		strings.HasPrefix(contentType, "application/feed+json")
+}
+
 // FeedHeader returns a new microsub.Feed with the information parsed from body.
 func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType string, body io.Reader) (feed microsub.Feed, err error) {
 	ctx, span := observability.Span(ctx, "feed.parse.header",
@@ -135,7 +145,7 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 		feed.Name = author.Name
 		feed.Photo = author.Photo
 		feed.Author = author
-	} else if strings.HasPrefix(contentType, "application/json") { // json feed?
+	} else if isJSONFeed(contentType) { // json feed?
 		jfeed, err := jsonfeed.Parse(body)
 		if err != nil {
 			slog.DebugContext(ctx, "could not parse json feed", "url", fetchURL, "error", err)
@@ -234,7 +244,7 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 
 			items = append(items, r)
 		}
-	} else if strings.HasPrefix(contentType, "application/json") && strings.HasPrefix(contentType, "application/feed+json") { // json feed?
+	} else if isJSONFeed(contentType) { // json feed?
 		var feed jsonfeed.Feed
 		err := json.NewDecoder(body).Decode(&feed)
 		if err != nil {
