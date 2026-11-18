@@ -45,8 +45,17 @@ type Item struct {
 	ExternalURL   string       `json:"external_url,omitempty"`
 	DatePublished string       `json:"date_published,omitempty"`
 	Author        Author       `json:"author,omitempty"`
+	Authors       []Author     `json:"authors,omitempty"`
 	Tags          []string     `json:"tags,omitempty"`
 	Attachments   []Attachment `json:"attachments,omitempty"`
+}
+
+// PrimaryAuthor is the author a reader should name. Version 1.1 writes an
+// `authors` array and keeps the single `author` object only for compatibility;
+// a 1.0 document has just `author`. Prefer the array, and take the first entry
+// that identifies anybody rather than blindly the first element.
+func (i Item) PrimaryAuthor() Author {
+	return primaryAuthor(i.Authors, i.Author)
 }
 
 // Author is the author of the Item
@@ -54,6 +63,21 @@ type Author struct {
 	Name   string `json:"name,omitempty"`
 	URL    string `json:"url,omitempty"`
 	Avatar string `json:"avatar,omitempty"`
+}
+
+// Named reports whether this author identifies anyone. An empty object is what
+// a feed that states nobody serializes to.
+func (a Author) Named() bool {
+	return a.Name != "" || a.URL != "" || a.Avatar != ""
+}
+
+func primaryAuthor(list []Author, single Author) Author {
+	for _, author := range list {
+		if author.Named() {
+			return author
+		}
+	}
+	return single
 }
 
 // Hub contains a reference to a feed hub
@@ -64,16 +88,23 @@ type Hub struct {
 
 // Feed is the main object
 type Feed struct {
-	Version     string `json:"version"`
-	Title       string `json:"title"`
-	HomePageURL string `json:"home_page_url"`
-	FeedURL     string `json:"feed_url"`
-	NextURL     string `json:"next_url"`
-	Icon        string `json:"icon"`
-	Favicon     string `json:"favicon"`
-	Author      Author `json:"author,omitempty"`
-	Items       []Item `json:"items"`
-	Hubs        []Hub  `json:"hubs"`
+	Version     string   `json:"version"`
+	Title       string   `json:"title"`
+	HomePageURL string   `json:"home_page_url"`
+	FeedURL     string   `json:"feed_url"`
+	NextURL     string   `json:"next_url"`
+	Icon        string   `json:"icon"`
+	Favicon     string   `json:"favicon"`
+	Author      Author   `json:"author,omitempty"`
+	Authors     []Author `json:"authors,omitempty"`
+	Items       []Item   `json:"items"`
+	Hubs        []Hub    `json:"hubs"`
+}
+
+// PrimaryAuthor is the feed's own author, in the same 1.1-then-1.0 order the
+// items use. It is the fallback for an entry that names nobody.
+func (f Feed) PrimaryAuthor() Author {
+	return primaryAuthor(f.Authors, f.Author)
 }
 
 // Parse parses a jsonfeed

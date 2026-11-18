@@ -153,9 +153,10 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 		}
 
 		feed.Type = "feed"
+		feedAuthor := jfeed.PrimaryAuthor()
 		feed.Name = jfeed.Title
 		if feed.Name == "" {
-			feed.Name = jfeed.Author.Name
+			feed.Name = feedAuthor.Name
 		}
 
 		feed.URL = jfeed.FeedURL
@@ -170,13 +171,13 @@ func FeedHeader(ctx context.Context, fetcher Fetcher, fetchURL, contentType stri
 		feed.Photo = jfeed.Icon
 
 		if feed.Photo == "" {
-			feed.Photo = jfeed.Author.Avatar
+			feed.Photo = feedAuthor.Avatar
 		}
 
 		feed.Author.Type = "card"
-		feed.Author.Name = jfeed.Author.Name
-		feed.Author.URL = jfeed.Author.URL
-		feed.Author.Photo = jfeed.Author.Avatar
+		feed.Author.Name = feedAuthor.Name
+		feed.Author.URL = feedAuthor.URL
+		feed.Author.Photo = feedAuthor.Avatar
 	} else if strings.HasPrefix(contentType, "text/xml") || strings.HasPrefix(contentType, "application/rss+xml") || strings.HasPrefix(contentType, "application/atom+xml") || strings.HasPrefix(contentType, "application/xml") {
 		body, err := ioutil.ReadAll(body)
 		if err != nil {
@@ -251,16 +252,6 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 			return items, fmt.Errorf("could not parse as jsonfeed: %v", err)
 		}
 
-		author := &microsub.Card{}
-		author.Type = "card"
-		author.Name = feed.Author.Name
-		author.URL = feed.Author.URL
-		author.Photo = feed.Author.Avatar
-
-		if author.Photo == "" {
-			author.Photo = feed.Icon
-		}
-
 		for _, feedItem := range feed.Items {
 			var item microsub.Item
 			item.Type = "entry"
@@ -272,16 +263,7 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 			item.ID = itemUID(feedItem.ID)
 			item.Published = feedItem.DatePublished
 
-			itemAuthor := &microsub.Card{}
-			itemAuthor.Type = "card"
-			itemAuthor.Name = feedItem.Author.Name
-			itemAuthor.URL = feedItem.Author.URL
-			itemAuthor.Photo = feedItem.Author.Avatar
-			if itemAuthor.URL != "" {
-				item.Author = itemAuthor
-			} else {
-				item.Author = author
-			}
+			item.Author = jsonItemAuthor(feed, feedItem)
 			item.Photo = []string{feedItem.Image}
 			items = append(items, item)
 		}
@@ -393,6 +375,26 @@ func itemUID(value string) string {
 type mention struct {
 	Href string
 	Item microsub.Item
+}
+
+// jsonItemAuthor is the byline of a JSON Feed entry: the entry's own author
+// when it names one, else the feed's. An entry's card used to be kept only when
+// it carried a url, so a 1.1 `authors` entry with a name alone was replaced by
+// the feed's author — the same byline loss the RSS path had, in the format that
+// states authors most explicitly. The feed icon is the publication's only face,
+// so it fills a photo the feed-level fallback does not have.
+func jsonItemAuthor(feed jsonfeed.Feed, feedItem jsonfeed.Item) *microsub.Card {
+	author := feedItem.PrimaryAuthor()
+	photo := author.Avatar
+	if !author.Named() {
+		author = feed.PrimaryAuthor()
+		photo = author.Avatar
+		if photo == "" {
+			photo = feed.Icon
+		}
+	}
+	// The caller's cleanup loop turns a card that names nobody into no author.
+	return &microsub.Card{Type: "card", Name: author.Name, URL: author.URL, Photo: photo}
 }
 
 // HostName is the publisher identity of a site url: the bare host, without
