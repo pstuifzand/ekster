@@ -824,13 +824,9 @@ func (b *memoryBackend) addNotification(name string, feed feed, err error) {
 	// No request context here: a notification is recorded after a fetch failed,
 	// outside any request.
 	_, err = b.channelAddItem(context.Background(), "notifications", microsub.Item{
-		Type: "entry",
-		Source: &microsub.Source{
-			ID:   strconv.Itoa(feed.ID),
-			URL:  feed.URL,
-			Name: feed.URL,
-		},
-		Name: name,
+		Type:   "entry",
+		Source: notificationSource(feed),
+		Name:   name,
 		Author: &microsub.Card{
 			Type: "card",
 			Name: "Ekster",
@@ -842,6 +838,22 @@ func (b *memoryBackend) addNotification(name string, feed feed, err error) {
 	})
 	if err != nil {
 		slog.Error("could not record notification item", "error", err)
+	}
+}
+
+// notificationSource names the feed a failure came from the way every other
+// item's _source names its publication: by its host, not by the url of the
+// feed document. A reader draws whatever is in `name` on the entry line, so a
+// url here showed up as a raw "https://…/rss" where a publication belongs.
+func notificationSource(f feed) *microsub.Source {
+	name := fetch.HostName(f.URL)
+	if name == "" {
+		name = f.URL
+	}
+	return &microsub.Source{
+		ID:   strconv.Itoa(f.ID),
+		URL:  f.URL,
+		Name: name,
 	}
 }
 
