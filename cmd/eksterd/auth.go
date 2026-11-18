@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -34,18 +35,37 @@ import (
 
 var authHeaderRegex = regexp.MustCompile("^Bearer (.+)$")
 
+var (
+	// errNoTokenInHeader is a request that carries no bearer token at all. Web
+	// scanners probe the authenticated paths constantly, and each probe is a
+	// missing credential rather than a failure of this server.
+	errNoTokenInHeader = errors.New("could not find token in header")
+
+	// errNoCachedValue is a miss in the token cache, which is the normal path:
+	// the token is checked with its endpoint and remembered afterwards. It was
+	// returned as a plain error, so the HTTP path logged it at ERROR — about
+	// forty lines a day, against a handful of real failures.
+	errNoCachedValue = errors.New("no cached value available")
+)
+
 func cachedCheckAuthToken(conn redis.Conn, header string, tokenEndpoint string, r *auth.TokenResponse) (bool, error) {
 	tokens := authHeaderRegex.FindStringSubmatch(header)
 
 	if len(tokens) != 2 {
-		return false, fmt.Errorf("could not find token in header")
+		return false, errNoTokenInHeader
 	}
 
 	key := fmt.Sprintf("token:%s", tokens[1])
 
 	authorized, err := getCachedValue(conn, key, r)
 	if err != nil {
-		slog.Error("could not read the cached auth token", "error", err)
+		if errors.Is(err, errNoCachedValue) {
+			slog.Debug("auth token is not cached")
+		} else {
+			// A cache that cannot be read is a real failure: every request then
+			// pays for a token check against the endpoint.
+			slog.Error("could not read the cached auth token", "error", err.Error())
+		}
 	}
 
 	if authorized {
@@ -60,13 +80,26 @@ func cachedCheckAuthToken(conn redis.Conn, header string, tokenEndpoint string, 
 	if authorized {
 		err = setCachedTokenResponseValue(conn, key, r)
 		if err != nil {
-			slog.Error("could not cache the token response", "error", err)
+			slog.Error("could not cache the token response", "error", err.Error())
 		}
 
 		return true, nil
 	}
 
 	return authorized, nil
+}
+
+// logAuthFailure records why a request was refused. A request that carries no
+// token is not an error — scanners probe the authenticated paths constantly, and
+// every probe wrote an ERROR line with a stack trace — while a token the
+// endpoint rejects is worth one. The error is logged as a string because slog
+// prints a pkg/errors value with %+v, which turns one line into fifteen.
+func logAuthFailure(ctx context.Context, err error) {
+	if errors.Cause(err) == errNoTokenInHeader {
+		slog.DebugContext(ctx, "request carries no bearer token")
+		return
+	}
+	slog.ErrorContext(ctx, "token not accepted", "error", err.Error())
 }
 
 func checkAuthToken(header string, tokenEndpoint string, token *auth.TokenResponse) (bool, error) {
@@ -141,5 +174,5 @@ func getCachedValue(conn redis.Conn, key string, r *auth.TokenResponse) (bool, e
 		}
 	}
 
-	return false, fmt.Errorf("no cached value available")
+	return false, errNoCachedValue
 }

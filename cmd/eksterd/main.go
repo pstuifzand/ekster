@@ -121,7 +121,7 @@ func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 
 		authorized, err := b.AuthTokenAccepted(authorization, &token, tokenEndpoint)
 		if err != nil {
-			slog.ErrorContext(r.Context(), "token not accepted", "error", err)
+			logAuthFailure(r.Context(), err)
 		}
 		if !authorized {
 			slog.WarnContext(r.Context(), "token could not be validated")
