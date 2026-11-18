@@ -80,6 +80,12 @@ func simplifyContent(k string, v []interface{}) *microsub.Content {
 				content.HTML = cleaned
 			}
 		}
+	case string:
+		// Micropub lets a client send content as a plain string:
+		// "content": ["<p>…</p>"]. Dropping it stored the item with no
+		// content at all while the request still answered 201, so the
+		// poster had no way to notice. Plain string means plain text.
+		content.Text = t
 	default:
 		slog.Debug("simplifyContent: unsupported type", "key", k, "type", fmt.Sprintf("%T", t))
 		return nil

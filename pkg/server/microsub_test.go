@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/pstuifzand/ekster/pkg/client"
@@ -225,4 +226,66 @@ func TestServer_PostUnknownAction(t *testing.T) {
 	if assert.NoError(t, err) {
 		assert.Equal(t, 400, resp.StatusCode)
 	}
+}
+
+// markReadRecorder remembers what the handler asked the backend to mark, so a
+// test can prove that a rejected request marked nothing.
+type markReadRecorder struct {
+	NullBackend
+	marked []string
+}
+
+func (b *markReadRecorder) MarkRead(ctx context.Context, channel string, uids []string) error {
+	b.marked = append(b.marked, uids...)
+	return nil
+}
+
+func newRecorderServer(t *testing.T) (*httptest.Server, *markReadRecorder) {
+	t.Helper()
+
+	backend := &markReadRecorder{}
+	handler, _ := NewMicrosubHandler(backend)
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	return server, backend
+}
+
+// A form body without a Content-Type is dropped by ParseForm. The server used
+// to answer 200 for that, so a client printed "Marked 7454" while every entry
+// stayed unread. The request must fail loudly and mark nothing.
+func TestServer_MarkReadWithoutContentTypeIsRejected(t *testing.T) {
+	server, backend := newRecorderServer(t)
+
+	u := server.URL + "/microsub?action=timeline&method=mark_read&channel=0001"
+	req, err := http.NewRequest(http.MethodPost, u, strings.NewReader("entry[]=one&entry[]=two"))
+	if err != nil {
+		t.Fatalf("could not build the request: %v", err)
+	}
+	// Deliberately no Content-Type: that is the client bug under test.
+
+	resp, err := http.DefaultClient.Do(req)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Empty(t, backend.marked, "a rejected mark_read must not mark anything")
+}
+
+// The same request with the header the protocol requires still marks, so the
+// test above is about the missing header and not about mark_read being broken.
+func TestServer_MarkReadWithContentTypeMarks(t *testing.T) {
+	server, backend := newRecorderServer(t)
+
+	u := server.URL + "/microsub?action=timeline&method=mark_read&channel=0001"
+	resp, err := http.Post(u, "application/x-www-form-urlencoded", strings.NewReader("entry[]=one&entry[]=two"))
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.ElementsMatch(t, []string{"one", "two"}, backend.marked)
 }

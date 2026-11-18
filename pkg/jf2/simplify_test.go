@@ -244,3 +244,56 @@ func TestConvertItemNoteWithCheckout(t *testing.T) {
 		"not sure if it&#39;s cheaper to buy all the Microsoft Flight Simulator accessories or actually train for a pilots license <a href=\"https://aaronparecki.com/emoji/%F0%9F%A4%94\" class=\"emoji\">🤔</a> <a href=\"https://youtu.be/shpK1Gjvnuo\"><span class=\"protocol\">https://</span>youtu.be/shpK1Gjvnuo</a>",
 		results[0].Content.HTML)
 }
+
+// A JSON Micropub body is a microformat, and Micropub allows content as a plain
+// string: {"content": ["<p>hi</p>"]}. The simplifier dropped it, so the server
+// answered 201 and stored an item with no content at all.
+func TestConvertPlainStringContentIsKept(t *testing.T) {
+	body := `{
+		"type": ["h-entry"],
+		"properties": {
+			"name": ["A note"],
+			"content": ["Hello from a plain string"]
+		}
+	}`
+
+	var mf microformats.Microformat
+	if err := json.Unmarshal([]byte(body), &mf); err != nil {
+		t.Fatalf("could not decode the test body: %v", err)
+	}
+
+	item, ok := jf2.SimplifyMicroformatItem(&mf, microsub.Card{})
+	if !assert.True(t, ok, "h-entry should simplify to an item") {
+		return
+	}
+
+	if assert.NotNil(t, item.Content, "plain-string content was dropped") {
+		assert.Equal(t, "Hello from a plain string", item.Content.Text)
+		assert.Equal(t, "", item.Content.HTML)
+	}
+}
+
+// The object form is what clients send for HTML content, and it must keep
+// working next to the plain string.
+func TestConvertContentObjectIsKept(t *testing.T) {
+	body := `{
+		"type": ["h-entry"],
+		"properties": {
+			"content": [{"html": "<p>Hello from html</p>"}]
+		}
+	}`
+
+	var mf microformats.Microformat
+	if err := json.Unmarshal([]byte(body), &mf); err != nil {
+		t.Fatalf("could not decode the test body: %v", err)
+	}
+
+	item, ok := jf2.SimplifyMicroformatItem(&mf, microsub.Card{})
+	if !assert.True(t, ok) {
+		return
+	}
+
+	if assert.NotNil(t, item.Content) {
+		assert.Equal(t, "<p>Hello from html</p>", item.Content.HTML)
+	}
+}
