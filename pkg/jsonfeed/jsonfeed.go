@@ -44,6 +44,7 @@ type Item struct {
 	Image         string       `json:"image,omitempty"`
 	ExternalURL   string       `json:"external_url,omitempty"`
 	DatePublished string       `json:"date_published,omitempty"`
+	DateModified  string       `json:"date_modified,omitempty"`
 	Author        Author       `json:"author,omitempty"`
 	Authors       []Author     `json:"authors,omitempty"`
 	Tags          []string     `json:"tags,omitempty"`

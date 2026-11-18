@@ -274,7 +274,7 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 				continue
 			}
 			item.ID = itemUID(uid)
-			item.Published = feedItem.DatePublished
+			item.Published = jsonItemPublished(feedItem)
 
 			item.Author = jsonItemAuthor(feed, feedItem)
 			item.Photo = []string{feedItem.Image}
@@ -388,6 +388,29 @@ func itemUID(value string) string {
 type mention struct {
 	Href string
 	Item microsub.Item
+}
+
+// jsonItemPublished is an entry's date: date_published, else date_modified,
+// else the zero time the RSS and atom paths also fall back to. Only the first
+// field used to be read and it was passed through unvalidated, so an undated or
+// oddly dated entry reached the store as the empty string and was rejected
+// there ("time \"\" could not be parsed with any known layout") — one dropped
+// entry and one log line per refresh, with nothing in the timeline. Both dates
+// are optional in JSON Feed, so an undated entry has to be kept, not discarded.
+func jsonItemPublished(feedItem jsonfeed.Item) string {
+	for _, value := range []string{feedItem.DatePublished, feedItem.DateModified} {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, err := time.Parse(time.RFC3339, value); err == nil {
+			return value
+		}
+		if _, err := time.Parse("2006-01-02", value); err == nil {
+			return value
+		}
+	}
+	return time.Time{}.Format(time.RFC3339)
 }
 
 // jsonItemAuthor is the byline of a JSON Feed entry: the entry's own author
