@@ -307,9 +307,17 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 				// carries the name alone and the reader falls back to initials.
 				itemAuthor.Name = name
 			} else {
-				itemAuthor.Name = feed.Title
+				// Nobody is named for this entry, so attribute it to the
+				// publication by its host, not by the feed title: a title is a
+				// channel name ("Bullet Journal - The Bullet Journalist"), and
+				// stamping it here puts that whole string on every author line.
+				itemAuthor.Name = hostName(feed.Link)
 				itemAuthor.URL = feed.Link
 				itemAuthor.Photo = feed.Image.URL
+				if itemAuthor.Name == "" {
+					// No usable site link either; the title is all there is.
+					itemAuthor.Name = feed.Title
+				}
 			}
 			item.Author = itemAuthor
 
@@ -375,6 +383,18 @@ func itemUID(value string) string {
 type mention struct {
 	Href string
 	Item microsub.Item
+}
+
+// hostName is the publisher identity of a site url: the bare host, without
+// "www.". The database already renders url-only authors that way, and a host
+// reads as a publication ("bulletjournal.com") where the feed title reads as a
+// channel name ("Bullet Journal - The Bullet Journalist").
+func hostName(link string) string {
+	u, err := url.Parse(link)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return strings.TrimPrefix(u.Host, "www.")
 }
 
 // Format names the document format for a given content type. It is used for

@@ -68,10 +68,54 @@ func TestFeedItemsAuthorComesFromTheEntry(t *testing.T) {
 		assert.Empty(t, items[0].Author.Photo)
 	}
 
-	// With nothing per-entry to go on, the feed's own identity is the author,
-	// which is how every feed without per-item authors has always rendered.
+	// With nothing per-entry to go on, the publication is named by its host,
+	// not by the feed title — that title is a channel name and made every
+	// author line read "Hacker News - Newest: \"postgres\"".
 	if assert.NotNil(t, items[1].Author) {
-		assert.Equal(t, `Hacker News - Newest: "postgres"`, items[1].Author.Name)
-		assert.Equal(t, "https://news.ycombinator.com/", items[1].Author.URL)
+		assert.Equal(t, "news.ycombinator.com", items[1].Author.Name)
+		assert.Equal(t, "https://news.ycombinator.com/", items[1].Author.URL, "the link stays, so the reader can follow the publication")
+	}
+}
+
+// A Shopify-style blog names its feed "Site - Blog section" and gives each
+// entry a person. An entry without one must not inherit that whole string.
+const atomWithMixedAuthors = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <id>https://bulletjournal.com/blogs/bulletjournalist.atom</id>
+  <title>Bullet Journal - The Bullet Journalist</title>
+  <updated>2026-11-16T09:54:50-05:00</updated>
+  <link rel="alternate" type="text/html" href="https://bulletjournal.com/blogs/bulletjournalist"/>
+  <entry>
+    <id>https://bulletjournal.com/blogs/bulletjournalist/doing-more</id>
+    <title>Doing More vs. Doing What Matters</title>
+    <link rel="alternate" type="text/html" href="https://bulletjournal.com/blogs/bulletjournalist/doing-more"/>
+    <published>2026-11-16T09:54:50-05:00</published>
+    <updated>2026-11-16T09:54:50-05:00</updated>
+    <author><name>Lia Luzong</name></author>
+  </entry>
+  <entry>
+    <id>https://bulletjournal.com/blogs/bulletjournalist/no-byline</id>
+    <title>A post the blog published without a byline</title>
+    <link rel="alternate" type="text/html" href="https://bulletjournal.com/blogs/bulletjournalist/no-byline"/>
+    <published>2026-10-19T12:09:52-04:00</published>
+    <updated>2026-10-22T12:45:30-04:00</updated>
+  </entry>
+</feed>`
+
+func TestFeedItemsAuthorForAtomEntryWithoutOne(t *testing.T) {
+	items, err := FeedItems(context.Background(), FetcherFunc(fetcher), "https://bulletjournal.com/blogs/bulletjournalist.atom", "application/atom+xml", strings.NewReader(atomWithMixedAuthors))
+
+	if !assert.NoError(t, err) || !assert.Len(t, items, 2) {
+		return
+	}
+
+	if assert.NotNil(t, items[0].Author) {
+		assert.Equal(t, "Lia Luzong", items[0].Author.Name)
+		assert.Empty(t, items[0].Author.URL)
+	}
+
+	if assert.NotNil(t, items[1].Author) {
+		assert.Equal(t, "bulletjournal.com", items[1].Author.Name, "the publication, not the feed's whole title")
+		assert.Equal(t, "https://bulletjournal.com/blogs/bulletjournalist", items[1].Author.URL)
 	}
 }

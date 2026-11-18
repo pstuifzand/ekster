@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- An entry whose feed names no author is attributed to the publication by its host (`bulletjournal.com`) instead of by the whole feed title, which put "Bullet Journal - The Bullet Journalist" on every author line.
 - Read the entry's own author from `dc:creator` (RSS 2.0 and RSS 1.0) and atom `<author><name>`; every entry of an RSS or atom feed was stored with the feed's title as its author, so a search feed showed twenty entries all written by the feed itself.
 - A Micropub JSON body that sends `content` as a plain string is kept as text instead of being dropped while the request still answered 201, and `mark_read` with no entries and no `Content-Type` keeps answering 400; both silent failures now have regression tests.
 
