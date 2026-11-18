@@ -260,7 +260,20 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 			item.Content.HTML = feedItem.ContentHTML
 			item.Content.Text = feedItem.ContentText
 			item.URL = feedItem.URL
-			item.ID = itemUID(feedItem.ID)
+			// The id is the entry's identity, both here and in the store's uid
+			// column. JSON Feed requires one, but a feed that omits it still
+			// offers a permalink, and the microformats branch uses the url as
+			// the uid for exactly this reason. Without the fallback every
+			// id-less entry produced the empty uid, so they all collapsed into
+			// one row; an entry with neither is not addressable at all.
+			uid := feedItem.ID
+			if uid == "" {
+				uid = feedItem.URL
+			}
+			if uid == "" {
+				continue
+			}
+			item.ID = itemUID(uid)
 			item.Published = feedItem.DatePublished
 
 			item.Author = jsonItemAuthor(feed, feedItem)
