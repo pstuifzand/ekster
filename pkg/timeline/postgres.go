@@ -284,6 +284,21 @@ func parsePublished(value string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("time %q could not be parsed with any known layout", value)
 }
 
+// itemIdentity is the uid a row is keyed by. The store has one unique index on
+// `items.uid`, so an item that arrived without an id was written with the empty
+// string and every such item shared that one row — which is what happened to
+// feed notifications, whose item carries no id: each failure overwrote the
+// previous one. A caller that names an item keeps its id; one that does not gets
+// a fresh random uid, which cannot dedupe a re-delivery but cannot lose an entry
+// to another item's row either.
+func itemIdentity(channel, id string) string {
+	if id != "" {
+		return id
+	}
+	h := sha256.Sum256([]byte(fmt.Sprintf("%s:%d", channel, time.Now().UnixNano())))
+	return hex.EncodeToString(h[:])
+}
+
 // AddItem
 func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 	ctx := context.Background()
@@ -297,11 +312,7 @@ func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("while adding item: %w", err)
 	}
-	if item.ID == "" {
-		// FIXME: This won't work when we receive the item multiple times
-		h := sha256.Sum256([]byte(fmt.Sprintf("%s:%d", p.channel, time.Now().UnixNano())))
-		item.UID = hex.EncodeToString(h[:])
-	}
+	item.ID = itemIdentity(p.channel, item.ID)
 
 	var optFeedID sql.NullInt64
 	if item.Source == nil || item.Source.ID == "" {
