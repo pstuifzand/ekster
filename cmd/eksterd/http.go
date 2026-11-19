@@ -906,6 +906,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			http.Redirect(w, r, "/settings", http.StatusFound)
 			return
+		} else if r.URL.Path == "/settings/feed/remove" {
+			h.handleUnfollow(w, r, conn)
+			return
 		} else if r.URL.Path == "/settings/connect/disconnect" {
 			h.handleDisconnect(w, r, conn)
 			return

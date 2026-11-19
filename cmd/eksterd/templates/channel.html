@@ -66,6 +66,11 @@
             {{ range .Feeds }}
                 <div class="feed">
                     <a href="{{ .URL }}">{{ .URL }}</a>
+                    <form action="/settings/feed/remove" method="post" style="display:inline">
+                        <input type="hidden" name="uid" value="{{ $.CurrentChannel.UID }}" />
+                        <input type="hidden" name="url" value="{{ .URL }}" />
+                        <button type="submit" class="button is-small">Remove</button>
+                    </form>
                 </div>
             {{ else }}
                 <p class="hint">No feeds in this channel.</p>

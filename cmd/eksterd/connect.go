@@ -371,6 +371,25 @@ func (h *mainHandler) handleConnectCallback(w http.ResponseWriter, r *http.Reque
 	http.Redirect(w, r, "/settings/channel?uid="+url.QueryEscape(p.channel)+"&connected=1", http.StatusFound)
 }
 
+// handleUnfollow removes one feed from a channel. A feeds list with no way to
+// remove an entry is a list that only grows, and moving a channel off a stale URL
+// is the reason this reader was changed at all.
+func (h *mainHandler) handleUnfollow(w http.ResponseWriter, r *http.Request, conn redis.Conn) {
+	if _, ok := h.requireSession(w, r, conn); !ok {
+		return
+	}
+	uid := r.FormValue("uid")
+	feedURL := r.FormValue("url")
+	if uid == "" || feedURL == "" {
+		http.Redirect(w, r, "/settings", http.StatusFound)
+		return
+	}
+	if err := h.Backend.UnfollowURL(r.Context(), uid, feedURL); err != nil {
+		slog.ErrorContext(r.Context(), "could not remove a feed", "channel", uid, "url", feedURL, "error", err)
+	}
+	http.Redirect(w, r, "/settings/channel?uid="+url.QueryEscape(uid), http.StatusFound)
+}
+
 // handleDisconnect forgets the token. The site keeps its side of it until the
 // token is revoked there, which is the honest limit of a stateless token.
 func (h *mainHandler) handleDisconnect(w http.ResponseWriter, r *http.Request, conn redis.Conn) {
