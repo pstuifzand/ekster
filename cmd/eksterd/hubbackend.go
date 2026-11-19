@@ -103,10 +103,13 @@ func (h *hubIncomingBackend) CreateFeed(ctx context.Context, topic, token string
 	secret := util.RandStringBytes(32)
 	urlSecret := util.RandStringBytes(32)
 
+	// hub_checks starts at 1: the discovery below is the first attempt, so the
+	// retry ladder is asked to wait an hour rather than repeat it on the next
+	// pass.
 	var subscriptionID int
 	err := db.QueryRow(`
-INSERT INTO "subscriptions" ("topic","subscription_secret", "url_secret", "lease_seconds", "created_at")
-VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*60*24*7).Scan(&subscriptionID)
+INSERT INTO "subscriptions" ("topic","subscription_secret", "url_secret", "lease_seconds", "created_at", "hub_checks", "hub_checked_at")
+VALUES ($1, $2, $3, $4, DEFAULT, 1, now()) RETURNING "id"`, topic, secret, urlSecret, 60*60*24*7).Scan(&subscriptionID)
 	if err != nil {
 		return 0, err
 	}
@@ -118,7 +121,7 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 	// to an anonymous HEAD too. The channel's token is what the link lives
 	// behind; without it the subscription is skipped and the feed only ever gets
 	// polled.
-	client := identifyingClient(0)
+	client := identifyingClient(discoveryTimeout)
 	if token != "" {
 		client = tokenClient(token)
 	}
@@ -306,19 +309,49 @@ func subscribeBackoff(failures int) time.Duration {
 	return backoff
 }
 
-// retryHubDiscovery looks for subscriptions that never found a hub and tries
-// again, with the channel's token when it has one.
+// hubCheckLadder is how often discovery is retried for a subscription that has
+// not found a hub yet. The first attempt is the follow itself; after that there
+// are two rungs close enough to catch a fixable cause (a private topic whose
+// channel just got its token, a 500 at follow time), and then the question is
+// only worth asking again every 30 days. A feed that declares no WebSub hub
+// will never declare one, so a shorter period here is not patience, it is a
+// request per subscription per minute to a host that already said no.
+var hubCheckLadder = []time.Duration{
+	0,                   // the follow that created the subscription
+	1 * time.Hour,       // a token added right after the follow
+	24 * time.Hour,      // a host that was briefly broken
+	30 * 24 * time.Hour, // and monthly from here on
+}
+
+// hubCheckDelay is how long after its last attempt a subscription is asked
+// again. The count of attempts selects the rung and the last rung repeats, so
+// a subscription that is never going to find a hub costs twelve requests a year
+// instead of 1,440 a day.
+func hubCheckDelay(checks int) time.Duration {
+	if checks < 0 {
+		checks = 0
+	}
+	if checks >= len(hubCheckLadder) {
+		checks = len(hubCheckLadder) - 1
+	}
+	return hubCheckLadder[checks]
+}
+
+// retryHubDiscovery asks the subscriptions that declared no hub whether they
+// have one now, as far as the check ladder says it is their turn, with the
+// channel's token when it has one.
 //
 // The span carries both numbers that matter: how many subscriptions are still
-// pending and how many found a hub this time. Without them a feed that will
-// never declare a hub looks identical to one that is about to succeed, and the
-// only way to notice the difference is the request count per minute.
+// pending and how many found a hub this time, plus how many were actually
+// asked, which is the difference between a loop that has calmed down and one
+// that is still hammering every host once a minute.
 func (h *hubIncomingBackend) retryHubDiscovery(ctx context.Context) {
 	ctx, span := observability.Span(ctx, "websub.discover.pending")
 	defer span.End()
 
 	rows, err := h.database.Query(`
-		select s.id, s.topic, coalesce(cs.settings->>'FeedToken', ''), coalesce(cs.settings->>'FeedMe', '')
+		select s.id, s.topic, coalesce(cs.settings->>'FeedToken', ''), coalesce(cs.settings->>'FeedMe', ''),
+		       s.hub_checks, s.hub_checked_at
 		from subscriptions s
 		inner join feeds f on f.url = s.topic
 		inner join channels c on c.id = f.channel_id
@@ -331,19 +364,30 @@ func (h *hubIncomingBackend) retryHubDiscovery(ctx context.Context) {
 		return
 	}
 	type pending struct {
-		id    int64
-		topic string
-		token string
+		id        int64
+		topic     string
+		token     string
+		checks    int
+		checkedAt *time.Time
 	}
+	// Every subscription without a hub is counted, but only the ones the ladder
+	// says are due are asked. Counting both is what makes a trace answer "the
+	// loop is calm now" instead of "the loop is gone".
 	var todo []pending
+	pendingAll, waiting := 0, 0
 	for rows.Next() {
 		var p pending
 		var me string
-		if err := rows.Scan(&p.id, &p.topic, &p.token, &me); err != nil {
+		if err := rows.Scan(&p.id, &p.topic, &p.token, &me, &p.checks, &p.checkedAt); err != nil {
 			continue
 		}
 		if p.token != "" && !strings.EqualFold(hostOfURL(p.topic), hostOfURL(me)) {
 			p.token = ""
+		}
+		pendingAll++
+		if !hubCheckDue(p.checkedAt, p.checks, time.Now()) {
+			waiting++
+			continue
 		}
 		todo = append(todo, p)
 	}
@@ -351,11 +395,25 @@ func (h *hubIncomingBackend) retryHubDiscovery(ctx context.Context) {
 
 	found := 0
 	for _, p := range todo {
-		client := identifyingClient(0)
+		// A discovery request that is never answered would park the whole pass,
+		// so these requests get a budget of their own; feed polling has one for
+		// the same reason. Ten seconds is generous for a HEAD and a small feed.
+		client := identifyingClient(discoveryTimeout)
 		if p.token != "" {
 			client = tokenClient(p.token)
 		}
 		hubURL, err := h.discoverHub(ctx, client, p.topic)
+
+		// The attempt is recorded whether or not it found anything: the ladder
+		// advances on attempts, not on successes, or a feed that declares no hub
+		// is asked again on the next pass and the ladder never leaves rung 0.
+		if _, uerr := h.database.Exec(
+			`update subscriptions set hub_checks = hub_checks + 1, hub_checked_at = now() where id = $1`,
+			p.id,
+		); uerr != nil {
+			slog.ErrorContext(ctx, "websub: could not record a hub check", "subscription", p.id, "error", errorString(uerr))
+		}
+
 		if err != nil || hubURL == "" {
 			continue
 		}
@@ -369,10 +427,30 @@ func (h *hubIncomingBackend) retryHubDiscovery(ctx context.Context) {
 	}
 
 	span.SetAttributes(
-		attribute.Int("websub.pending", len(todo)),
+		attribute.Int("websub.pending", pendingAll),
+		attribute.Int("websub.due", len(todo)),
+		attribute.Int("websub.waiting", waiting),
 		attribute.Int("websub.discovered", found),
 	)
+	slog.DebugContext(ctx, "websub: discovery check",
+		"pending", pendingAll, "due", len(todo), "waiting", waiting, "found", found)
 }
+
+// hubCheckDue reports whether a subscription that has no hub is due another
+// attempt. A row that has never been checked is due, which is what makes a
+// subscription created before this ladder existed behave like a fresh one.
+func hubCheckDue(checkedAt *time.Time, checks int, now time.Time) bool {
+	if checkedAt == nil {
+		return true
+	}
+	return !now.Before(checkedAt.Add(hubCheckDelay(checks)))
+}
+
+// discoveryTimeout bounds one hub discovery. Without it a host that accepts the
+// connection and never answers holds the pass open for as long as its TCP stack
+// allows, which is exactly how one feed turned a 60-second cycle into 87
+// seconds of waiting.
+const discoveryTimeout = 10 * time.Second
 
 func (h *hubIncomingBackend) run() error {
 	ticker := time.NewTicker(1 * time.Minute)

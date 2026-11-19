@@ -730,12 +730,16 @@ const (
 	// immediate regardless; this is the interval after that, so a fresh
 	// subscription is re-read within the hour instead of within two minutes.
 	startTier = 6
-	// maxTier is the floor on how often a dormant feed is asked: 2^16 minutes is
-	// about 45 days, which still notices a feed that revives within a season.
-	// From here the climb to the next rung costs two fetches at doubling
-	// intervals, so a larger ceiling would only be reached by a feed that has
-	// been silent for years — and stay invisible for as long again.
+	// maxTier is the top rung, and maxInterval is the ceiling on what any rung
+	// may mean. 2^16 minutes would be about 45 days, so the interval is capped
+	// at 30: a feed that has not published in a month is still read once a
+	// month, which is the longest a reader can wait without the feed becoming a
+	// subscription they forgot they had. A feed with a WebSub hub is woken by
+	// the hub anyway; this ceiling is the safety net for the ones without.
 	maxTier = 16
+	// maxInterval caps the poll interval regardless of the rung, so raising
+	// maxTier later cannot silently stretch the longest wait past a month.
+	maxInterval = 30 * 24 * time.Hour
 	// changeCeiling is where a changed feed lands at most, however high it had
 	// climbed: 2^8 minutes is just over four hours. The rung it would land on by falling
 	// two from tier 16 is eleven days, so the check that confirms a revival
@@ -801,13 +805,16 @@ func (b *memoryBackend) scheduleNextFetch(ctx context.Context, f *feed, changed 
 		f.Tier = 0
 	}
 
-	minutes := time.Duration(math.Ceil(math.Exp2(float64(f.Tier))))
+	interval := time.Duration(math.Ceil(math.Exp2(float64(f.Tier)))) * time.Minute
+	if interval > maxInterval {
+		interval = maxInterval
+	}
 
-	f.NextFetchAt = time.Now().Add(minutes * time.Minute)
+	f.NextFetchAt = time.Now().Add(interval)
 
 	slog.DebugContext(ctx, "next fetch scheduled",
 		"feed_id", f.ID, "url", f.URL,
-		"in_minutes", int(minutes), "at", f.NextFetchAt.Format(time.RFC3339))
+		"in_minutes", int(interval.Minutes()), "at", f.NextFetchAt.Format(time.RFC3339))
 }
 
 // feedFailed pushes the next attempt out on the failure schedule. Without this
