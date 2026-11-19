@@ -1452,7 +1452,10 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 // Fetch3 fills stuff
 func (b *memoryBackend) Fetch3(ctx context.Context, channel, fetchURL string) (*http.Response, error) {
 	slog.DebugContext(ctx, "fetching for channel", "channel", channel, "url", fetchURL)
-	return Fetch2(ctx, fetchURL)
+	// Following a private feed fetches it immediately, so this path needs the
+	// channel's token too: it is the same fetch as the refresh, just the first
+	// one.
+	return fetchFeedResponse(ctx, fetchURL, "", "", b.feedTokenFor(ctx, channel, fetchURL))
 }
 
 // fetchState is what stays the same for every item of one fetch: the index batch,

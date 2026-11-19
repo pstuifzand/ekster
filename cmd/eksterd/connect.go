@@ -361,6 +361,12 @@ func (h *mainHandler) handleConnectCallback(w http.ResponseWriter, r *http.Reque
 		h.connectFail(w, r, p.channel, "could not save the token")
 		return
 	}
+	// Connecting is also how the channel starts fetching it: a token with no
+	// follow would be a credential nobody uses. Following an existing feed is a
+	// no-op, so this is safe when the channel already had the URL.
+	if _, err := h.Backend.FollowURL(r.Context(), p.channel, p.feed); err != nil {
+		slog.ErrorContext(r.Context(), "connected, but the feed was not added to the channel", "channel", p.channel, "url", p.feed, "error", err)
+	}
 	slog.InfoContext(r.Context(), "connected a private feed", "channel", p.channel, "host", hostOfURL(p.feed), "scope", tok.Scope)
 	http.Redirect(w, r, "/settings/channel?uid="+url.QueryEscape(p.channel)+"&connected=1", http.StatusFound)
 }
