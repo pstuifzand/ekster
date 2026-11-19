@@ -979,7 +979,7 @@ func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (
 
 	_, _, _ = b.ProcessContent(ctx, uid, fmt.Sprintf("%d", feedID), subFeed.URL, resp.Header.Get("Content-Type"), resp.Body)
 
-	_, _ = b.hubBackend.CreateFeed(url)
+	_, _ = b.hubBackend.CreateFeed(url, b.feedTokenFor(ctx, uid, url))
 
 	return subFeed, nil
 }

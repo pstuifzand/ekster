@@ -205,6 +205,31 @@ func (t identifyingTransport) RoundTrip(r *http.Request) (*http.Response, error)
 // identifyingClient is an http.Client that introduces itself. http.DefaultTransport
 // is read when the client is built, so a Tracing-enabled transport is picked up
 // rather than bypassed.
+// tokenTransport adds a bearer token to every request it carries. It exists so a
+// private topic can be read by the same discovery code that reads public ones:
+// the hub link is in the body, and the body is behind the token.
+type tokenTransport struct {
+	next  http.RoundTripper
+	token string
+}
+
+func (t tokenTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("Authorization", "Bearer "+t.token)
+	if r.Header.Get("User-Agent") == "" {
+		r.Header.Set("User-Agent", userAgent())
+	}
+	return t.next.RoundTrip(r)
+}
+
+// tokenClient is the identifying client with a credential.
+func tokenClient(token string) *http.Client {
+	return &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: tokenTransport{next: identifyingTransport{next: http.DefaultTransport}, token: token},
+	}
+}
+
 func identifyingClient(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout:   timeout,

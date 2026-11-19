@@ -27,6 +27,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/pstuifzand/ekster/pkg/util"
@@ -41,7 +42,7 @@ const LeaseSeconds = 24 * 60 * 60
 // HubBackend handles information for the incoming handler
 type HubBackend interface {
 	Feeds() ([]Feed, error)
-	CreateFeed(url string) (int64, error)
+	CreateFeed(url, token string) (int64, error)
 	GetSecret(feedID int64) string
 	UpdateFeed(ctx context.Context, processor ContentProcessor, feedID int64, contentType string, body io.Reader) error
 	FeedSetLeaseSeconds(feedID int64, leaseSeconds int64) error
@@ -86,7 +87,7 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 	return secret
 }
 
-func (h *hubIncomingBackend) CreateFeed(topic string) (int64, error) {
+func (h *hubIncomingBackend) CreateFeed(topic, token string) (int64, error) {
 	slog.Debug("websub: creating feed", "topic", topic)
 	db := h.database
 
@@ -104,7 +105,14 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 		return 0, fmt.Errorf("insert into subscriptions: %w", err)
 	}
 
+	// Discovery reads the topic to find its hub, so a private topic answers 401
+	// to an anonymous HEAD too. The channel's token is what the link lives
+	// behind; without it the subscription is skipped and the feed only ever gets
+	// polled.
 	client := identifyingClient(0)
+	if token != "" {
+		client = tokenClient(token)
+	}
 
 	hubURL, err := websub.GetHubURL(client, topic)
 	if err != nil {
@@ -263,6 +271,57 @@ func subscribeBackoff(failures int) time.Duration {
 	return backoff
 }
 
+// retryHubDiscovery looks for subscriptions that never found a hub and tries
+// again, with the channel's token when it has one.
+func (h *hubIncomingBackend) retryHubDiscovery() {
+	rows, err := h.database.Query(`
+		select s.id, s.topic, coalesce(cs.settings->>'FeedToken', ''), coalesce(cs.settings->>'FeedMe', '')
+		from subscriptions s
+		inner join feeds f on f.url = s.topic
+		inner join channels c on c.id = f.channel_id
+		left join channel_settings cs on cs.channel_id = c.id
+		where s.hub is null`)
+	if err != nil {
+		slog.Error("websub: could not list subscriptions without a hub", "error", errorString(err))
+		return
+	}
+	type pending struct {
+		id    int64
+		topic string
+		token string
+	}
+	var todo []pending
+	for rows.Next() {
+		var p pending
+		var me string
+		if err := rows.Scan(&p.id, &p.topic, &p.token, &me); err != nil {
+			continue
+		}
+		if p.token != "" && !strings.EqualFold(hostOfURL(p.topic), hostOfURL(me)) {
+			p.token = ""
+		}
+		todo = append(todo, p)
+	}
+	rows.Close()
+
+	for _, p := range todo {
+		client := identifyingClient(0)
+		if p.token != "" {
+			client = tokenClient(p.token)
+		}
+		hubURL, err := websub.GetHubURL(client, p.topic)
+		if err != nil || hubURL == "" {
+			continue
+		}
+		callback := fmt.Sprintf("%s/incoming/%d", h.baseURL, p.id)
+		if _, err := h.database.Exec(`UPDATE subscriptions SET hub = $1, callback = $2 WHERE id = $3`, hubURL, callback, p.id); err != nil {
+			slog.Error("websub: could not save a discovered hub", "subscription", p.id, "error", errorString(err))
+			continue
+		}
+		slog.Info("websub: hub found on retry", "topic", p.topic, "hub", hubURL)
+	}
+}
+
 func (h *hubIncomingBackend) run() error {
 	ticker := time.NewTicker(1 * time.Minute)
 	quit := make(chan struct{})
@@ -274,6 +333,12 @@ func (h *hubIncomingBackend) run() error {
 			case <-ticker.C:
 				slog.Debug("websub: resubscribe pass started")
 				varWebsub.Add("runs", 1)
+
+				// A subscription with no hub is one whose discovery failed - a
+				// private topic answers 401 to an anonymous read. Once the
+				// channel holds a token those rows can find their hub, so they
+				// are retried here instead of being left for a manual re-follow.
+				h.retryHubDiscovery()
 
 				feeds, err := h.Feeds()
 				if err != nil {
