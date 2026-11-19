@@ -16,13 +16,22 @@ func TestFeedGaugesReportTierAndNextFetch(t *testing.T) {
 	next := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
 	gauges := newFeedGauges(nil)
 	gauges.list = func() ([]feedSchedule, error) {
-		return []feedSchedule{{URL: "https://a.example/feed.xml", Tier: 7, NextFetchAt: next}}, nil
+		return []feedSchedule{{
+			URL: "https://a.example/feed.xml", Tier: 7, NextFetchAt: next,
+			LastHTTPStatus: 401, Failures: 3,
+		}}, nil
 	}
 
 	want := `
 # HELP ekster_feed_tier Tier a feed is on; the fetch interval is 2^tier minutes.
 # TYPE ekster_feed_tier gauge
 ekster_feed_tier{url="https://a.example/feed.xml"} 7
+# HELP ekster_feed_last_http_status HTTP status of the last fetch; 0 when the request produced no response.
+# TYPE ekster_feed_last_http_status gauge
+ekster_feed_last_http_status{url="https://a.example/feed.xml"} 401
+# HELP ekster_feed_consecutive_failures Fetches in a row that did not succeed.
+# TYPE ekster_feed_consecutive_failures gauge
+ekster_feed_consecutive_failures{url="https://a.example/feed.xml"} 3
 # HELP ekster_feed_next_fetch_timestamp_seconds Unix time at which the scheduler will next fetch the feed.
 # TYPE ekster_feed_next_fetch_timestamp_seconds gauge
 ekster_feed_next_fetch_timestamp_seconds{url="https://a.example/feed.xml"} 1.7948304e+09

@@ -16,6 +16,12 @@ type feedSchedule struct {
 	URL         string
 	Tier        int
 	NextFetchAt time.Time
+	// LastHTTPStatus and Failures are how a feed that needs a credential looks
+	// from the outside: a 401 on every attempt, with the failure count climbing.
+	// They are exported so that condition can be alerted on instead of being
+	// noticed as a channel that quietly stopped filling.
+	LastHTTPStatus int
+	Failures       int
 }
 
 // feedGauges exports that state per feed. It exists because tier and next fetch
@@ -28,15 +34,18 @@ type feedSchedule struct {
 type feedGauges struct {
 	list func() ([]feedSchedule, error)
 
-	tier *prometheus.Desc
-	next *prometheus.Desc
+	tier     *prometheus.Desc
+	next     *prometheus.Desc
+	status   *prometheus.Desc
+	failures *prometheus.Desc
 }
 
 // newFeedGauges wires the collector to the live feeds table.
 func newFeedGauges(db *sql.DB) *feedGauges {
 	return &feedGauges{
 		list: func() ([]feedSchedule, error) {
-			rows, err := db.Query(`SELECT "url", "tier", "next_fetch_at" FROM "feeds"`)
+			rows, err := db.Query(`SELECT "url", "tier", "next_fetch_at",
+				coalesce("last_http_status", 0), "consecutive_failures" FROM "feeds"`)
 			if err != nil {
 				return nil, err
 			}
@@ -48,7 +57,7 @@ func newFeedGauges(db *sql.DB) *feedGauges {
 					f    feedSchedule
 					next sql.NullTime
 				)
-				if err := rows.Scan(&f.URL, &f.Tier, &next); err != nil {
+				if err := rows.Scan(&f.URL, &f.Tier, &next, &f.LastHTTPStatus, &f.Failures); err != nil {
 					return nil, err
 				}
 				if next.Valid {
@@ -66,12 +75,22 @@ func newFeedGauges(db *sql.DB) *feedGauges {
 			"ekster_feed_next_fetch_timestamp_seconds",
 			"Unix time at which the scheduler will next fetch the feed.",
 			[]string{"url"}, nil),
+		status: prometheus.NewDesc(
+			"ekster_feed_last_http_status",
+			"HTTP status of the last fetch; 0 when the request produced no response.",
+			[]string{"url"}, nil),
+		failures: prometheus.NewDesc(
+			"ekster_feed_consecutive_failures",
+			"Fetches in a row that did not succeed.",
+			[]string{"url"}, nil),
 	}
 }
 
 func (g *feedGauges) Describe(ch chan<- *prometheus.Desc) {
 	ch <- g.tier
 	ch <- g.next
+	ch <- g.status
+	ch <- g.failures
 }
 
 // Collect runs the query per scrape: 49 rows every 30 seconds is cheaper than a
@@ -89,5 +108,9 @@ func (g *feedGauges) Collect(ch chan<- prometheus.Metric) {
 		if !f.NextFetchAt.IsZero() {
 			ch <- prometheus.MustNewConstMetric(g.next, prometheus.GaugeValue, float64(f.NextFetchAt.Unix()), f.URL)
 		}
+		// A status of 0 is "never answered", which is a fact: it is what the feeds
+		// page shows too, and hiding it would make a dead feed look untried.
+		ch <- prometheus.MustNewConstMetric(g.status, prometheus.GaugeValue, float64(f.LastHTTPStatus), f.URL)
+		ch <- prometheus.MustNewConstMetric(g.failures, prometheus.GaugeValue, float64(f.Failures), f.URL)
 	}
 }
