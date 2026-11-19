@@ -32,3 +32,10 @@ var ErrFeedAlreadyFollowed = errors.New("feed is already followed in another cha
 // exist in another user's channel, and its existence is not the caller's
 // business.
 var ErrNotFound = errors.New("not found")
+
+// ErrNotAFeed is returned when a URL the caller supplied cannot be a feed at
+// all: it is empty or has no http(s) scheme, or the host answers something no
+// parser here reads. It maps to 400, because the input is what is wrong — a
+// preview typed into the reader's feed box used to answer 500, which reads as
+// "the server is broken" for a URL that simply is not a feed.
+var ErrNotAFeed = errors.New("not a feed")

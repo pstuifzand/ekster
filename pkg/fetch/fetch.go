@@ -330,7 +330,7 @@ func FeedItems(ctx context.Context, fetcher Fetcher, fetchURL, contentType strin
 			items = append(items, item)
 		}
 	} else {
-		return items, fmt.Errorf("unknown content-type %s for url %s", contentType, fetchURL)
+		return items, fmt.Errorf("%w: %s answers content-type %q", microsub.ErrNotAFeed, fetchURL, contentType)
 	}
 
 	for i, v := range items {

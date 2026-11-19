@@ -1223,16 +1223,29 @@ func (b *memoryBackend) PreviewURL(ctx context.Context, previewURL string) (micr
 	ctx, span := observability.Span(ctx, "feed.preview", attribute.String("feed.url", previewURL))
 	defer span.End()
 
+	// A preview is the one fetch whose URL the user typed, so the URL itself is
+	// what most often is wrong: empty, or a bare host without a scheme. Say so
+	// as a client error instead of letting the fetch fail as though the server
+	// had a problem.
+	if u, err := url.Parse(previewURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		if strings.TrimSpace(previewURL) == "" {
+			return microsub.Timeline{}, fmt.Errorf("%w: no url to preview", microsub.ErrNotAFeed)
+		}
+		return microsub.Timeline{}, fmt.Errorf("%w: %q is not an http(s) url", microsub.ErrNotAFeed, previewURL)
+	}
+
 	cachingFetch := WithCaching(b.pool, fetch.FetcherFunc(Fetch2))
 	resp, err := cachingFetch.Fetch(previewURL)
 	if err != nil {
-		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
+		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %w", previewURL, err)
 	}
 	defer resp.Body.Close()
 
 	items, err := ProcessSourcedItems(ctx, cachingFetch, previewURL, resp.Header.Get("content-type"), resp.Body)
 	if err != nil {
-		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %v", previewURL, err)
+		// %w, not %v: the handler asks whether this was a URL that cannot be a
+		// feed, and a flattened error string cannot answer that.
+		return microsub.Timeline{}, fmt.Errorf("error while fetching %s: %w", previewURL, err)
 	}
 
 	return microsub.Timeline{

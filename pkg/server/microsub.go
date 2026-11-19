@@ -38,6 +38,17 @@ var (
 	entryRegex = regexp.MustCompile(`^entry\[\d+\]$`)
 )
 
+// previewStatus separates a URL that cannot be a feed from a fetch that went
+// wrong. A preview carries a URL the person typed, so "this is not a feed" is
+// their input talking, not a broken server: it answers 400 with the reason.
+// Everything else — DNS, timeouts, a 5xx upstream — stays a 500.
+func previewStatus(err error) int {
+	if errors.Is(err, microsub.ErrNotAFeed) {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
+}
+
 // Constants used for the responses
 const (
 	OutputContentType = "application/json; charset=utf-8"
@@ -109,7 +120,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			timeline, err := h.backend.PreviewURL(r.Context(), values.Get("url"))
 			if err != nil {
 				slog.ErrorContext(r.Context(), "could not preview url", "url", values.Get("url"), "error", err)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(w, err.Error(), previewStatus(err))
 				return
 			}
 			respondJSON(w, timeline)
@@ -218,7 +229,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "preview" {
 			timeline, err := h.backend.PreviewURL(r.Context(), values.Get("url"))
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(w, err.Error(), previewStatus(err))
 				return
 			}
 			respondJSON(w, timeline)
