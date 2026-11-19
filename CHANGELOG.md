@@ -18,6 +18,7 @@
 
 ### Fixed
 
+- A preview of a URL that cannot be a feed — empty, no `http(s)` scheme, no host, or a host answering a content type no parser reads — answers 400 with the reason instead of 500, which the reader showed as "the server answered 500" for a value typed into its feed box. A fetch that genuinely fails upstream still answers 500.
 - An entry of a JSON Feed that carries no `id` is keyed by its permalink, so it no longer shares one row with every other id-less entry of that feed; an entry with neither an id nor a url is skipped as unaddressable.
 - An entry of a JSON Feed that carries no `date_published` is kept: the date falls back to `date_modified`, then to the same zero time the RSS path gives an undated entry, instead of an empty string the store rejects.
 - An item that reaches the store without an id gets its own uid. The empty string was the key every such item shared, which is why each feed failure overwrote the previous notification in the notifications channel.
