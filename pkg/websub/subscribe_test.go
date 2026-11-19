@@ -1,6 +1,7 @@
 package websub
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -56,7 +57,7 @@ func TestSubscribe(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			err := Subscribe(srv.Client(), srv.URL, "https://example.com/feed", "https://example.com/incoming/1", "secret", 86400)
+			err := Subscribe(context.Background(), srv.Client(), srv.URL, "https://example.com/feed", "https://example.com/incoming/1", "secret", 86400)
 
 			if tt.wantErr && err == nil {
 				t.Fatal("expected an error, got nil")

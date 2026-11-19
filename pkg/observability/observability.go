@@ -44,10 +44,9 @@ import (
 
 const tracerName = "github.com/pstuifzand/ekster"
 
-// httpInstrumented remembers whether http.DefaultTransport already carries the
-// otel RoundTripper, so calling InstrumentHTTP twice cannot nest two wrappers
-// and double every outgoing span.
-var httpInstrumented bool
+// Instrumenting is idempotent by inspecting the transport, not by remembering a
+// bool: a test that puts the plain transport back would otherwise leave a flag
+// set and silently disable tracing for every later test in the package.
 
 // Enabled reports whether spans should be produced at all. An endpoint is the
 // thing that makes tracing useful, so it is the thing that switches it on.
@@ -159,7 +158,7 @@ func InstrumentHTTP() http.RoundTripper {
 	if !Enabled() {
 		return http.DefaultTransport
 	}
-	if httpInstrumented {
+	if _, ok := http.DefaultTransport.(*otelhttp.Transport); ok {
 		return http.DefaultTransport
 	}
 
@@ -169,7 +168,6 @@ func InstrumentHTTP() http.RoundTripper {
 			return r.Method + " " + r.URL.Host + r.URL.Path
 		}),
 	)
-	httpInstrumented = true
 	return http.DefaultTransport
 }
 

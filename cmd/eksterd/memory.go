@@ -979,7 +979,7 @@ func (b *memoryBackend) FollowURL(ctx context.Context, uid string, url string) (
 
 	_, _, _ = b.ProcessContent(ctx, uid, fmt.Sprintf("%d", feedID), subFeed.URL, resp.Header.Get("Content-Type"), resp.Body)
 
-	_, _ = b.hubBackend.CreateFeed(url, b.feedTokenFor(ctx, uid, url))
+	_, _ = b.hubBackend.CreateFeed(ctx, url, b.feedTokenFor(ctx, uid, url))
 
 	return subFeed, nil
 }
@@ -989,16 +989,25 @@ func (b *memoryBackend) UnfollowURL(ctx context.Context, uid string, url string)
 	return err
 }
 
-func checkURL(u string) bool {
+// checkURL probes a guessed address. It takes ctx because the probe is part of
+// a search request: without it the HEAD arrives as a span of its own with no
+// parent, and the search trace cannot show which guess answered.
+func checkURL(ctx context.Context, u string) bool {
 	testURL, err := url.Parse(u)
 	if err != nil {
 		return false
 	}
 
-	resp, err := http.Head(testURL.String())
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, testURL.String(), nil)
+	if err != nil {
+		slog.ErrorContext(ctx, "could not build HEAD request", "url", u, "error", err)
+		return false
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 
 	if err != nil {
-		slog.Error("could not HEAD url", "url", u, "error", err)
+		slog.ErrorContext(ctx, "could not HEAD url", "url", u, "error", err)
 		return false
 	}
 
@@ -1007,15 +1016,15 @@ func checkURL(u string) bool {
 	return resp.StatusCode == 200
 }
 
-func getPossibleURLs(query string) []string {
+func getPossibleURLs(ctx context.Context, query string) []string {
 	urls := []string{}
 	if !(strings.HasPrefix(query, "https://") || strings.HasPrefix(query, "http://")) {
 		secureURL := "https://" + query
-		if checkURL(secureURL) {
+		if checkURL(ctx, secureURL) {
 			urls = append(urls, secureURL)
 		} else {
 			unsecureURL := "http://" + query
-			if checkURL(unsecureURL) {
+			if checkURL(ctx, unsecureURL) {
 				urls = append(urls, unsecureURL)
 			}
 		}
@@ -1154,7 +1163,7 @@ func (b *memoryBackend) Search(ctx context.Context, query string) ([]microsub.Fe
 	ctx, span := observability.Span(ctx, "feeds.search", attribute.String("search.query", query))
 	defer span.End()
 
-	urls := getPossibleURLs(query)
+	urls := getPossibleURLs(ctx, query)
 
 	// needs to be like this, because we get a null result otherwise in the json output
 	feeds := []microsub.Feed{}

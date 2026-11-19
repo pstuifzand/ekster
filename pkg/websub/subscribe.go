@@ -19,6 +19,7 @@
 package websub
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,19 +37,38 @@ import (
 	"willnorris.com/go/microformats"
 )
 
-// GetHubURL finds the HubURL for topic
-func GetHubURL(client *http.Client, topic string) (string, error) {
-	hubURL, err := parseLinkHeaders(client, topic)
+// GetHubURL finds the HubURL for topic.
+//
+// ctx is the whole point of the signature: both discovery requests are made
+// with it, so the HEAD and the GET land under whatever asked for the hub. Made
+// with client.Head/client.Get they carry no context at all, and the tracing
+// transport then opens each one as a root of its own — a trace of one span that
+// cannot say which feed, or which loop, caused the request.
+func GetHubURL(ctx context.Context, client *http.Client, topic string) (string, error) {
+	hubURL, err := parseLinkHeaders(ctx, client, topic)
 	if err == nil {
 		return hubURL, err
 	}
 
-	hubURL, err = parseBodyLinks(client, topic)
+	hubURL, err = parseBodyLinks(ctx, client, topic)
 	if err == nil {
 		return hubURL, err
 	}
 
 	return "", fmt.Errorf("no hub url found for topic %s", topic)
+}
+
+// do builds the request with ctx instead of letting the client derive one from
+// context.Background().
+func do(ctx context.Context, client *http.Client, method, rawurl string, body io.Reader, contentType string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, rawurl, body)
+	if err != nil {
+		return nil, err
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	return client.Do(req)
 }
 
 func isFeedContentType(contentType string) bool {
@@ -68,8 +88,8 @@ func isFeedContentType(contentType string) bool {
 	return false
 }
 
-func parseBodyLinks(client *http.Client, topic string) (string, error) {
-	resp, err := client.Get(topic)
+func parseBodyLinks(ctx context.Context, client *http.Client, topic string) (string, error) {
+	resp, err := do(ctx, client, http.MethodGet, topic, nil, "")
 
 	if err != nil {
 		return "", err
@@ -121,8 +141,8 @@ func parseBodyLinks(client *http.Client, topic string) (string, error) {
 	return "", fmt.Errorf("unknown content type of response: %s", resp.Header.Get("Content-Type"))
 }
 
-func parseLinkHeaders(client *http.Client, topic string) (string, error) {
-	resp, err := client.Head(topic)
+func parseLinkHeaders(ctx context.Context, client *http.Client, topic string) (string, error) {
+	resp, err := do(ctx, client, http.MethodHead, topic, nil, "")
 
 	if err != nil {
 		return "", err
@@ -142,8 +162,9 @@ func parseLinkHeaders(client *http.Client, topic string) (string, error) {
 	return "", fmt.Errorf("no hub url found in HTTP Link headers")
 }
 
-// Subscribe subscribes topicURL on hubURL
-func Subscribe(client *http.Client, hubURL, topicURL, callbackURL, secret string, leaseSeconds int) error {
+// Subscribe subscribes topicURL on hubURL. Like GetHubURL it takes ctx so the
+// POST is a child of the renewal or the follow request that asked for it.
+func Subscribe(ctx context.Context, client *http.Client, hubURL, topicURL, callbackURL, secret string, leaseSeconds int) error {
 	hub, err := url.Parse(hubURL)
 	if err != nil {
 		return err
@@ -157,7 +178,8 @@ func Subscribe(client *http.Client, hubURL, topicURL, callbackURL, secret string
 	q.Add("hub.lease_seconds", fmt.Sprintf("%d", leaseSeconds))
 	hub.RawQuery = ""
 
-	res, err := client.PostForm(hub.String(), q)
+	res, err := do(ctx, client, http.MethodPost, hub.String(), strings.NewReader(q.Encode()),
+		"application/x-www-form-urlencoded")
 	if err != nil {
 		return err
 	}

@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -124,6 +125,101 @@ func TestRequestLogsCarryTheSpanIDs(t *testing.T) {
 			t.Errorf("request log line %q is missing %q", line, want)
 		}
 	}
+}
+
+// Discovery is the reason a trace of ekster's hub side exists: it makes two
+// requests per topic, it is retried in the background, and both facts are only
+// visible if the requests hang off a span that names the feed. An orphan
+// client span answers "a HEAD went to visidata.org" and nothing else.
+func TestHubDiscoveryHangsOffItsOwnSpan(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318")
+
+	recorder := recordSpans(t)
+	previousPropagator := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{}, propagation.Baggage{}))
+	t.Cleanup(func() { otel.SetTextMapPropagator(previousPropagator) })
+
+	previousTransport := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = previousTransport })
+	observability.InstrumentHTTP()
+
+	tests := []struct {
+		name     string
+		hubLink  string
+		wantHub  bool
+		handlers int
+	}{
+		{name: "topic with a hub", hubLink: `<https://example.com/hub>; rel="hub"`, wantHub: true},
+		{name: "topic without a hub", hubLink: "", wantHub: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder.Reset()
+
+			topic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.hubLink != "" {
+					w.Header().Set("Link", tt.hubLink)
+				}
+				w.Header().Set("Content-Type", "application/rss+xml")
+				_, _ = w.Write([]byte("<rss><channel></channel></rss>"))
+			}))
+			defer topic.Close()
+
+			backend := &hubIncomingBackend{}
+			parent, passSpan := observability.Span(context.Background(), "websub.resubscribe")
+
+			hub, _ := backend.discoverHub(parent, identifyingClient(5*time.Second), topic.URL+"/feed")
+			passSpan.End()
+
+			if tt.wantHub != (hub != "") {
+				t.Fatalf("hub = %q, want found = %v", hub, tt.wantHub)
+			}
+			if tt.wantHub && hub != "https://example.com/hub" {
+				t.Errorf("hub = %q", hub)
+			}
+
+			spans := recorder.Ended()
+			discover := spanByName(spans, "websub.discover")
+			if discover == nil {
+				t.Fatalf("no websub.discover span in %v", spanNames(spans))
+			}
+			if discover.Parent().SpanID() != passSpan.SpanContext().SpanID() {
+				t.Errorf("websub.discover is not a child of websub.resubscribe")
+			}
+			if got := attributeValue(discover, "websub.hub.found"); got != tt.wantHub {
+				t.Errorf("websub.hub.found = %v, want %v", got, tt.wantHub)
+			}
+
+			// The HEAD is the request this whole span exists for, so it must be
+			// under the discover span and in the same trace.
+			var head sdktrace.ReadOnlySpan
+			for _, s := range spans {
+				if strings.HasPrefix(s.Name(), "HEAD ") {
+					head = s
+				}
+			}
+			if head == nil {
+				t.Fatalf("no HEAD client span in %v", spanNames(spans))
+			}
+			if head.Parent().SpanID() != discover.SpanContext().SpanID() {
+				t.Errorf("the HEAD span is not a child of websub.discover")
+			}
+			if head.SpanContext().TraceID() != passSpan.SpanContext().TraceID() {
+				t.Errorf("the HEAD span is in another trace")
+			}
+		})
+	}
+}
+
+func attributeValue(s sdktrace.ReadOnlySpan, key string) any {
+	for _, kv := range s.Attributes() {
+		if string(kv.Key) == key {
+			return kv.Value.AsInterface()
+		}
+	}
+	return nil
 }
 
 func spanNames(spans []sdktrace.ReadOnlySpan) []string {

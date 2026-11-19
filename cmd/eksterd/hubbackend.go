@@ -27,13 +27,17 @@ import (
 	"io"
 	"io/ioutil"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/pstuifzand/ekster/pkg/observability"
 	"github.com/pstuifzand/ekster/pkg/util"
 	"github.com/pstuifzand/ekster/pkg/websub"
 
 	"github.com/gomodule/redigo/redis"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 // LeaseSeconds is the default number of seconds we want the subscription to last
@@ -42,11 +46,11 @@ const LeaseSeconds = 24 * 60 * 60
 // HubBackend handles information for the incoming handler
 type HubBackend interface {
 	Feeds() ([]Feed, error)
-	CreateFeed(url, token string) (int64, error)
+	CreateFeed(ctx context.Context, url, token string) (int64, error)
 	GetSecret(feedID int64) string
 	UpdateFeed(ctx context.Context, processor ContentProcessor, feedID int64, contentType string, body io.Reader) error
 	FeedSetLeaseSeconds(feedID int64, leaseSeconds int64) error
-	Subscribe(feed *Feed) error
+	Subscribe(ctx context.Context, feed *Feed) error
 }
 
 type hubIncomingBackend struct {
@@ -87,8 +91,13 @@ func (h *hubIncomingBackend) GetSecret(id int64) string {
 	return secret
 }
 
-func (h *hubIncomingBackend) CreateFeed(topic, token string) (int64, error) {
-	slog.Debug("websub: creating feed", "topic", topic)
+func (h *hubIncomingBackend) CreateFeed(ctx context.Context, topic, token string) (int64, error) {
+	// A follow request creates this subscription, so the span hangs off that
+	// request's trace and the discovery requests below it name their owner.
+	ctx, span := observability.Span(ctx, "websub.create", attribute.String("feed.url", topic))
+	defer span.End()
+
+	slog.DebugContext(ctx, "websub: creating feed", "topic", topic)
 	db := h.database
 
 	secret := util.RandStringBytes(32)
@@ -114,15 +123,15 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 		client = tokenClient(token)
 	}
 
-	hubURL, err := websub.GetHubURL(client, topic)
+	hubURL, err := h.discoverHub(ctx, client, topic)
 	if err != nil {
-		slog.Warn("websub: no hub url for topic", "topic", topic)
+		slog.WarnContext(ctx, "websub: no hub url for topic", "topic", topic, "error", errorString(err))
 		return 0, err
 	}
 
 	callbackURL := fmt.Sprintf("%s/incoming/%d", h.baseURL, subscriptionID)
 
-	slog.Info("websub: hub found", "topic", topic, "hub", hubURL, "callback", callbackURL)
+	slog.InfoContext(ctx, "websub: hub found", "topic", topic, "hub", hubURL, "callback", callbackURL)
 
 	if err == nil && hubURL != "" {
 		_, err := db.Exec(`UPDATE subscriptions SET hub = $1, callback = $2 WHERE id = $3`, hubURL, callbackURL, subscriptionID)
@@ -133,7 +142,7 @@ VALUES ($1, $2, $3, $4, DEFAULT) RETURNING "id"`, topic, secret, urlSecret, 60*6
 		return int64(subscriptionID), nil
 	}
 
-	err = websub.Subscribe(client, hubURL, topic, callbackURL, secret, 24*3600)
+	err = websub.Subscribe(ctx, client, hubURL, topic, callbackURL, secret, 24*3600)
 	if err != nil {
 		return 0, fmt.Errorf("subscribe: %w", err)
 	}
@@ -250,12 +259,38 @@ func (h *hubIncomingBackend) Feeds() ([]Feed, error) {
 	return feeds, rows.Err()
 }
 
-func (h *hubIncomingBackend) Subscribe(feed *Feed) error {
-	slog.Debug("websub: subscribing", "feed", feed.URL)
+func (h *hubIncomingBackend) Subscribe(ctx context.Context, feed *Feed) error {
+	slog.DebugContext(ctx, "websub: subscribing", "topic", feed.URL, "hub", feed.Hub)
 	// A hub that accepts the connection but never answers would otherwise block
 	// the whole renewal loop for every other feed.
 	client := identifyingClient(30 * time.Second)
-	return websub.Subscribe(client, feed.Hub, feed.URL, feed.Callback, feed.Secret, LeaseSeconds)
+	return websub.Subscribe(ctx, client, feed.Hub, feed.URL, feed.Callback, feed.Secret, LeaseSeconds)
+}
+
+// discoverHub asks a topic for its WebSub hub inside its own span, so a trace
+// names the feed that was asked and says whether it declared a hub. A feed that
+// declares none is a fact about the feed, not a failure, so the span records
+// the outcome as an attribute and leaves its status OK: the requests beneath it
+// are the evidence, and the pass counts the misses.
+func (h *hubIncomingBackend) discoverHub(ctx context.Context, client *http.Client, topic string) (string, error) {
+	ctx, span := observability.Span(ctx, "websub.discover", attribute.String("feed.url", topic))
+	defer span.End()
+
+	hubURL, err := websub.GetHubURL(ctx, client, topic)
+	if err != nil || hubURL == "" {
+		span.SetAttributes(attribute.Bool("websub.hub.found", false))
+		slog.DebugContext(ctx, "websub: no hub for topic", "topic", topic, "error", errorString(err))
+		if err == nil {
+			err = fmt.Errorf("no hub url found for topic %s", topic)
+		}
+		return "", err
+	}
+
+	span.SetAttributes(
+		attribute.Bool("websub.hub.found", true),
+		attribute.String("websub.hub", hubURL),
+	)
+	return hubURL, nil
 }
 
 // subscribeBackoff gives the first retry after 15 minutes and doubles up to six
@@ -273,7 +308,15 @@ func subscribeBackoff(failures int) time.Duration {
 
 // retryHubDiscovery looks for subscriptions that never found a hub and tries
 // again, with the channel's token when it has one.
-func (h *hubIncomingBackend) retryHubDiscovery() {
+//
+// The span carries both numbers that matter: how many subscriptions are still
+// pending and how many found a hub this time. Without them a feed that will
+// never declare a hub looks identical to one that is about to succeed, and the
+// only way to notice the difference is the request count per minute.
+func (h *hubIncomingBackend) retryHubDiscovery(ctx context.Context) {
+	ctx, span := observability.Span(ctx, "websub.discover.pending")
+	defer span.End()
+
 	rows, err := h.database.Query(`
 		select s.id, s.topic, coalesce(cs.settings->>'FeedToken', ''), coalesce(cs.settings->>'FeedMe', '')
 		from subscriptions s
@@ -282,7 +325,9 @@ func (h *hubIncomingBackend) retryHubDiscovery() {
 		left join channel_settings cs on cs.channel_id = c.id
 		where s.hub is null`)
 	if err != nil {
-		slog.Error("websub: could not list subscriptions without a hub", "error", errorString(err))
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		slog.ErrorContext(ctx, "websub: could not list subscriptions without a hub", "error", errorString(err))
 		return
 	}
 	type pending struct {
@@ -304,22 +349,29 @@ func (h *hubIncomingBackend) retryHubDiscovery() {
 	}
 	rows.Close()
 
+	found := 0
 	for _, p := range todo {
 		client := identifyingClient(0)
 		if p.token != "" {
 			client = tokenClient(p.token)
 		}
-		hubURL, err := websub.GetHubURL(client, p.topic)
+		hubURL, err := h.discoverHub(ctx, client, p.topic)
 		if err != nil || hubURL == "" {
 			continue
 		}
 		callback := fmt.Sprintf("%s/incoming/%d", h.baseURL, p.id)
 		if _, err := h.database.Exec(`UPDATE subscriptions SET hub = $1, callback = $2 WHERE id = $3`, hubURL, callback, p.id); err != nil {
-			slog.Error("websub: could not save a discovered hub", "subscription", p.id, "error", errorString(err))
+			slog.ErrorContext(ctx, "websub: could not save a discovered hub", "subscription", p.id, "error", errorString(err))
 			continue
 		}
-		slog.Info("websub: hub found on retry", "topic", p.topic, "hub", hubURL)
+		found++
+		slog.InfoContext(ctx, "websub: hub found on retry", "topic", p.topic, "hub", hubURL)
 	}
+
+	span.SetAttributes(
+		attribute.Int("websub.pending", len(todo)),
+		attribute.Int("websub.discovered", found),
+	)
 }
 
 func (h *hubIncomingBackend) run() error {
@@ -331,64 +383,7 @@ func (h *hubIncomingBackend) run() error {
 		for {
 			select {
 			case <-ticker.C:
-				slog.Debug("websub: resubscribe pass started")
-				varWebsub.Add("runs", 1)
-
-				// A subscription with no hub is one whose discovery failed - a
-				// private topic answers 401 to an anonymous read. Once the
-				// channel holds a token those rows can find their hub, so they
-				// are retried here instead of being left for a manual re-follow.
-				h.retryHubDiscovery()
-
-				feeds, err := h.Feeds()
-				if err != nil {
-					slog.Error("websub: could not list feeds", "error", errorString(err))
-					slog.Debug("websub: resubscribe pass completed")
-					continue
-				}
-
-				slog.Info("websub: feeds to check", "feeds", len(feeds))
-				for _, feed := range feeds {
-					slog.Debug("websub: looking at feed", "url", feed.URL)
-					if feed.ResubscribeAt != nil && time.Now().Before(*feed.ResubscribeAt) {
-						continue
-					}
-					if feed.Callback == "" {
-						feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
-					}
-					slog.Info("websub: resubscribing",
-						"feed_id", feed.ID, "topic", feed.URL, "hub", feed.Hub, "callback", feed.Callback)
-					varWebsub.Add("resubscribe", 1)
-					err := h.Subscribe(&feed)
-
-					var next time.Time
-					if err != nil {
-						varWebsub.Add("errors", 1)
-						failures[feed.ID]++
-						backoff := subscribeBackoff(failures[feed.ID])
-						next = time.Now().Add(backoff)
-						slog.Warn("websub: subscription rejected",
-							"feed_id", feed.ID,
-							"topic", feed.URL,
-							"hub", feed.Hub,
-							"retry_in", backoff.String(),
-							"error", errorString(err))
-					} else {
-						delete(failures, feed.ID)
-						lease := time.Duration(feed.LeaseSeconds) * time.Second
-						if lease <= 0 {
-							lease = time.Duration(LeaseSeconds) * time.Second
-						}
-						next = time.Now().Add(lease / 2)
-					}
-
-					if e := h.FeedSetResubscribeAt(feed.ID, next); e != nil {
-						slog.Error("websub: could not store resubscribe_at",
-							"feed_id", feed.ID, "error", errorString(e))
-					}
-				}
-
-				slog.Debug("websub: resubscribe pass completed")
+				h.resubscribePass(failures)
 			case <-quit:
 				ticker.Stop()
 				return
@@ -397,4 +392,108 @@ func (h *hubIncomingBackend) run() error {
 	}()
 
 	return nil
+}
+
+// resubscribePass is one renewal cycle: hub discovery for the subscriptions
+// that have none, then a renewal for every subscription that is due.
+//
+// The span is a deliberate root. A ticker makes this happen, no request is
+// waiting for it, and every request below it is caused by it — so a trace that
+// starts here is the honest shape, and it is what makes the discovery HEADs
+// children of the pass instead of a pile of one-span traces nobody can
+// attribute. context.Background() is correct for the same reason: the pass
+// outlives any request, so there is no request context to inherit.
+func (h *hubIncomingBackend) resubscribePass(failures map[int64]int) {
+	ctx, span := observability.Span(context.Background(), "websub.resubscribe")
+	defer span.End()
+
+	slog.DebugContext(ctx, "websub: resubscribe pass started")
+	varWebsub.Add("runs", 1)
+
+	// A subscription with no hub is one whose discovery failed - a private
+	// topic answers 401 to an anonymous read. Once the channel holds a token
+	// those rows can find their hub, so they are retried here instead of being
+	// left for a manual re-follow.
+	h.retryHubDiscovery(ctx)
+
+	feeds, err := h.Feeds()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		slog.ErrorContext(ctx, "websub: could not list feeds", "error", errorString(err))
+		return
+	}
+
+	span.SetAttributes(attribute.Int("websub.subscriptions", len(feeds)))
+	slog.InfoContext(ctx, "websub: feeds to check", "feeds", len(feeds))
+
+	renewed, rejected := 0, 0
+	for _, feed := range feeds {
+		slog.DebugContext(ctx, "websub: looking at feed", "url", feed.URL)
+		if feed.ResubscribeAt != nil && time.Now().Before(*feed.ResubscribeAt) {
+			continue
+		}
+		if feed.Callback == "" {
+			feed.Callback = fmt.Sprintf("%s/incoming/%d", h.baseURL, feed.ID)
+		}
+		if err := h.renew(ctx, &feed, failures); err != nil {
+			rejected++
+		} else {
+			renewed++
+		}
+	}
+
+	span.SetAttributes(
+		attribute.Int("websub.renewed", renewed),
+		attribute.Int("websub.rejected", rejected),
+	)
+	slog.DebugContext(ctx, "websub: resubscribe pass completed")
+}
+
+// renew asks one hub to keep one subscription alive and stores when to try
+// again, so the retry period is the stored lease rather than the ticker.
+func (h *hubIncomingBackend) renew(ctx context.Context, feed *Feed, failures map[int64]int) error {
+	ctx, span := observability.Span(ctx, "websub.subscribe",
+		attribute.Int64("feed.id", feed.ID),
+		attribute.String("feed.url", feed.URL),
+		attribute.String("websub.hub", feed.Hub),
+	)
+	defer span.End()
+
+	slog.InfoContext(ctx, "websub: resubscribing",
+		"feed_id", feed.ID, "topic", feed.URL, "hub", feed.Hub, "callback", feed.Callback)
+	varWebsub.Add("resubscribe", 1)
+	err := h.Subscribe(ctx, feed)
+
+	var next time.Time
+	if err != nil {
+		varWebsub.Add("errors", 1)
+		failures[feed.ID]++
+		backoff := subscribeBackoff(failures[feed.ID])
+		next = time.Now().Add(backoff)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.SetAttributes(attribute.String("websub.retry_in", backoff.String()))
+		slog.WarnContext(ctx, "websub: subscription rejected",
+			"feed_id", feed.ID,
+			"topic", feed.URL,
+			"hub", feed.Hub,
+			"retry_in", backoff.String(),
+			"error", errorString(err))
+	} else {
+		delete(failures, feed.ID)
+		lease := time.Duration(feed.LeaseSeconds) * time.Second
+		if lease <= 0 {
+			lease = time.Duration(LeaseSeconds) * time.Second
+		}
+		next = time.Now().Add(lease / 2)
+	}
+
+	if e := h.FeedSetResubscribeAt(feed.ID, next); e != nil {
+		span.RecordError(e)
+		slog.ErrorContext(ctx, "websub: could not store resubscribe_at",
+			"feed_id", feed.ID, "error", errorString(e))
+	}
+
+	return err
 }

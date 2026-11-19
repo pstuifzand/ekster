@@ -121,11 +121,7 @@ func TestInstrumentHTTPTracesOutgoingRequests(t *testing.T) {
 	defer target.Close()
 
 	previous := http.DefaultTransport
-	httpInstrumented = false
-	t.Cleanup(func() {
-		http.DefaultTransport = previous
-		httpInstrumented = false
-	})
+	t.Cleanup(func() { http.DefaultTransport = previous })
 
 	InstrumentHTTP()
 
