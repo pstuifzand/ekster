@@ -69,7 +69,7 @@ func userAgent() string {
 // the difference between downloading a feed that has not changed and being
 // told it has not changed: a 304 costs the host a header comparison and costs
 // the reader no body.
-func feedRequest(ctx context.Context, fetchURL, etag, lastModified string) (*http.Request, error) {
+func feedRequest(ctx context.Context, fetchURL, etag, lastModified, token string) (*http.Request, error) {
 	if !strings.HasPrefix(fetchURL, "http") {
 		return nil, fmt.Errorf("error parsing %s as url, has no http(s) prefix", fetchURL)
 	}
@@ -95,6 +95,12 @@ func feedRequest(ctx context.Context, fetchURL, etag, lastModified string) (*htt
 
 	req.Header.Set("User-Agent", userAgent())
 	req.Header.Set("Accept", acceptHeader)
+	// A feed that is not public says so with a 401; the token is the answer. It
+	// is added here, next to the conditional headers, so every fetch path gets it
+	// from the same place.
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	if etag != "" {
 		req.Header.Set("If-None-Match", etag)
 	}
@@ -107,8 +113,8 @@ func feedRequest(ctx context.Context, fetchURL, etag, lastModified string) (*htt
 
 // fetchFeedResponse performs a feed GET with the caller's context, so the span
 // stays in the trace and the per-feed deadline cancels it.
-func fetchFeedResponse(ctx context.Context, fetchURL, etag, lastModified string) (*http.Response, error) {
-	req, err := feedRequest(ctx, fetchURL, etag, lastModified)
+func fetchFeedResponse(ctx context.Context, fetchURL, etag, lastModified, token string) (*http.Response, error) {
+	req, err := feedRequest(ctx, fetchURL, etag, lastModified, token)
 	if err != nil {
 		return nil, err
 	}

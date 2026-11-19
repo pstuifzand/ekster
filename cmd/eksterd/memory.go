@@ -103,6 +103,15 @@ type channelSetting struct {
 	IncludeRegex string
 	ExcludeType  []string
 	ChannelType  string
+
+	// FeedToken is a credential for fetching this channel's private feeds. It is
+	// minted by logging in at the feed's own site, and it is only ever sent to a
+	// feed on the host in FeedMe: a token for p83.nl is not a token for the
+	// internet.
+	FeedToken string `json:",omitempty"`
+	FeedMe    string `json:",omitempty"`
+	FeedScope string `json:",omitempty"`
+	FeedURL   string `json:",omitempty"`
 }
 
 type channelMessage struct {
@@ -650,7 +659,10 @@ func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
 
 	// The validators from the last body make the request conditional: an
 	// unchanged feed costs the host a header comparison and costs us no body.
-	resp, fetchErr := fetchFeedResponse(ctx, f.URL, f.ETag, f.LastModified)
+	// A private feed answers 401 without its token, and 200 with it. The token is
+	// looked up per fetch because it can be connected or disconnected from the
+	// channel page at any moment.
+	resp, fetchErr := fetchFeedResponse(ctx, f.URL, f.ETag, f.LastModified, b.feedTokenFor(ctx, f.UID, f.URL))
 	if fetchErr != nil {
 		return b.feedFailed(ctx, f, fmt.Errorf("fetch of %s: %w", f.URL, fetchErr))
 	}
@@ -1761,7 +1773,7 @@ var ErrBlackList = errors.New("Blacklisted URL")
 
 // Fetch2 fetches stuff
 func Fetch2(ctx context.Context, fetchURL string) (*http.Response, error) {
-	return fetchFeedResponse(ctx, fetchURL, "", "")
+	return fetchFeedResponse(ctx, fetchURL, "", "", "")
 }
 
 func (b *memoryBackend) loadSetting(ctx context.Context, uid string) (channelSetting, error) {

@@ -88,6 +88,11 @@ type settingsPage struct {
 
 	Channels []microsub.Channel
 	Feeds    []microsub.Feed
+
+	// The private-feed pane: whether this channel already holds a token, for
+	// which site, and why the last attempt failed.
+	ConnectError string
+	Connected    bool
 }
 type logsPage struct {
 	Session session
@@ -410,6 +415,12 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			return
+		} else if r.URL.Path == "/settings/connect" {
+			h.handleConnectStart(w, r, conn)
+			return
+		} else if r.URL.Path == "/settings/connect/callback" {
+			h.handleConnectCallback(w, r, conn)
+			return
 		} else if r.URL.Path == "/settings/channel" {
 			c, err := r.Cookie("session")
 			if err == http.ErrNoCookie {
@@ -480,6 +491,8 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
+			page.ConnectError = r.URL.Query().Get("connect_error")
+			page.Connected = r.URL.Query().Get("connected") == "1"
 			err = h.renderTemplate(w, "channel.html", page)
 			if err != nil {
 				fmt.Fprintf(w, "ERROR: %s\n", err)
@@ -892,6 +905,9 @@ func (h *mainHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			http.Redirect(w, r, "/settings", http.StatusFound)
+			return
+		} else if r.URL.Path == "/settings/connect/disconnect" {
+			h.handleDisconnect(w, r, conn)
 			return
 		} else if r.URL.Path == "/settings/sources" {
 			h.handleSourceCreate(w, r, conn)

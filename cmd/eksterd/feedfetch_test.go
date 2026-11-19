@@ -39,7 +39,7 @@ func TestFeedRequestIdentifiesTheReaderAndAsksForFeeds(t *testing.T) {
 	}))
 	defer server.Close()
 
-	resp, err := fetchFeedResponse(context.Background(), server.URL+"/feed", "", "")
+	resp, err := fetchFeedResponse(context.Background(), server.URL+"/feed", "", "", "")
 	if err != nil {
 		t.Fatalf("fetchFeedResponse: %s", err)
 	}
@@ -69,7 +69,7 @@ func TestFeedRequestCarriesTheValidators(t *testing.T) {
 	}))
 	defer server.Close()
 
-	resp, err := fetchFeedResponse(context.Background(), server.URL+"/feed", `W/"abc"`, "Mon, 02 Jan 2006 15:04:05 GMT")
+	resp, err := fetchFeedResponse(context.Background(), server.URL+"/feed", `W/"abc"`, "Mon, 02 Jan 2006 15:04:05 GMT", "")
 	if err != nil {
 		t.Fatalf("fetchFeedResponse: %s", err)
 	}
@@ -156,13 +156,13 @@ func TestRetryAfterIsHonoured(t *testing.T) {
 // The blacklist still applies to the shared builder, now that Fetch2 and the
 // feed path both go through it.
 func TestFeedRequestRejectsBlacklistedHosts(t *testing.T) {
-	if _, err := feedRequest(context.Background(), "https://twitter.com/pstuifzand", "", ""); err != ErrBlackList {
+	if _, err := feedRequest(context.Background(), "https://twitter.com/pstuifzand", "", "", ""); err != ErrBlackList {
 		t.Errorf("twitter profile: err = %v, want ErrBlackList", err)
 	}
-	if _, err := feedRequest(context.Background(), "https://www.reddit.com/r/golang/.rss", "", ""); err != ErrBlackList {
+	if _, err := feedRequest(context.Background(), "https://www.reddit.com/r/golang/.rss", "", "", ""); err != ErrBlackList {
 		t.Errorf("reddit: err = %v, want ErrBlackList", err)
 	}
-	if _, err := feedRequest(context.Background(), "https://twitter.com/pstuifzand/status/1", "", ""); err != nil {
+	if _, err := feedRequest(context.Background(), "https://twitter.com/pstuifzand/status/1", "", "", ""); err != nil {
 		t.Errorf("a tweet link: err = %v, want nil", err)
 	}
 }

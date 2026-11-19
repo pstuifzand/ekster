@@ -71,6 +71,51 @@
                 <p class="hint">No feeds in this channel.</p>
             {{ end }}
         </div>
+
+        <div class="pane">
+            <h2>Private feed</h2>
+            {{ if .ConnectError }}
+                <p class="hint" style="color:#a33a2a">{{ .ConnectError }}</p>
+            {{ end }}
+            {{ if .CurrentSetting.FeedToken }}
+                <p>Connected to <code>{{ host .CurrentSetting.FeedMe }}</code>
+                   with scope <code>{{ .CurrentSetting.FeedScope }}</code>.</p>
+                <p class="help">The token is sent only to feeds on that site.
+                   It is kept until you log in again or the site revokes it.</p>
+                <form action="/settings/connect/disconnect" method="post">
+                    <input type="hidden" name="uid" value="{{ .CurrentChannel.UID }}" />
+                    <button type="submit" class="button">Disconnect</button>
+                </form>
+                <form action="/settings/connect" method="get" style="margin-top:10px">
+                    <input type="hidden" name="uid" value="{{ .CurrentChannel.UID }}" />
+                    <div class="field">
+                        <label class="label" for="feed">Log in again for</label>
+                        <div class="control">
+                            <input type="url" class="input" id="feed" name="feed"
+                                   value="{{ .CurrentSetting.FeedURL }}" placeholder="https://p83.nl/alerts" />
+                        </div>
+                    </div>
+                    <button type="submit" class="button is-primary">Log in and replace</button>
+                </form>
+            {{ else }}
+                <p class="hint">A feed that answers 401 needs a token. Log in at the
+                   site that serves it — this reader asks for
+                   <code>alerts:read</code> and keeps the token here.</p>
+                <form action="/settings/connect" method="get">
+                    <input type="hidden" name="uid" value="{{ .CurrentChannel.UID }}" />
+                    <div class="field">
+                        <label class="label" for="feed">Feed URL</label>
+                        <div class="control">
+                            <input type="url" class="input" id="feed" name="feed"
+                                   placeholder="https://p83.nl/alerts" required />
+                        </div>
+                        <p class="help">The token is minted for that site, not for the address
+                           you typed: p83.nl/alerts gets a p83.nl token.</p>
+                    </div>
+                    <button type="submit" class="button is-primary">Log in and connect</button>
+                </form>
+            {{ end }}
+        </div>
     </div>
 </div>
 {{end}}
