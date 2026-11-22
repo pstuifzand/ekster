@@ -30,11 +30,29 @@ jobs:
           # commit has to be stamped by hand; without it the server reports
           # "dev-n/a" and two deployments look identical in the traces.
           LD="-s -w -X main.Version=build-$SHORT -X main.CommitHash=$SHORT -X main.BuildTime=$BT"
+          # Integration tests build their own databases from the app migrations,
+          # so they need a live PostgreSQL. It runs on a throwaway network next
+          # to the build container; each test creates and drops its own database.
+          NET=ekster-ci-$$
+          docker rm -f ekster-ci-pg >/dev/null 2>&1 || true
+          docker network create "$NET"
+          docker run -d --name ekster-ci-pg --network "$NET" \
+            --health-cmd 'pg_isready -U postgres' \
+            --health-interval 2s --health-retries 30 \
+            -e POSTGRES_PASSWORD=ekster-ci postgres:16 >/dev/null
+          trap 'docker rm -f ekster-ci-pg >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 60); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' ekster-ci-pg)" = healthy ] && break
+            sleep 1
+          done
+          [ "$(docker inspect -f '{{.State.Health.Status}}' ekster-ci-pg)" = healthy ]
           # As the runner's own uid: a root-owned artifact in the bind-mounted
           # workspace cannot be removed afterwards and fails the job.
           docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e GOCACHE=/tmp/go-cache \
+            --network "$NET" \
+            -e DATABASE_TEST_URL='postgres://postgres:ekster-ci@ekster-ci-pg:5432/postgres?sslmode=disable' \
             -e CGO_ENABLED=0 -e "LD=$LD" -v "$PWD":/src -w /src golang:1.27 \
-            sh -c 'go vet ./... && go test ./... && \
+            sh -c 'go vet ./... && go test ./... && go test -count=1 -tags=integration ./... && \
                    go build -trimpath -buildvcs=false -ldflags="$LD" -o dist/eksterd ./cmd/eksterd && \
                    go build -trimpath -buildvcs=false -ldflags="$LD" -o dist/ek ./cmd/ek'
           ls -l dist
