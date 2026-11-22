@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/pstuifzand/ekster/pkg/client"
 	"github.com/pstuifzand/ekster/pkg/server"
+	"github.com/pstuifzand/ekster/pkg/userid"
 )
 
 func TestTimelineLimitIntegration(t *testing.T) {
@@ -27,10 +29,11 @@ func TestTimelineLimitIntegration(t *testing.T) {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	for _, q := range []string{
-		`CREATE TEMP TABLE channels (id int primary key, uid text)`,
+		`CREATE TEMP TABLE channels (id int primary key, uid text, user_id int)`,
 		`CREATE TEMP TABLE feeds (id int, channel_id int, url text)`,
+		`CREATE TEMP TABLE mutes (user_id int, channel_id int, url text)`,
 		`CREATE TEMP TABLE items (id int primary key, channel_id int, uid text, data jsonb, created_at timestamptz, is_read int, published_at timestamptz)`,
-		`INSERT INTO channels VALUES (1,'home')`,
+		`INSERT INTO channels VALUES (1,'home',1)`,
 		`INSERT INTO items SELECT i,1,i::text,'{"type":"entry"}'::jsonb,now(),0,'2026-01-01T00:00:00Z'::timestamptz FROM generate_series(1, 105) i`,
 	} {
 		if _, err := db.Exec(q); err != nil {
@@ -38,7 +41,9 @@ func TestTimelineLimitIntegration(t *testing.T) {
 		}
 	}
 	h, _ := server.NewMicrosubHandler(&memoryBackend{database: db})
-	s := httptest.NewServer(h)
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.ServeHTTP(w, r.WithContext(userid.NewContext(r.Context(), 1)))
+	}))
 	defer s.Close()
 	u, _ := url.Parse(s.URL)
 	c := &client.Client{MicrosubEndpoint: u}

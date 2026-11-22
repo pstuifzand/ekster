@@ -296,7 +296,7 @@ type Microsub interface {
 	ItemSearch(ctx context.Context, channel, query string) ([]Item, error)
 	ItemSearchWithOptions(ctx context.Context, options ItemSearchOptions) (Timeline, error)
 
-	MuteGetList(ctx context.Context, channel string) ([]Card, error)
+	MuteGetList(ctx context.Context, channel string) ([]string, error)
 	MuteURL(ctx context.Context, channel, url string) error
 	UnmuteURL(ctx context.Context, channel, url string) error
 	BlockGetList(ctx context.Context, channel string) ([]Card, error)

@@ -153,6 +153,19 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respondJSON(w, map[string][]microsub.Feed{
 				"items": following,
 			})
+		} else if action == "mute" {
+			channel := values.Get("channel")
+			muted, err := h.backend.MuteGetList(r.Context(), channel)
+			if err != nil {
+				slog.ErrorContext(r.Context(), "could not list muted urls", "channel", channel, "error", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			cards := make([]microsub.Card, 0, len(muted))
+			for _, url := range muted {
+				cards = append(cards, microsub.Card{Type: "card", URL: url})
+			}
+			respondJSON(w, map[string][]microsub.Card{"items": cards})
 		} else if action == "events" {
 			events, err := h.backend.Events(r.Context())
 			if err != nil {
@@ -252,6 +265,20 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			uid := r.FormValue("channel")
 			url := r.FormValue("url")
 			err := h.backend.UnfollowURL(r.Context(), uid, url)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			respondJSON(w, []string{})
+		} else if action == "mute" || action == "unmute" {
+			channel := r.FormValue("channel")
+			url := r.FormValue("url")
+			var err error
+			if action == "mute" {
+				err = h.backend.MuteURL(r.Context(), channel, url)
+			} else {
+				err = h.backend.UnmuteURL(r.Context(), channel, url)
+			}
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return

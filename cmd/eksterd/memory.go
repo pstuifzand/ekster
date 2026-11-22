@@ -173,6 +173,11 @@ func (b *memoryBackend) ChannelsGetList(ctx context.Context) ([]microsub.Channel
 	rows, err := b.database.Query(`
 		SELECT c.uid, c.name, count(i.channel_id) as unread
 		FROM "channels" "c" left join items i on c.id = i.channel_id and i.is_read = 0
+		  AND NOT EXISTS (
+		    SELECT 1 FROM mutes m WHERE m.user_id = c.user_id
+		    AND (m.channel_id IS NULL OR m.channel_id = c.id)
+		    AND m.url = i.data->'author'->>'url'
+		  )
 		WHERE "c"."user_id" = $1
 		GROUP BY c.id
         ORDER BY (c.uid = 'notifications') DESC, c.sort_order NULLS LAST, c.id;
@@ -892,9 +897,11 @@ func (b *memoryBackend) TimelineGet(ctx context.Context, before, after, channel 
 func (b *memoryBackend) TimelineGetWithLimit(ctx context.Context, before, after, channel string, limit int) (microsub.Timeline, error) {
 	slog.DebugContext(ctx, "timeline get", "channel", channel, "before", before, "after", after, "limit", limit)
 
-	// Check if feed exists
-	_, err := b.FollowGetList(ctx, channel)
-	if err != nil {
+	userID, ok := userid.FromContext(ctx)
+	if !ok {
+		return microsub.Timeline{Items: []microsub.Item{}}, fmt.Errorf("missing user identity")
+	}
+	if _, err := b.channelIDForUser(ctx, channel, userID); err != nil {
 		return microsub.Timeline{Items: []microsub.Item{}}, err
 	}
 
@@ -903,9 +910,113 @@ func (b *memoryBackend) TimelineGetWithLimit(ctx context.Context, before, after,
 		return microsub.Timeline{}, err
 	}
 
-	// _ = b.updateChannelUnreadCount(channel)
+	if filter, ok := timelineBackend.(timeline.MutedURLFilter); ok {
+		muted, err := b.mutedURLs(ctx, channel, userID)
+		if err != nil {
+			return microsub.Timeline{}, err
+		}
+		filter.SetMutedURLs(muted)
+	}
 
 	return timelineBackend.ItemsWithLimit(before, after, limit)
+}
+
+func (b *memoryBackend) channelIDForUser(ctx context.Context, uid string, userID int) (int, error) {
+	var id int
+	err := b.database.QueryRowContext(ctx, `SELECT id FROM channels WHERE uid = $1 AND user_id = $2`, uid, userID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("channel %q: %w", uid, microsub.ErrNotFound)
+	}
+	return id, err
+}
+
+func (b *memoryBackend) channelOwner(ctx context.Context, uid string) (int, error) {
+	var userID int
+	err := b.database.QueryRowContext(ctx, `SELECT user_id FROM channels WHERE uid = $1`, uid).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("channel %q: %w", uid, microsub.ErrNotFound)
+	}
+	return userID, err
+}
+
+func (b *memoryBackend) mutedURLs(ctx context.Context, channel string, userID int) ([]string, error) {
+	rows, err := b.database.QueryContext(ctx, `
+SELECT m.url FROM mutes m
+LEFT JOIN channels c ON c.id = m.channel_id
+WHERE m.user_id = $1 AND (m.channel_id IS NULL OR c.uid = $2)`, userID, channel)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	urls := []string{}
+	for rows.Next() {
+		var u string
+		if err := rows.Scan(&u); err != nil {
+			return nil, err
+		}
+		urls = append(urls, u)
+	}
+	return urls, rows.Err()
+}
+
+// MuteGetList returns account mutes plus mutes specifically for channel.
+func (b *memoryBackend) MuteGetList(ctx context.Context, channel string) ([]string, error) {
+	if channel == "global" {
+		channel = ""
+	}
+	userID, ok := userid.FromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("missing user identity")
+	}
+	if channel != "" {
+		if _, err := b.channelIDForUser(ctx, channel, userID); err != nil {
+			return nil, err
+		}
+	}
+	return b.mutedURLs(ctx, channel, userID)
+}
+
+func (b *memoryBackend) MuteURL(ctx context.Context, channel, rawURL string) error {
+	if channel == "global" {
+		channel = ""
+	}
+	if u, err := url.Parse(rawURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.Fragment != "" {
+		return fmt.Errorf("invalid profile URL")
+	}
+	userID, ok := userid.FromContext(ctx)
+	if !ok {
+		return fmt.Errorf("missing user identity")
+	}
+	var channelID interface{}
+	if channel != "" {
+		id, err := b.channelIDForUser(ctx, channel, userID)
+		if err != nil {
+			return err
+		}
+		channelID = id
+	}
+	_, err := b.database.ExecContext(ctx, `INSERT INTO mutes (user_id, channel_id, url) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, userID, channelID, rawURL)
+	return err
+}
+
+func (b *memoryBackend) UnmuteURL(ctx context.Context, channel, rawURL string) error {
+	if channel == "global" {
+		channel = ""
+	}
+	userID, ok := userid.FromContext(ctx)
+	if !ok {
+		return fmt.Errorf("missing user identity")
+	}
+	if channel == "" {
+		_, err := b.database.ExecContext(ctx, `DELETE FROM mutes WHERE user_id=$1 AND url=$2`, userID, rawURL)
+		return err
+	}
+	id, err := b.channelIDForUser(ctx, channel, userID)
+	if err != nil {
+		return err
+	}
+	_, err = b.database.ExecContext(ctx, `DELETE FROM mutes WHERE user_id=$1 AND channel_id=$2 AND url=$3`, userID, id, rawURL)
+	return err
 }
 
 func (b *memoryBackend) FollowGetList(ctx context.Context, uid string) ([]microsub.Feed, error) {
@@ -1282,7 +1393,11 @@ func (b *memoryBackend) TimelineRemove(ctx context.Context, channel string, uids
 		return err
 	}
 	var count int
-	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items WHERE channel_id = $1 AND is_read = 0`, ids[0]).Scan(&count); err != nil {
+	if err = tx.QueryRowContext(ctx, `
+SELECT count(*) FROM items i WHERE i.channel_id = $1 AND i.is_read = 0
+AND NOT EXISTS (SELECT 1 FROM mutes m WHERE m.user_id = $2
+  AND (m.channel_id IS NULL OR m.channel_id = i.channel_id)
+  AND m.url = i.data->'author'->>'url')`, ids[0], userID).Scan(&count); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {
@@ -1539,9 +1654,14 @@ func (b *memoryBackend) ProcessContent(ctx context.Context, channel, feedID, fet
 		processed++
 	}
 
-	err = b.updateChannelUnreadCount(ctx, channel)
-	if err != nil {
-		return changed, itemCount, err
+	// A refresh that contained only corrections, exclusions, or muted authors
+	// did not change the visible timeline.  Do not wake SSE clients merely to
+	// repeat the same unread count (and, in particular, never announce a mute).
+	if changed {
+		err = b.updateChannelUnreadCount(ctx, channel)
+		if err != nil {
+			return changed, itemCount, err
+		}
 	}
 
 	return changed, itemCount, nil
@@ -1696,7 +1816,6 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 			"channel", channel, "item", item.URL)
 		return false, nil
 	}
-
 	added, err := b.channelAddItem(ctx, channel, item)
 
 	if err != nil {
@@ -1774,7 +1893,22 @@ func (b *memoryBackend) channelAddItem(ctx context.Context, channel string, item
 
 	// Sent message to Server-Sent-Events
 	if added {
-		b.broker.Notifier <- sse.Message{Event: "new item", Object: newItemMessage{item, channel}}
+		owner, ownerErr := b.channelOwner(ctx, channel)
+		if ownerErr != nil {
+			return added, ownerErr
+		}
+		if item.Author != nil && item.Author.URL != "" {
+			muted, muteErr := b.mutedURLs(ctx, channel, owner)
+			if muteErr != nil {
+				return added, muteErr
+			}
+			for _, u := range muted {
+				if u == item.Author.URL {
+					return added, nil
+				}
+			}
+		}
+		b.broker.Notifier <- sse.Message{Event: "new item", Object: newItemMessage{item, channel}, UserID: &owner}
 	}
 
 	return added, err
@@ -1790,6 +1924,17 @@ func (b *memoryBackend) updateChannelUnreadCount(ctx context.Context, channel st
 	tl, err := b.getTimeline(channel)
 	if err != nil {
 		return err
+	}
+	owner, err := b.channelOwner(ctx, channel)
+	if err != nil {
+		return err
+	}
+	if filter, ok := tl.(timeline.MutedURLFilter); ok {
+		muted, err := b.mutedURLs(ctx, channel, owner)
+		if err != nil {
+			return err
+		}
+		filter.SetMutedURLs(muted)
 	}
 
 	_, span := observability.Span(ctx, "db.items.count",
@@ -1812,7 +1957,7 @@ func (b *memoryBackend) updateChannelUnreadCount(ctx context.Context, channel st
 	}
 
 	// Sent message to Server-Sent-Events
-	b.broker.Notifier <- sse.Message{Event: "new item in channel", Object: c}
+	b.broker.Notifier <- sse.Message{Event: "new item in channel", Object: c, UserID: &owner}
 
 	return nil
 }

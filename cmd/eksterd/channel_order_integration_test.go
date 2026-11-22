@@ -38,7 +38,8 @@ func TestChannelOrderPersistenceAndIsolation(t *testing.T) {
 	for _, q := range []string{
 		`CREATE TEMP TABLE channels (id int generated always as identity primary key, uid text not null, name text not null, user_id int not null)`,
 		string(migration),
-		`CREATE TEMP TABLE items (channel_id int, is_read int)`,
+		`CREATE TEMP TABLE items (channel_id int, is_read int, data jsonb)`,
+		`CREATE TEMP TABLE mutes (user_id int, channel_id int, url text)`,
 		`INSERT INTO channels(uid,name,user_id) VALUES ('notifications','Notifications',1),('a','a',1),('b','b',1),('c','c',1),('d','d',1),('e','e',1),('f','f',1),('g','g',1),('h','h',1),('foreign','foreign',2),('a','a',2)`,
 		`INSERT INTO items(channel_id,is_read) SELECT id,0 FROM channels WHERE uid = 'h' AND user_id = 1`,
 	} {

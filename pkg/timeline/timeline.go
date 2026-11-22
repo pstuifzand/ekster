@@ -47,6 +47,14 @@ type Backend interface {
 	MarkUnread(uids []string) error
 }
 
+// MutedURLFilter is implemented by stores that can hide entries whose
+// data.author.url is one of the supplied values.  It deliberately is not part
+// of Backend: mute policy belongs to the account-facing backend, not to every
+// timeline implementation.
+type MutedURLFilter interface {
+	SetMutedURLs([]string)
+}
+
 // Create creates a channel of the specified type. Return nil when the type
 // is not known.
 func Create(channel, timelineType string, pool *redis.Pool, db *sql.DB) Backend {

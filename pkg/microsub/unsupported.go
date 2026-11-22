@@ -26,7 +26,7 @@ func (UnsupportedMethods) TimelineRemove(context.Context, string, []string) erro
 func (UnsupportedMethods) ItemSearchWithOptions(context.Context, ItemSearchOptions) (Timeline, error) {
 	return Timeline{}, ErrUnsupported
 }
-func (UnsupportedMethods) MuteGetList(context.Context, string) ([]Card, error) {
+func (UnsupportedMethods) MuteGetList(context.Context, string) ([]string, error) {
 	return nil, ErrUnsupported
 }
 func (UnsupportedMethods) MuteURL(context.Context, string, string) error   { return ErrUnsupported }

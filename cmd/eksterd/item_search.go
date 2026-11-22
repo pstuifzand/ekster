@@ -45,6 +45,13 @@ func (b *memoryBackend) ItemSearchWithOptions(ctx context.Context, o microsub.It
 		q.WriteString(` LEFT JOIN feeds f ON f.id=i.feed_id AND f.channel_id=i.channel_id`)
 	}
 	q.WriteString(` WHERE c.user_id=$1 AND i.published_at IS NOT NULL`)
+	// Search follows the same visibility rule as timelines and unread counts.
+	// A channel mute only applies to that exact channel; an account mute applies
+	// everywhere owned by this user.
+	q.WriteString(` AND NOT EXISTS (
+SELECT 1 FROM mutes m WHERE m.user_id=c.user_id
+AND (m.channel_id IS NULL OR m.channel_id=i.channel_id)
+AND m.url=i.data->'author'->>'url')`)
 	add := func(clause string, value interface{}) { args = append(args, value); fmt.Fprintf(&q, clause, len(args)) }
 	if o.Channel != "global" {
 		add(` AND c.uid=$%d`, o.Channel)

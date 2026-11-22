@@ -34,6 +34,7 @@ func TestTimelineRemoveClientIntegration(t *testing.T) {
 	for _, q := range []string{
 		`CREATE TEMP TABLE channels (id int primary key, uid text unique, user_id int)`,
 		`CREATE TEMP TABLE feeds (id int, channel_id int, url text)`,
+		`CREATE TEMP TABLE mutes (user_id int, channel_id int, url text)`,
 		`CREATE TEMP TABLE items (id int primary key, channel_id int, uid text unique, data jsonb, created_at timestamptz, is_read int, published_at timestamptz)`,
 		`INSERT INTO channels VALUES (1,'one',1),(2,'two',1)`,
 		`INSERT INTO items VALUES (1,1,'a','{"type":"entry"}',now(),1,now()),(2,1,'b','{"type":"entry"}',now(),1,now()),(3,2,'c','{"type":"entry"}',now(),1,now())`,

@@ -32,9 +32,10 @@ func TestReadStateUserIsolationIntegration(t *testing.T) {
 	db.SetMaxIdleConns(1)
 	for _, q := range []string{
 		`CREATE TEMP TABLE channels (id int primary key, uid text, user_id int)`,
-		`CREATE TEMP TABLE items (id int primary key, channel_id int, uid text, is_read int)`,
+		`CREATE TEMP TABLE items (id int primary key, channel_id int, uid text, is_read int, data jsonb)`,
+		`CREATE TEMP TABLE mutes (user_id int, channel_id int, url text)`,
 		`INSERT INTO channels VALUES (1,'shared',1),(2,'shared',2),(3,'private',2),(4,'other',1)`,
-		`INSERT INTO items VALUES (1,1,'same',1),(2,2,'same',1),(3,3,'secret',1),(4,4,'other-item',1)`,
+		`INSERT INTO items VALUES (1,1,'same',1,NULL),(2,2,'same',1,NULL),(3,3,'secret',1,NULL),(4,4,'other-item',1,NULL)`,
 	} {
 		if _, err := db.Exec(q); err != nil {
 			t.Fatal(err)

@@ -13,12 +13,14 @@
 
 Implement the protocol methods and expose them through the HTTP endpoint and client:
 
-- `MuteGetList`, `MuteURL`, `UnmuteURL` — list, mute and unmute users.
 - `BlockGetList`, `BlockURL`, `UnblockURL` — list, block and unblock users.
+- Verify mute behavior for thread responses and ingestion events; scope channel create/update/delete SSE events to their user.
 
 The remaining interface methods currently return `ErrUnsupported`.
 
 ## DONE
+
+- `MuteGetList`, `MuteURL`, `UnmuteURL` — list, mute and unmute users through Microsub, `ek`, and MCP.
 
 - `ItemSearchWithOptions` — content search filters, paging and limits through Microsub, `ek`, and MCP.
 

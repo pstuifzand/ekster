@@ -4,6 +4,8 @@
 
 ### Added
 
+- Mute and unmute author profile URLs globally or per channel through Microsub, `ek`, and MCP. Muted posts are retained but hidden from timelines, content search, unread counts, and new-item events.
+
 - Content search supports structured author, category, kind and source filters, cursor paging and limits over GET or POST, with Go client, `ek query`, and MCP `search_items` support. See `docs/content-search.md`.
 
 - Remove channel entries through Microsub `timeline/remove`, `ek remove UID ENTRY...`, and MCP `remove_entries`. Removal deletes stored entries; a later feed refresh may reintroduce them.

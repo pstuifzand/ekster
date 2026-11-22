@@ -39,6 +39,17 @@ type postgresStream struct {
 	database  *sql.DB
 	channel   string
 	channelID int
+	mutedURLs []string
+}
+
+func (p *postgresStream) SetMutedURLs(urls []string) { p.mutedURLs = urls }
+
+func (p *postgresStream) muteClause(args *[]interface{}, placeholder func() int) string {
+	if len(p.mutedURLs) == 0 {
+		return ""
+	}
+	*args = append(*args, pq.Array(p.mutedURLs))
+	return fmt.Sprintf(` AND COALESCE("data"->'author'->>'url', '') <> ALL($%d)`, placeholder())
 }
 
 // Init
@@ -92,6 +103,7 @@ SELECT "id", "uid", "data", "created_at", "is_read", "published_at"
 FROM "items"
 WHERE "channel_id" = $1
 `)
+	qb.WriteString(p.muteClause(&args, func() int { return len(args) }))
 	for _, bound := range []struct{ cursor, op string }{{before, ">"}, {after, "<"}} {
 		if bound.cursor == "" {
 			continue
@@ -214,12 +226,13 @@ func (p *postgresStream) hasMoreBefore(conn *sql.Conn, cursor string) bool {
 	if err != nil {
 		return false
 	}
-	query := `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND "published_at" > $2)`
+	query := `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND "published_at" > $2`
 	args := []interface{}{p.channelID, publishedAt}
 	if hasID {
-		query = `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND ("published_at" > $2 OR ("published_at" = $2 AND "id" > $3)))`
+		query = `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND ("published_at" > $2 OR ("published_at" = $2 AND "id" > $3))`
 		args = append(args, id)
 	}
+	query += p.muteClause(&args, func() int { return len(args) }) + `)`
 	var exists bool
 	if err := conn.QueryRowContext(context.Background(), query, args...).Scan(&exists); err != nil {
 		return false
@@ -256,7 +269,7 @@ func (p *postgresStream) hasMoreAfterWithin(conn *sql.Conn, cursor, before strin
 	} else {
 		query += fmt.Sprintf(` AND published_at > $%d`, t)
 	}
-	query += `)`
+	query += p.muteClause(&args, func() int { return len(args) }) + `)`
 	var exists bool
 	return conn.QueryRowContext(context.Background(), query, args...).Scan(&exists) == nil && exists
 }
@@ -266,12 +279,13 @@ func (p *postgresStream) hasMoreAfter(conn *sql.Conn, cursor string) bool {
 	if err != nil {
 		return false
 	}
-	query := `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND "published_at" < $2)`
+	query := `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND "published_at" < $2`
 	args := []interface{}{p.channelID, publishedAt}
 	if hasID {
-		query = `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND ("published_at" < $2 OR ("published_at" = $2 AND "id" < $3)))`
+		query = `SELECT EXISTS (SELECT 1 FROM "items" WHERE "channel_id" = $1 AND ("published_at" < $2 OR ("published_at" = $2 AND "id" < $3))`
 		args = append(args, id)
 	}
+	query += p.muteClause(&args, func() int { return len(args) }) + `)`
 	var exists bool
 	if err := conn.QueryRowContext(context.Background(), query, args...).Scan(&exists); err != nil {
 		return false
@@ -288,7 +302,9 @@ func (p *postgresStream) Count() (int, error) {
 	}
 	defer conn.Close()
 	var count int
-	row := conn.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM items WHERE channel_id = $1 AND "is_read" = 0`, p.channelID)
+	args := []interface{}{p.channelID}
+	query := `SELECT COUNT(*) FROM items WHERE channel_id = $1 AND "is_read" = 0` + p.muteClause(&args, func() int { return len(args) })
+	row := conn.QueryRowContext(context.Background(), query, args...)
 	err = row.Scan(&count)
 	if err != nil && err == sql.ErrNoRows {
 		return 0, nil

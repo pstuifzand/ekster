@@ -170,6 +170,8 @@ Commands:
 	follow UID URL               follow URL on channel UID
 
 	unfollow UID URL             unfollow URL on channel UID
+	mute [UID] [URL]             list muted URLs, or mute URL (globally when UID is omitted)
+	unmute [UID] URL             unmute URL (globally when UID is omitted)
 
 	export opml                  export feeds as OPML
 	import opml FILENAME         import OPML feeds
@@ -296,6 +298,69 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	}
 
 	ctx := context.Background()
+
+	if len(commands) > 0 && commands[0] == "mute" {
+		channel, mutedURL := "", ""
+		switch len(commands) {
+		case 1:
+		case 2:
+			if strings.Contains(commands[1], "://") {
+				mutedURL = commands[1]
+			} else {
+				var err error
+				channel, err = channelID(ctx, sub, commands[1])
+				if err != nil {
+					fail(err)
+				}
+			}
+		case 3:
+			var err error
+			channel, err = channelID(ctx, sub, commands[1])
+			if err != nil {
+				fail(err)
+			}
+			mutedURL = commands[2]
+		default:
+			fail(fmt.Errorf("usage: ek mute [UID] [URL]"))
+		}
+		if mutedURL != "" {
+			if err := sub.MuteURL(ctx, channel, mutedURL); err != nil {
+				fail(err)
+			}
+			fmt.Printf("Muted %s\n", mutedURL)
+			return
+		}
+		urls, err := sub.MuteGetList(ctx, channel)
+		if err != nil {
+			fail(err)
+		}
+		for _, url := range urls {
+			fmt.Println(url)
+		}
+		return
+	}
+
+	if len(commands) > 0 && commands[0] == "unmute" {
+		channel, mutedURL := "", ""
+		switch len(commands) {
+		case 2:
+			mutedURL = commands[1]
+		case 3:
+			var err error
+			channel, err = channelID(ctx, sub, commands[1])
+			if err != nil {
+				fail(err)
+			}
+			mutedURL = commands[2]
+		default:
+			fail(fmt.Errorf("usage: ek unmute [UID] URL"))
+		}
+		if err := sub.UnmuteURL(ctx, channel, mutedURL); err != nil {
+			fail(err)
+		}
+		fmt.Printf("Unmuted %s\n", mutedURL)
+		return
+	}
 
 	if len(commands) >= 2 && commands[0] == "channels" && commands[1] == "-order" {
 		if len(commands) < 3 {

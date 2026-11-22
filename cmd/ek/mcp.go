@@ -54,6 +54,13 @@ type followInput struct {
 	Channel string `json:"channel" jsonschema:"Channel UID"`
 	URL     string `json:"url" jsonschema:"Website or feed URL to follow"`
 }
+type muteInput struct {
+	Channel *string `json:"channel,omitempty" jsonschema:"Channel UID; defaults to global"`
+	URL     string  `json:"url" jsonschema:"URL to mute or unmute"`
+}
+type muteListInput struct {
+	Channel *string `json:"channel,omitempty" jsonschema:"Channel UID; defaults to global"`
+}
 type previewInput struct {
 	URL string `json:"url" jsonschema:"Website or feed URL to preview"`
 }
@@ -84,6 +91,9 @@ type successOutput struct {
 }
 type followsOutput struct {
 	Feeds []microsub.Feed `json:"feeds" jsonschema:"Feeds followed in the channel"`
+}
+type mutesOutput struct {
+	URLs []string `json:"urls" jsonschema:"Muted URLs"`
 }
 type channelResult struct {
 	UID         string `json:"uid" jsonschema:"Channel UID"`
@@ -141,6 +151,9 @@ func newMCPServer(c *client.Client) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_follows", Description: "List feeds followed in a channel.", Annotations: readOnly}, tools.listFollows)
 	mcp.AddTool(server, &mcp.Tool{Name: "follow_url", Description: "Follow a website or feed URL in a channel.", Annotations: write}, tools.followURL)
 	mcp.AddTool(server, &mcp.Tool{Name: "unfollow_url", Description: "Unfollow a URL in a channel.", Annotations: write}, tools.unfollowURL)
+	mcp.AddTool(server, &mcp.Tool{Name: "list_mutes", Description: "List muted URLs, globally or for a channel.", Annotations: readOnly}, tools.listMutes)
+	mcp.AddTool(server, &mcp.Tool{Name: "mute_url", Description: "Mute a URL, globally or for a channel.", Annotations: write}, tools.muteURL)
+	mcp.AddTool(server, &mcp.Tool{Name: "unmute_url", Description: "Unmute a URL, globally or for a channel.", Annotations: write}, tools.unmuteURL)
 	mcp.AddTool(server, &mcp.Tool{Name: "preview_url", Description: "Preview a website or feed before following it.", Annotations: openSearch}, tools.previewURL)
 	mcp.AddTool(server, &mcp.Tool{Name: "mark_read_through", Description: "Mark an entry and older entries read in a channel.", Annotations: write}, tools.markReadThrough)
 	mcp.AddTool(server, &mcp.Tool{Name: "mark_read", Description: "Mark timeline items as read in a channel.", Annotations: write}, tools.markRead)
@@ -254,6 +267,33 @@ func (t *mcpTools) followURL(ctx context.Context, _ *mcp.CallToolRequest, in fol
 }
 func (t *mcpTools) unfollowURL(ctx context.Context, _ *mcp.CallToolRequest, in followInput) (*mcp.CallToolResult, successOutput, error) {
 	err := t.microsub.UnfollowURL(ctx, in.Channel, in.URL)
+	return nil, successOutput{Success: err == nil}, err
+}
+func (t *mcpTools) listMutes(ctx context.Context, _ *mcp.CallToolRequest, in muteListInput) (*mcp.CallToolResult, mutesOutput, error) {
+	channel := ""
+	if in.Channel != nil {
+		channel = *in.Channel
+	}
+	urls, err := t.microsub.MuteGetList(ctx, channel)
+	if urls == nil {
+		urls = []string{}
+	}
+	return nil, mutesOutput{URLs: urls}, err
+}
+func (t *mcpTools) muteURL(ctx context.Context, _ *mcp.CallToolRequest, in muteInput) (*mcp.CallToolResult, successOutput, error) {
+	channel := ""
+	if in.Channel != nil {
+		channel = *in.Channel
+	}
+	err := t.microsub.MuteURL(ctx, channel, in.URL)
+	return nil, successOutput{Success: err == nil}, err
+}
+func (t *mcpTools) unmuteURL(ctx context.Context, _ *mcp.CallToolRequest, in muteInput) (*mcp.CallToolResult, successOutput, error) {
+	channel := ""
+	if in.Channel != nil {
+		channel = *in.Channel
+	}
+	err := t.microsub.UnmuteURL(ctx, channel, in.URL)
 	return nil, successOutput{Success: err == nil}, err
 }
 func (t *mcpTools) previewURL(ctx context.Context, _ *mcp.CallToolRequest, in previewInput) (*mcp.CallToolResult, previewOutput, error) {
