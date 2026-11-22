@@ -13,7 +13,6 @@
 
 Implement the protocol methods and expose them through the HTTP endpoint and client:
 
-- `TimelineRemove` — remove entries from a channel.
 - `ItemSearchWithOptions` — support content search filters (`author`, `category`, `kind`, `source`), paging and `limit`; also accept GET requests.
 - `MuteGetList`, `MuteURL`, `UnmuteURL` — list, mute and unmute users.
 - `BlockGetList`, `BlockURL`, `UnblockURL` — list, block and unblock users.
@@ -21,6 +20,8 @@ Implement the protocol methods and expose them through the HTTP endpoint and cli
 The remaining interface methods currently return `ErrUnsupported`.
 
 ## DONE
+
+- `TimelineRemove` — remove entries from a channel through Microsub, `ek`, and MCP.
 
 - `MarkReadThrough` — mark an entry and earlier entries read using `last_read_entry`.
 

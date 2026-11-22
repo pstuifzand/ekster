@@ -503,6 +503,17 @@ func (c *Client) MarkUnread(ctx context.Context, channel string, uids []string) 
 	return nil
 }
 
+// TimelineRemove removes entries from a channel.
+func (c *Client) TimelineRemove(ctx context.Context, channel string, uids []string) error {
+	data := url.Values{"entry[]": uids}
+	res, err := c.microsubPostFormRequest(ctx, "timeline", map[string]string{"channel": channel, "method": "remove"}, data)
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
+	return nil
+}
+
 // Events open an event channel to the server.
 func (c *Client) Events(ctx context.Context) (chan sse.Message, error) {
 

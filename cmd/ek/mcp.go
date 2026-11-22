@@ -135,6 +135,7 @@ func newMCPServer(c *client.Client) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{Name: "preview_url", Description: "Preview a website or feed before following it.", Annotations: openSearch}, tools.previewURL)
 	mcp.AddTool(server, &mcp.Tool{Name: "mark_read_through", Description: "Mark an entry and older entries read in a channel.", Annotations: write}, tools.markReadThrough)
 	mcp.AddTool(server, &mcp.Tool{Name: "mark_read", Description: "Mark timeline items as read in a channel.", Annotations: write}, tools.markRead)
+	mcp.AddTool(server, &mcp.Tool{Name: "remove_entries", Description: "Remove timeline entries from a channel.", Annotations: &mcp.ToolAnnotations{DestructiveHint: boolPtr(true), OpenWorldHint: boolPtr(true)}}, tools.removeEntries)
 	mcp.AddTool(server, &mcp.Tool{Name: "mark_unread", Description: "Mark timeline items as unread in a channel.", Annotations: write}, tools.markUnread)
 	return server
 }
@@ -255,6 +256,11 @@ func (t *mcpTools) markReadThrough(ctx context.Context, _ *mcp.CallToolRequest, 
 
 func (t *mcpTools) markUnread(ctx context.Context, _ *mcp.CallToolRequest, in markUnreadInput) (*mcp.CallToolResult, successOutput, error) {
 	err := t.microsub.MarkUnread(ctx, in.Channel, in.Entries)
+	return nil, successOutput{Success: err == nil}, err
+}
+
+func (t *mcpTools) removeEntries(ctx context.Context, _ *mcp.CallToolRequest, in markUnreadInput) (*mcp.CallToolResult, successOutput, error) {
+	err := t.microsub.TimelineRemove(ctx, in.Channel, in.Entries)
 	return nil, successOutput{Success: err == nil}, err
 }
 

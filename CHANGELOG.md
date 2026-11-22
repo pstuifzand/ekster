@@ -4,6 +4,8 @@
 
 ### Added
 
+- Remove channel entries through Microsub `timeline/remove`, `ek remove UID ENTRY...`, and MCP `remove_entries`. Removal deletes stored entries; a later feed refresh may reintroduce them.
+
 - Support marking a timeline entry and older entries read with `last_read_entry`, including the Go client, `ek mark-read-through`, and MCP `mark_read_through`.
 
 - Mark entries unread per channel through Microsub, `ek mark-unread UID ENTRY...`, and MCP `mark_unread`; mark-read updates are also restricted to the selected channel.

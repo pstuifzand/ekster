@@ -303,7 +303,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if method == "mark_read" || method == "mark_unread" {
+			if method == "mark_read" || method == "mark_unread" || method == "remove" {
 				channel := r.FormValue("channel")
 				var markAsRead []string
 				if uids, e := values["entry"]; e {
@@ -339,21 +339,23 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
-				if method == "mark_unread" {
+				if method == "mark_unread" || method == "remove" {
 					if channel == "" || len(markAsRead) == 0 {
-						http.Error(w, "mark_unread requires a channel and at least one entry", http.StatusBadRequest)
+						http.Error(w, method+" requires a channel and at least one entry", http.StatusBadRequest)
 						return
 					}
 					for _, uid := range markAsRead {
 						if uid == "" {
-							http.Error(w, "mark_unread requires nonempty entries", http.StatusBadRequest)
+							http.Error(w, method+" requires nonempty entries", http.StatusBadRequest)
 							return
 						}
 					}
 				}
 				if len(markAsRead) > 0 {
 					var err error
-					if method == "mark_unread" {
+					if method == "remove" {
+						err = h.backend.TimelineRemove(r.Context(), channel, markAsRead)
+					} else if method == "mark_unread" {
 						err = h.backend.MarkUnread(r.Context(), channel, markAsRead)
 					} else {
 						err = h.backend.MarkRead(r.Context(), channel, markAsRead)
