@@ -18,8 +18,9 @@ type mcpTools struct {
 type emptyInput struct{}
 type timelineInput struct {
 	Channel string  `json:"channel" jsonschema:"Microsub channel UID (use home for the default timeline)"`
-	Before  *string `json:"before,omitempty" jsonschema:"Return items older than this paging cursor"`
-	After   *string `json:"after,omitempty" jsonschema:"Return items newer than this paging cursor"`
+	Before  *string `json:"before,omitempty" jsonschema:"Return items newer than this paging cursor"`
+	After   *string `json:"after,omitempty" jsonschema:"Return items older than this paging cursor"`
+	Limit   *int    `json:"limit,omitempty" jsonschema:"Requested positive page size; server may cap it"`
 }
 type searchFeedsInput struct {
 	Query string `json:"query" jsonschema:"Feed search text"`
@@ -160,7 +161,13 @@ func (t *mcpTools) getTimeline(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	if input.After != nil {
 		after = *input.After
 	}
-	timeline, err := t.microsub.TimelineGet(ctx, before, after, input.Channel)
+	var timeline microsub.Timeline
+	var err error
+	if input.Limit != nil {
+		timeline, err = t.microsub.TimelineGetWithLimit(ctx, before, after, input.Channel, *input.Limit)
+	} else {
+		timeline, err = t.microsub.TimelineGet(ctx, before, after, input.Channel)
+	}
 	if err != nil {
 		return nil, timelineOutput{}, err
 	}

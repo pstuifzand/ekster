@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strconv"
 
 	"github.com/pstuifzand/ekster/pkg/microsub"
 	"github.com/pstuifzand/ekster/pkg/sse"
@@ -109,7 +110,22 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.handleThread(w, r, values)
 				return
 			}
-			timeline, err := h.backend.TimelineGet(r.Context(), values.Get("before"), values.Get("after"), values.Get("channel"))
+			var timeline microsub.Timeline
+			var err error
+			if raw, present := values["limit"]; present {
+				if len(raw) != 1 {
+					http.Error(w, "limit must be a single positive integer", http.StatusBadRequest)
+					return
+				}
+				limit, parseErr := strconv.Atoi(raw[0])
+				if parseErr != nil || limit <= 0 {
+					http.Error(w, "limit must be a single positive integer", http.StatusBadRequest)
+					return
+				}
+				timeline, err = h.backend.TimelineGetWithLimit(r.Context(), values.Get("before"), values.Get("after"), values.Get("channel"), limit)
+			} else {
+				timeline, err = h.backend.TimelineGet(r.Context(), values.Get("before"), values.Get("after"), values.Get("channel"))
+			}
 			if err != nil {
 				slog.ErrorContext(r.Context(), "could not read the timeline", "channel", values.Get("channel"), "error", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)

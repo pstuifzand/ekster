@@ -184,3 +184,53 @@ func TestMCPToolsExposeSchemasAndStructuredResults(t *testing.T) {
 		t.Fatalf("unexpected structured channels: %#v", structured["channels"])
 	}
 }
+
+func TestTimelineLimitMCP(t *testing.T) {
+	var limit, before, after string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		limit, before, after = r.URL.Query().Get("limit"), r.URL.Query().Get("before"), r.URL.Query().Get("after")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[],"paging":{}}`))
+	}))
+	defer upstream.Close()
+	endpoint, _ := url.Parse(upstream.URL)
+	server := newMCPServer(&client.Client{MicrosubEndpoint: endpoint})
+	st, ct := mcp.NewInMemoryTransports()
+	ctx := context.Background()
+	ss, err := server.Connect(ctx, st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ss.Close()
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "get_timeline", Arguments: map[string]any{"channel": "home", "limit": 3, "before": "new", "after": "old"}})
+	if err != nil || result.IsError {
+		t.Fatalf("tool: %v %#v", err, result)
+	}
+	if limit != "3" || before != "new" || after != "old" {
+		t.Fatalf("query: %s %s %s", limit, before, after)
+	}
+}
+
+func TestTimelineLimitCLI(t *testing.T) {
+	var limit, before, after string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("action") == "channels" {
+			_, _ = w.Write([]byte(`{"channels":[]}`))
+			return
+		}
+		limit, before, after = r.URL.Query().Get("limit"), r.URL.Query().Get("before"), r.URL.Query().Get("after")
+		_, _ = w.Write([]byte(`{"items":[],"paging":{}}`))
+	}))
+	defer upstream.Close()
+	endpoint, _ := url.Parse(upstream.URL)
+	performCommands(&client.Client{MicrosubEndpoint: endpoint}, []string{"timeline", "home", "-after", "old", "-limit", "3", "-before", "new"})
+	if limit != "3" || before != "new" || after != "old" {
+		t.Fatalf("query: %s %s %s", limit, before, after)
+	}
+}

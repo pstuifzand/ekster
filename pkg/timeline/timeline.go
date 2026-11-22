@@ -37,6 +37,7 @@ import (
 // for Ekster to implement the channel protocol for Microsub
 type Backend interface {
 	Items(before, after string) (microsub.Timeline, error)
+	ItemsWithLimit(before, after string, limit int) (microsub.Timeline, error)
 	Count() (int, error)
 
 	AddItem(item microsub.Item) (bool, error)

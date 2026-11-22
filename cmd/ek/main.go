@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -148,7 +149,7 @@ Commands:
 	channels -delete UID         delete channel with UID
 	channels -order UID...       reorder the specified channels
 
-	timeline UID                 show posts for channel UID
+	timeline UID [-before CURSOR] [-after CURSOR] [-limit N]  show a timeline page
 	mark-read UID                mark all posts in channel UID as read
 	timeline UID -after AFTER    show posts for channel UID starting from AFTER
 	timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
@@ -386,12 +387,29 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		var timeline microsub.Timeline
 		var err error
 
-		if len(commands) == 4 && commands[2] == "-after" {
-			timeline, err = sub.TimelineGet(ctx, "", commands[3], channel)
-		} else if len(commands) == 4 && commands[2] == "-before" {
-			timeline, err = sub.TimelineGet(ctx, commands[3], "", channel)
+		before, after, limit := "", "", 0
+		for i := 2; i < len(commands); i += 2 {
+			if i+1 >= len(commands) {
+				fail(fmt.Errorf("missing value for %s", commands[i]))
+			}
+			switch commands[i] {
+			case "-before":
+				before = commands[i+1]
+			case "-after":
+				after = commands[i+1]
+			case "-limit":
+				limit, err = strconv.Atoi(commands[i+1])
+				if err != nil || limit <= 0 {
+					fail(fmt.Errorf("limit must be a positive integer"))
+				}
+			default:
+				fail(fmt.Errorf("unknown timeline option %s", commands[i]))
+			}
+		}
+		if limit > 0 {
+			timeline, err = sub.TimelineGetWithLimit(ctx, before, after, channel, limit)
 		} else {
-			timeline, err = sub.TimelineGet(ctx, "", "", channel)
+			timeline, err = sub.TimelineGet(ctx, before, after, channel)
 		}
 
 		if err != nil {

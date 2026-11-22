@@ -68,6 +68,17 @@ func (p *postgresStream) Init() error {
 // cannot cause entries to be skipped between pages. Timestamp-only cursors are
 // still accepted for compatibility with clients holding older cursors.
 func (p *postgresStream) Items(before, after string) (microsub.Timeline, error) {
+	return p.ItemsWithLimit(before, after, 20)
+}
+
+// ItemsWithLimit applies a bounded page size without changing cursor semantics.
+func (p *postgresStream) ItemsWithLimit(before, after string, limit int) (microsub.Timeline, error) {
+	if limit <= 0 {
+		return microsub.Timeline{}, fmt.Errorf("limit must be positive")
+	}
+	if limit > 100 {
+		limit = 100
+	}
 	conn, err := p.database.Conn(context.Background())
 	if err != nil {
 		return microsub.Timeline{}, err
@@ -82,31 +93,25 @@ SELECT "id", "uid", "data", "created_at", "is_read", "published_at"
 FROM "items"
 WHERE "channel_id" = $1
 `)
-	cursor := before
-	if cursor == "" {
-		cursor = after
-	}
-	if cursor != "" {
-		publishedAt, id, hasID, err := parseItemCursor(cursor)
+	for _, bound := range []struct{ cursor, op string }{{before, ">"}, {after, "<"}} {
+		if bound.cursor == "" {
+			continue
+		}
+		publishedAt, id, hasID, err := parseItemCursor(bound.cursor)
 		if err != nil {
 			return microsub.Timeline{}, err
 		}
 		args = append(args, publishedAt)
-		if before != "" {
-			if hasID {
-				args = append(args, id)
-				qb.WriteString(` AND ("published_at" > $2 OR ("published_at" = $2 AND "id" > $3))`)
-			} else {
-				qb.WriteString(` AND "published_at" > $2`)
-			}
-		} else if hasID {
+		timeArg := len(args)
+		if hasID {
 			args = append(args, id)
-			qb.WriteString(` AND ("published_at" < $2 OR ("published_at" = $2 AND "id" < $3))`)
+			fmt.Fprintf(&qb, ` AND ("published_at" %s $%d OR ("published_at" = $%d AND "id" %s $%d))`, bound.op, timeArg, timeArg, bound.op, len(args))
 		} else {
-			qb.WriteString(` AND "published_at" < $2`)
+			fmt.Fprintf(&qb, ` AND "published_at" %s $%d`, bound.op, timeArg)
 		}
 	}
-	qb.WriteString(` ORDER BY "published_at" DESC, "id" DESC LIMIT 20`)
+	args = append(args, limit)
+	fmt.Fprintf(&qb, ` ORDER BY "published_at" DESC, "id" DESC LIMIT $%d`, len(args))
 
 	rows, err := conn.QueryContext(context.Background(), qb.String(), args...)
 	if err != nil {
@@ -150,7 +155,7 @@ WHERE "channel_id" = $1
 	if firstCursor != "" && p.hasMoreBefore(conn, firstCursor) {
 		tl.Paging.Before = firstCursor
 	}
-	if lastCursor != "" && p.hasMoreAfter(conn, lastCursor) {
+	if lastCursor != "" && p.hasMoreAfterWithin(conn, lastCursor, before) {
 		tl.Paging.After = lastCursor
 	}
 	if tl.Items == nil {
@@ -221,6 +226,40 @@ func (p *postgresStream) hasMoreBefore(conn *sql.Conn, cursor string) bool {
 		return false
 	}
 	return exists
+}
+
+// hasMoreAfterWithin keeps an older-page cursor inside a simultaneous newer bound.
+func (p *postgresStream) hasMoreAfterWithin(conn *sql.Conn, cursor, before string) bool {
+	if before == "" {
+		return p.hasMoreAfter(conn, cursor)
+	}
+	lastTime, lastID, lastHasID, err := parseItemCursor(cursor)
+	if err != nil {
+		return false
+	}
+	firstTime, firstID, firstHasID, err := parseItemCursor(before)
+	if err != nil {
+		return false
+	}
+	args := []interface{}{p.channelID, lastTime}
+	query := `SELECT EXISTS (SELECT 1 FROM items WHERE channel_id = $1`
+	if lastHasID {
+		args = append(args, lastID)
+		query += ` AND (published_at < $2 OR (published_at = $2 AND id < $3))`
+	} else {
+		query += ` AND published_at < $2`
+	}
+	args = append(args, firstTime)
+	t := len(args)
+	if firstHasID {
+		args = append(args, firstID)
+		query += fmt.Sprintf(` AND (published_at > $%d OR (published_at = $%d AND id > $%d))`, t, t, len(args))
+	} else {
+		query += fmt.Sprintf(` AND published_at > $%d`, t)
+	}
+	query += `)`
+	var exists bool
+	return conn.QueryRowContext(context.Background(), query, args...).Scan(&exists) == nil && exists
 }
 
 func (p *postgresStream) hasMoreAfter(conn *sql.Conn, cursor string) bool {

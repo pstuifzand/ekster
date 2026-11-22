@@ -39,6 +39,10 @@ func (timeline *nullTimeline) Items(before, after string) (microsub.Timeline, er
 	return microsub.Timeline{Items: []microsub.Item{}}, nil
 }
 
+func (timeline *nullTimeline) ItemsWithLimit(before, after string, limit int) (microsub.Timeline, error) {
+	return timeline.Items(before, after)
+}
+
 func (timeline *nullTimeline) AddItem(item microsub.Item) (bool, error) {
 	return false, nil
 }

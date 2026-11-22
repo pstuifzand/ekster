@@ -4,6 +4,8 @@
 
 ### Added
 
+- Timeline page size requests via Microsub `limit`, `ek timeline UID -limit N`, and the `get_timeline` MCP tool. Omitted limits retain the 20-item default; positive limits are capped at 100. Invalid limits return an error.
+
 - Channel ordering through Microsub, `ek channels -order UID...`, and the `order_channels` MCP tool. Partial reorders preserve other positions and notifications stay first.
 
 - `ek thread`, and the `action=timeline&method=thread` extension behind it: the conversation around an entry, root first and the known replies oldest first, with `thread.partial` and `thread.missing` saying what the answer does not contain. Ancestors are walked up `in-reply-to` and fetched when missing; replies come only from what is already indexed. Documented in `docs/extensions/thread.md`.

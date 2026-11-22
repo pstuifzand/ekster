@@ -178,7 +178,22 @@ func (c *Client) ChannelsGetList(ctx context.Context) ([]microsub.Channel, error
 
 // TimelineGet gets a timeline from a Microsub server
 func (c *Client) TimelineGet(ctx context.Context, before, after, channel string) (microsub.Timeline, error) {
+	return c.timelineGet(ctx, before, after, channel, 0)
+}
+
+// TimelineGetWithLimit requests a positive page size; servers may apply bounds.
+func (c *Client) TimelineGetWithLimit(ctx context.Context, before, after, channel string, limit int) (microsub.Timeline, error) {
+	if limit <= 0 {
+		return microsub.Timeline{}, fmt.Errorf("limit must be positive")
+	}
+	return c.timelineGet(ctx, before, after, channel, limit)
+}
+
+func (c *Client) timelineGet(ctx context.Context, before, after, channel string, limit int) (microsub.Timeline, error) {
 	args := make(map[string]string)
+	if limit > 0 {
+		args["limit"] = strconv.Itoa(limit)
+	}
 	args["after"] = after
 	args["before"] = before
 	args["channel"] = channel

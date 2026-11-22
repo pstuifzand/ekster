@@ -13,7 +13,6 @@
 
 Implement the protocol methods and expose them through the HTTP endpoint and client:
 
-- `TimelineGetWithLimit` — request a timeline page size.
 - `MarkUnread` — mark entries unread.
 - `MarkReadThrough` — mark an entry and earlier entries read using `last_read_entry`.
 - `TimelineRemove` — remove entries from a channel.
@@ -24,6 +23,8 @@ Implement the protocol methods and expose them through the HTTP endpoint and cli
 The remaining interface methods currently return `ErrUnsupported`.
 
 ## DONE
+
+- `TimelineGetWithLimit` — request a timeline page size through Microsub, `ek`, and MCP.
 
 - `ChannelsOrder` — reorder channels through Microsub, `ek`, and MCP.
 - Compile templates into binary (with "embed"?)

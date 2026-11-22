@@ -878,7 +878,11 @@ func notificationSource(f feed) *microsub.Source {
 }
 
 func (b *memoryBackend) TimelineGet(ctx context.Context, before, after, channel string) (microsub.Timeline, error) {
-	slog.DebugContext(ctx, "timeline get", "channel", channel, "before", before, "after", after)
+	return b.TimelineGetWithLimit(ctx, before, after, channel, 20)
+}
+
+func (b *memoryBackend) TimelineGetWithLimit(ctx context.Context, before, after, channel string, limit int) (microsub.Timeline, error) {
+	slog.DebugContext(ctx, "timeline get", "channel", channel, "before", before, "after", after, "limit", limit)
 
 	// Check if feed exists
 	_, err := b.FollowGetList(ctx, channel)
@@ -893,7 +897,7 @@ func (b *memoryBackend) TimelineGet(ctx context.Context, before, after, channel 
 
 	// _ = b.updateChannelUnreadCount(channel)
 
-	return timelineBackend.Items(before, after)
+	return timelineBackend.ItemsWithLimit(before, after, limit)
 }
 
 func (b *memoryBackend) FollowGetList(ctx context.Context, uid string) ([]microsub.Feed, error) {
