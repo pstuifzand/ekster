@@ -252,14 +252,25 @@ type Feed struct {
 	HomePage string `json:"-"`
 }
 
+// ItemSearchOptions describes content search filters. Repeated filter values
+// are alternatives; different filters are combined.
+type ItemSearchOptions struct {
+	Channel, Query                 string
+	Author, Category, Kind, Source []string
+	Before, After                  string
+	Limit                          int
+}
+
 // Microsub is the main protocol that should be implemented by a backend
 type Microsub interface {
 	ChannelsGetList(ctx context.Context) ([]Channel, error)
 	ChannelsCreate(ctx context.Context, name string) (Channel, error)
 	ChannelsUpdate(ctx context.Context, uid, name string) (Channel, error)
 	ChannelsDelete(ctx context.Context, uid string) error
+	ChannelsOrder(ctx context.Context, uids []string) error
 
 	TimelineGet(ctx context.Context, before, after, channel string) (Timeline, error)
+	TimelineGetWithLimit(ctx context.Context, before, after, channel string, limit int) (Timeline, error)
 
 	// ThreadGet returns the conversation around one entry: the root first,
 	// then the known replies. entry is an _id inside the user's channels and
@@ -268,6 +279,9 @@ type Microsub interface {
 	ThreadGet(ctx context.Context, channel, entry, url string, depth int) (Thread, error)
 
 	MarkRead(ctx context.Context, channel string, entry []string) error
+	MarkUnread(ctx context.Context, channel string, entry []string) error
+	MarkReadThrough(ctx context.Context, channel, lastReadEntry string) error
+	TimelineRemove(ctx context.Context, channel string, entry []string) error
 
 	FollowGetList(ctx context.Context, uid string) ([]Feed, error)
 	FollowURL(ctx context.Context, uid string, url string) (Feed, error)
@@ -278,6 +292,14 @@ type Microsub interface {
 	PreviewURL(ctx context.Context, url string) (Timeline, error)
 
 	ItemSearch(ctx context.Context, channel, query string) ([]Item, error)
+	ItemSearchWithOptions(ctx context.Context, options ItemSearchOptions) (Timeline, error)
+
+	MuteGetList(ctx context.Context, channel string) ([]Card, error)
+	MuteURL(ctx context.Context, channel, url string) error
+	UnmuteURL(ctx context.Context, channel, url string) error
+	BlockGetList(ctx context.Context, channel string) ([]Card, error)
+	BlockURL(ctx context.Context, channel, url string) error
+	UnblockURL(ctx context.Context, channel, url string) error
 
 	Events(ctx context.Context) (chan sse.Message, error)
 }

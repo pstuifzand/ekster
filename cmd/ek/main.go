@@ -146,6 +146,7 @@ Commands:
 	channels NAME                create channel with NAME
 	channels UID NAME            update channel UID with NAME
 	channels -delete UID         delete channel with UID
+	channels -order UID...       reorder the specified channels
 
 	timeline UID                 show posts for channel UID
 	mark-read UID                mark all posts in channel UID as read
@@ -290,6 +291,17 @@ func performCommands(sub microsub.Microsub, commands []string) {
 	}
 
 	ctx := context.Background()
+
+	if len(commands) >= 2 && commands[0] == "channels" && commands[1] == "-order" {
+		if len(commands) < 3 {
+			fail(fmt.Errorf("channels -order requires at least one UID"))
+		}
+		if err := sub.ChannelsOrder(ctx, commands[2:]); err != nil {
+			fail(err)
+		}
+		fmt.Println("Channel order updated")
+		return
+	}
 
 	if len(commands) == 1 && commands[0] == "channels" {
 		channels, err := sub.ChannelsGetList(ctx)

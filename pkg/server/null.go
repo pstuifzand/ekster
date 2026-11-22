@@ -27,6 +27,7 @@ import (
 
 // NullBackend is the simplest possible backend
 type NullBackend struct {
+	microsub.UnsupportedMethods
 }
 
 // ChannelsGetList gets no channels

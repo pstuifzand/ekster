@@ -36,6 +36,7 @@ import (
 
 // Client is a HTTP client for Microsub
 type Client struct {
+	microsub.UnsupportedMethods
 	Me               *url.URL
 	MicrosubEndpoint *url.URL
 	Token            string
@@ -337,6 +338,16 @@ func (c *Client) ChannelsUpdate(ctx context.Context, uid, name string) (microsub
 		return microsub.Channel{}, err
 	}
 	return channel, nil
+}
+
+// ChannelsOrder changes the relative order of the supplied channel UIDs.
+func (c *Client) ChannelsOrder(ctx context.Context, uids []string) error {
+	data := url.Values{"channels[]": uids}
+	res, err := c.microsubPostFormRequest(ctx, "channels", map[string]string{"method": "order"}, data)
+	if err != nil {
+		return err
+	}
+	return res.Body.Close()
 }
 
 // ChannelsDelete deletes a channel.

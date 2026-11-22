@@ -78,6 +78,7 @@ const DefaultPrio = 9999999
 const maxItemsPerRefresh = 100
 
 type memoryBackend struct {
+	microsub.UnsupportedMethods
 	lock     sync.RWMutex
 	Channels map[string]microsub.Channel
 	Feeds    map[string][]microsub.Feed
@@ -173,7 +174,8 @@ func (b *memoryBackend) ChannelsGetList(ctx context.Context) ([]microsub.Channel
 		SELECT c.uid, c.name, count(i.channel_id) as unread
 		FROM "channels" "c" left join items i on c.id = i.channel_id and i.is_read = 0
 		WHERE "c"."user_id" = $1
-		GROUP BY c.id;
+		GROUP BY c.id
+        ORDER BY (c.uid = 'notifications') DESC, c.sort_order NULLS LAST, c.id;
 	`, userID)
 
 	if err != nil {
@@ -183,7 +185,9 @@ func (b *memoryBackend) ChannelsGetList(ctx context.Context) ([]microsub.Channel
 	for rows.Next() {
 		var uid, name string
 		var count int
-		_ = rows.Scan(&uid, &name, &count)
+		if err := rows.Scan(&uid, &name, &count); err != nil {
+			return nil, err
+		}
 
 		channels = append(channels, microsub.Channel{UID: uid, Name: name, Unread: microsub.Unread{
 			Type:        microsub.UnreadCount,
@@ -191,10 +195,7 @@ func (b *memoryBackend) ChannelsGetList(ctx context.Context) ([]microsub.Channel
 		}})
 	}
 
-	util.StablePartition(channels, 0, len(channels), func(i int) bool {
-		return channels[i].Unread.HasUnread()
-	})
-	return channels, nil
+	return channels, rows.Err()
 }
 
 func shouldRetryWithNewUID(err error, try int) bool {

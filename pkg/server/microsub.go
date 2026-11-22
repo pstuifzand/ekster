@@ -175,6 +175,18 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			name := values.Get("name")
 			method := values.Get("method")
 			uid := values.Get("channel")
+			if method == "order" {
+				if err := h.backend.ChannelsOrder(r.Context(), values["channels[]"]); err != nil {
+					if errors.Is(err, microsub.ErrInvalidChannelOrder) {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+					} else {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
+					return
+				}
+				respondJSON(w, map[string]interface{}{})
+				return
+			}
 			if method == "delete" {
 				err := h.backend.ChannelsDelete(r.Context(), uid)
 				if err != nil {

@@ -4,6 +4,8 @@
 
 ### Added
 
+- Channel ordering through Microsub, `ek channels -order UID...`, and the `order_channels` MCP tool. Partial reorders preserve other positions and notifications stay first.
+
 - `ek thread`, and the `action=timeline&method=thread` extension behind it: the conversation around an entry, root first and the known replies oldest first, with `thread.partial` and `thread.missing` saying what the answer does not contain. Ancestors are walked up `in-reply-to` and fetched when missing; replies come only from what is already indexed. Documented in `docs/extensions/thread.md`.
 - A thread returns the posts the entry refers to — `mention-of`, `like-of`, `repost-of`, `bookmark-of` — as `refs`, resolved from the index or fetched once, so an entry that only mentions another post shows it instead of standing alone.
 - Following a bare search term in the feed follower: the search now offers the matching Hacker News stories and comments as ordinary feeds (`hnrss.org`), so a subject like "postgres" can be followed, previewed and unfollowed like any other feed.

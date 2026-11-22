@@ -35,6 +35,9 @@ type channelUpdateInput struct {
 	Channel string `json:"channel" jsonschema:"Channel UID"`
 	Name    string `json:"name" jsonschema:"New channel name"`
 }
+type channelOrderInput struct {
+	Channels []string `json:"channels" jsonschema:"Channel UIDs in desired relative order"`
+}
 type channelInput struct {
 	Channel string `json:"channel" jsonschema:"Channel UID"`
 }
@@ -114,6 +117,7 @@ func newMCPServer(c *client.Client) *mcp.Server {
 	write := &mcp.ToolAnnotations{ReadOnlyHint: false, OpenWorldHint: boolPtr(true)}
 	mcp.AddTool(server, &mcp.Tool{Name: "create_channel", Description: "Create a channel.", Annotations: write}, tools.createChannel)
 	mcp.AddTool(server, &mcp.Tool{Name: "update_channel", Description: "Rename a channel.", Annotations: write}, tools.updateChannel)
+	mcp.AddTool(server, &mcp.Tool{Name: "order_channels", Description: "Reorder the specified channel UIDs; other channels keep their positions.", Annotations: write}, tools.orderChannels)
 	mcp.AddTool(server, &mcp.Tool{Name: "delete_channel", Description: "Delete a channel and its subscriptions.", Annotations: write}, tools.deleteChannel)
 	mcp.AddTool(server, &mcp.Tool{Name: "list_follows", Description: "List feeds followed in a channel.", Annotations: readOnly}, tools.listFollows)
 	mcp.AddTool(server, &mcp.Tool{Name: "follow_url", Description: "Follow a website or feed URL in a channel.", Annotations: write}, tools.followURL)
@@ -193,6 +197,10 @@ func (t *mcpTools) createChannel(ctx context.Context, _ *mcp.CallToolRequest, in
 func (t *mcpTools) updateChannel(ctx context.Context, _ *mcp.CallToolRequest, in channelUpdateInput) (*mcp.CallToolResult, channelOutput, error) {
 	ch, err := t.microsub.ChannelsUpdate(ctx, in.Channel, in.Name)
 	return nil, channelOutput{Channel: ch}, err
+}
+func (t *mcpTools) orderChannels(ctx context.Context, _ *mcp.CallToolRequest, in channelOrderInput) (*mcp.CallToolResult, successOutput, error) {
+	err := t.microsub.ChannelsOrder(ctx, in.Channels)
+	return nil, successOutput{Success: err == nil}, err
 }
 func (t *mcpTools) deleteChannel(ctx context.Context, _ *mcp.CallToolRequest, in channelInput) (*mcp.CallToolResult, successOutput, error) {
 	err := t.microsub.ChannelsDelete(ctx, in.Channel)
