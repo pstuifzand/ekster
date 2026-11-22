@@ -178,6 +178,11 @@ func (b *memoryBackend) ChannelsGetList(ctx context.Context) ([]microsub.Channel
 		    AND (m.channel_id IS NULL OR m.channel_id = c.id)
 		    AND m.url = i.data->'author'->>'url'
 		  )
+		  AND NOT EXISTS (
+		    SELECT 1 FROM blocks b WHERE b.user_id = c.user_id
+		    AND (b.channel_id IS NULL OR b.channel_id = c.id)
+		    AND b.url = i.data->'author'->>'url'
+		  )
 		WHERE "c"."user_id" = $1
 		GROUP BY c.id
         ORDER BY (c.uid = 'notifications') DESC, c.sort_order NULLS LAST, c.id;
@@ -917,6 +922,13 @@ func (b *memoryBackend) TimelineGetWithLimit(ctx context.Context, before, after,
 		}
 		filter.SetMutedURLs(muted)
 	}
+	if filter, ok := timelineBackend.(timeline.BlockedURLFilter); ok {
+		blocked, err := b.blockedURLs(ctx, channel, userID)
+		if err != nil {
+			return microsub.Timeline{}, err
+		}
+		filter.SetBlockedURLs(blocked)
+	}
 
 	return timelineBackend.ItemsWithLimit(before, after, limit)
 }
@@ -957,6 +969,40 @@ WHERE m.user_id = $1 AND (m.channel_id IS NULL OR c.uid = $2)`, userID, channel)
 		urls = append(urls, u)
 	}
 	return urls, rows.Err()
+}
+
+func (b *memoryBackend) blockedURLs(ctx context.Context, channel string, userID int) ([]string, error) {
+	rows, err := b.database.QueryContext(ctx, `
+SELECT b.url FROM blocks b
+LEFT JOIN channels c ON c.id = b.channel_id
+WHERE b.user_id = $1 AND (b.channel_id IS NULL OR c.uid = $2)`, userID, channel)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	urls := []string{}
+	for rows.Next() {
+		var u string
+		if err := rows.Scan(&u); err != nil {
+			return nil, err
+		}
+		urls = append(urls, u)
+	}
+	return urls, rows.Err()
+}
+
+// authorBlocked reports whether the channel's owner blocks authorURL for this
+// channel, either account-wide or for the channel itself.
+func (b *memoryBackend) authorBlocked(ctx context.Context, channel, authorURL string) (bool, error) {
+	var blocked bool
+	err := b.database.QueryRowContext(ctx, `
+SELECT EXISTS (
+  SELECT 1 FROM channels c
+  JOIN blocks b ON b.user_id = c.user_id
+    AND (b.channel_id IS NULL OR b.channel_id = c.id)
+  WHERE c.uid = $1 AND b.url = $2
+)`, channel, authorURL).Scan(&blocked)
+	return blocked, err
 }
 
 // MuteGetList returns account mutes plus mutes specifically for channel.
@@ -1016,6 +1062,125 @@ func (b *memoryBackend) UnmuteURL(ctx context.Context, channel, rawURL string) e
 		return err
 	}
 	_, err = b.database.ExecContext(ctx, `DELETE FROM mutes WHERE user_id=$1 AND channel_id=$2 AND url=$3`, userID, id, rawURL)
+	return err
+}
+
+// BlockGetList returns the account-wide blocks plus the blocks for channel.
+// The spec leaves the GET format open; each block is a card carrying the
+// author's URL and, when an item by that author is still stored, its name and
+// photo.
+func (b *memoryBackend) BlockGetList(ctx context.Context, channel string) ([]microsub.Card, error) {
+	if channel == "global" {
+		channel = ""
+	}
+	userID, ok := userid.FromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("missing user identity")
+	}
+	if channel != "" {
+		if _, err := b.channelIDForUser(ctx, channel, userID); err != nil {
+			return nil, err
+		}
+	}
+	rows, err := b.database.QueryContext(ctx, `
+SELECT b.url, a.name, a.photo
+FROM blocks b
+LEFT JOIN LATERAL (
+    SELECT i.data->'author'->>'name' AS name,
+           i.data->'author'->>'photo' AS photo
+    FROM items i
+    JOIN channels c ON c.id = i.channel_id
+    WHERE c.user_id = b.user_id
+      AND i.data->'author'->>'url' = b.url
+    ORDER BY i.published_at DESC NULLS LAST, i.id DESC
+    LIMIT 1
+) a ON true
+LEFT JOIN channels bc ON bc.id = b.channel_id
+WHERE b.user_id = $1 AND (b.channel_id IS NULL OR bc.uid = $2)
+ORDER BY b.url`, userID, channel)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	cards := []microsub.Card{}
+	for rows.Next() {
+		var card microsub.Card
+		var name, photo sql.NullString
+		if err := rows.Scan(&card.URL, &name, &photo); err != nil {
+			return nil, err
+		}
+		card.Type = "card"
+		card.Name = name.String
+		card.Photo = photo.String
+		cards = append(cards, card)
+	}
+	return cards, rows.Err()
+}
+
+// BlockURL blocks an author, optionally for one channel, and removes the
+// author's existing items in that scope. Both steps share a transaction so a
+// failure cannot leave the block recorded without the cleanup.
+func (b *memoryBackend) BlockURL(ctx context.Context, channel, rawURL string) error {
+	if channel == "global" {
+		channel = ""
+	}
+	if err := microsub.ValidateProfileURL(rawURL); err != nil {
+		return err
+	}
+	userID, ok := userid.FromContext(ctx)
+	if !ok {
+		return fmt.Errorf("missing user identity")
+	}
+	var channelID interface{}
+	if channel != "" {
+		id, err := b.channelIDForUser(ctx, channel, userID)
+		if err != nil {
+			return err
+		}
+		channelID = id
+	}
+	tx, err := b.database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `INSERT INTO blocks (user_id, channel_id, url) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, userID, channelID, rawURL); err != nil {
+		return err
+	}
+	// Join through channels so the delete can only reach the requesting
+	// user's items. A nil channelID means every channel of that user.
+	if _, err = tx.ExecContext(ctx, `
+DELETE FROM items i
+USING channels c
+WHERE i.channel_id = c.id
+  AND c.user_id = $1
+  AND i.data->'author'->>'url' = $2
+  AND ($3::int IS NULL OR i.channel_id = $3)`, userID, rawURL, channelID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (b *memoryBackend) UnblockURL(ctx context.Context, channel, rawURL string) error {
+	if channel == "global" {
+		channel = ""
+	}
+	if err := microsub.ValidateProfileURL(rawURL); err != nil {
+		return err
+	}
+	userID, ok := userid.FromContext(ctx)
+	if !ok {
+		return fmt.Errorf("missing user identity")
+	}
+	if channel == "" {
+		_, err := b.database.ExecContext(ctx, `DELETE FROM blocks WHERE user_id=$1 AND url=$2`, userID, rawURL)
+		return err
+	}
+	id, err := b.channelIDForUser(ctx, channel, userID)
+	if err != nil {
+		return err
+	}
+	_, err = b.database.ExecContext(ctx, `DELETE FROM blocks WHERE user_id=$1 AND channel_id=$2 AND url=$3`, userID, id, rawURL)
 	return err
 }
 
@@ -1397,7 +1562,10 @@ func (b *memoryBackend) TimelineRemove(ctx context.Context, channel string, uids
 SELECT count(*) FROM items i WHERE i.channel_id = $1 AND i.is_read = 0
 AND NOT EXISTS (SELECT 1 FROM mutes m WHERE m.user_id = $2
   AND (m.channel_id IS NULL OR m.channel_id = i.channel_id)
-  AND m.url = i.data->'author'->>'url')`, ids[0], userID).Scan(&count); err != nil {
+  AND m.url = i.data->'author'->>'url')
+AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.user_id = $2
+  AND (b.channel_id IS NULL OR b.channel_id = i.channel_id)
+  AND b.url = i.data->'author'->>'url')`, ids[0], userID).Scan(&count); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {
@@ -1816,6 +1984,20 @@ func (b *memoryBackend) channelAddItemWithMatcher(ctx context.Context, channel s
 			"channel", channel, "item", item.URL)
 		return false, nil
 	}
+	// A blocked author's new posts are not stored at all. This check comes
+	// before the insert, unlike the mute check in channelAddItem, which only
+	// keeps a muted post out of the new-item event.
+	if item.Author != nil && item.Author.URL != "" {
+		blocked, err := b.authorBlocked(ctx, channel, item.Author.URL)
+		if err != nil {
+			return false, err
+		}
+		if blocked {
+			slog.DebugContext(ctx, "item skipped from blocked author",
+				"channel", channel, "author", item.Author.URL, "item", item.URL)
+			return false, nil
+		}
+	}
 	added, err := b.channelAddItem(ctx, channel, item)
 
 	if err != nil {
@@ -1935,6 +2117,13 @@ func (b *memoryBackend) updateChannelUnreadCount(ctx context.Context, channel st
 			return err
 		}
 		filter.SetMutedURLs(muted)
+	}
+	if filter, ok := tl.(timeline.BlockedURLFilter); ok {
+		blocked, err := b.blockedURLs(ctx, channel, owner)
+		if err != nil {
+			return err
+		}
+		filter.SetBlockedURLs(blocked)
 	}
 
 	_, span := observability.Span(ctx, "db.items.count",

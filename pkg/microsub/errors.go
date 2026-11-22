@@ -39,3 +39,9 @@ var ErrNotFound = errors.New("not found")
 // preview typed into the reader's feed box used to answer 500, which reads as
 // "the server is broken" for a URL that simply is not a feed.
 var ErrNotAFeed = errors.New("not a feed")
+
+// ErrInvalidProfileURL is returned by BlockURL and UnblockURL when the
+// supplied author URL is not an absolute http(s) URL with a host and no
+// fragment. It maps to 400: the value came from the caller, so the request is
+// what is wrong.
+var ErrInvalidProfileURL = errors.New("invalid profile URL")

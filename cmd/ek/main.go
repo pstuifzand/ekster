@@ -172,6 +172,8 @@ Commands:
 	unfollow UID URL             unfollow URL on channel UID
 	mute [UID] [URL]             list muted URLs, or mute URL (globally when UID is omitted)
 	unmute [UID] URL             unmute URL (globally when UID is omitted)
+	block [UID] [URL]            list blocked URLs, or block URL (globally when UID is omitted)
+	unblock [UID] URL            unblock URL (globally when UID is omitted)
 
 	export opml                  export feeds as OPML
 	import opml FILENAME         import OPML feeds
@@ -359,6 +361,69 @@ func performCommands(sub microsub.Microsub, commands []string) {
 			fail(err)
 		}
 		fmt.Printf("Unmuted %s\n", mutedURL)
+		return
+	}
+
+	if len(commands) > 0 && commands[0] == "block" {
+		channel, blockedURL := "", ""
+		switch len(commands) {
+		case 1:
+		case 2:
+			if strings.Contains(commands[1], "://") {
+				blockedURL = commands[1]
+			} else {
+				var err error
+				channel, err = channelID(ctx, sub, commands[1])
+				if err != nil {
+					fail(err)
+				}
+			}
+		case 3:
+			var err error
+			channel, err = channelID(ctx, sub, commands[1])
+			if err != nil {
+				fail(err)
+			}
+			blockedURL = commands[2]
+		default:
+			fail(fmt.Errorf("usage: ek block [UID] [URL]"))
+		}
+		if blockedURL != "" {
+			if err := sub.BlockURL(ctx, channel, blockedURL); err != nil {
+				fail(err)
+			}
+			fmt.Printf("Blocked %s\n", blockedURL)
+			return
+		}
+		cards, err := sub.BlockGetList(ctx, channel)
+		if err != nil {
+			fail(err)
+		}
+		for _, card := range cards {
+			fmt.Println(card.URL)
+		}
+		return
+	}
+
+	if len(commands) > 0 && commands[0] == "unblock" {
+		channel, blockedURL := "", ""
+		switch len(commands) {
+		case 2:
+			blockedURL = commands[1]
+		case 3:
+			var err error
+			channel, err = channelID(ctx, sub, commands[1])
+			if err != nil {
+				fail(err)
+			}
+			blockedURL = commands[2]
+		default:
+			fail(fmt.Errorf("usage: ek unblock [UID] URL"))
+		}
+		if err := sub.UnblockURL(ctx, channel, blockedURL); err != nil {
+			fail(err)
+		}
+		fmt.Printf("Unblocked %s\n", blockedURL)
 		return
 	}
 

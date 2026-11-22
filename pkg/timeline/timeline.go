@@ -55,6 +55,13 @@ type MutedURLFilter interface {
 	SetMutedURLs([]string)
 }
 
+// BlockedURLFilter is implemented by stores that can hide entries whose
+// data.author.url is blocked. Like MutedURLFilter it is deliberately not part
+// of Backend: block policy belongs to the account-facing backend.
+type BlockedURLFilter interface {
+	SetBlockedURLs([]string)
+}
+
 // Create creates a channel of the specified type. Return nil when the type
 // is not known.
 func Create(channel, timelineType string, pool *redis.Pool, db *sql.DB) Backend {

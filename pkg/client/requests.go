@@ -467,6 +467,63 @@ func (c *Client) UnmuteURL(ctx context.Context, channel, url string) error {
 	return res.Body.Close()
 }
 
+// BlockGetList gets blocked author cards, optionally scoped to a channel.
+func (c *Client) BlockGetList(ctx context.Context, channel string) ([]microsub.Card, error) {
+	args := map[string]string{}
+	if channel != "" {
+		args["channel"] = channel
+	}
+	res, err := c.microsubGetRequest(ctx, "block", args)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		body, readErr := ioutil.ReadAll(res.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("HTTP Status is not 200, but %d, error while reading body", res.StatusCode)
+		}
+		return nil, fmt.Errorf("HTTP Status is not 200, but %d: %s", res.StatusCode, body)
+	}
+	var response struct {
+		Items []microsub.Card `json:"items"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	if response.Items == nil {
+		response.Items = []microsub.Card{}
+	}
+	return response.Items, nil
+}
+
+// BlockURL blocks an author URL, optionally scoped to a channel.
+func (c *Client) BlockURL(ctx context.Context, channel, url string) error {
+	args := map[string]string{"url": url}
+	if channel != "" {
+		args["channel"] = channel
+	}
+	res, err := c.microsubPostRequest(ctx, "block", args)
+	if err != nil {
+		return err
+	}
+	return res.Body.Close()
+}
+
+// UnblockURL removes an author URL from the block list, optionally scoped to
+// a channel.
+func (c *Client) UnblockURL(ctx context.Context, channel, url string) error {
+	args := map[string]string{"url": url}
+	if channel != "" {
+		args["channel"] = channel
+	}
+	res, err := c.microsubPostRequest(ctx, "unblock", args)
+	if err != nil {
+		return err
+	}
+	return res.Body.Close()
+}
+
 // Search asks the server to search for the query.
 func (c *Client) Search(ctx context.Context, query string) ([]microsub.Feed, error) {
 	args := make(map[string]string)

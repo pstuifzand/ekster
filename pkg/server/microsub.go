@@ -50,6 +50,19 @@ func previewStatus(err error) int {
 	return http.StatusInternalServerError
 }
 
+// blockStatus separates a channel the caller may not see from a URL that
+// cannot name an author. Both are the request's fault, not the server's.
+func blockStatus(err error) int {
+	switch {
+	case errors.Is(err, microsub.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, microsub.ErrInvalidProfileURL):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 // Constants used for the responses
 const (
 	OutputContentType = "application/json; charset=utf-8"
@@ -166,6 +179,15 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				cards = append(cards, microsub.Card{Type: "card", URL: url})
 			}
 			respondJSON(w, map[string][]microsub.Card{"items": cards})
+		} else if action == "block" {
+			channel := values.Get("channel")
+			blocked, err := h.backend.BlockGetList(r.Context(), channel)
+			if err != nil {
+				slog.ErrorContext(r.Context(), "could not list blocked urls", "channel", channel, "error", err)
+				http.Error(w, err.Error(), blockStatus(err))
+				return
+			}
+			respondJSON(w, map[string][]microsub.Card{"items": blocked})
 		} else if action == "events" {
 			events, err := h.backend.Events(r.Context())
 			if err != nil {
@@ -281,6 +303,20 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			respondJSON(w, []string{})
+		} else if action == "block" || action == "unblock" {
+			channel := r.FormValue("channel")
+			url := r.FormValue("url")
+			var err error
+			if action == "block" {
+				err = h.backend.BlockURL(r.Context(), channel, url)
+			} else {
+				err = h.backend.UnblockURL(r.Context(), channel, url)
+			}
+			if err != nil {
+				http.Error(w, err.Error(), blockStatus(err))
 				return
 			}
 			respondJSON(w, []string{})

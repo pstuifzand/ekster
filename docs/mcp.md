@@ -12,13 +12,19 @@ explicit typed output schemas, and structured tool results (`structuredContent`)
 ## Tools
 
 Read tools: `list_channels`, `get_timeline`, `search_feeds`, `search_items`,
-`list_follows`, and `preview_url`. `search_items` supports structured filters and
-paging; see [content search](content-search.md) for fields and examples.
+`list_follows`, `list_mutes`, `list_blocks`, and `preview_url`. `search_items`
+supports structured filters and paging; see [content search](content-search.md)
+for fields and examples.
 
 Mutation tools: `create_channel`, `update_channel`, `delete_channel`, `order_channels`,
-`follow_url`, `unfollow_url`, `mark_read`, `mark_read_through`, `mark_unread`, and `remove_entries`. These operate on the configured
+`follow_url`, `unfollow_url`, `mute_url`, `unmute_url`, `block_url`, `unblock_url`,
+`mark_read`, `mark_read_through`, `mark_unread`, and `remove_entries`. These operate on the configured
 Microsub account; destructive and state-changing operations are annotated as
 non-read-only, but MCP annotations are not a security boundary.
+
+Blocking an author URL deletes that author's stored entries in scope and keeps
+future entries from being stored; muting only hides entries. Both accept an
+optional `channel`; omit it to apply the rule account-wide.
 
 ## Example MCP client configuration
 

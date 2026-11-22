@@ -4,6 +4,8 @@
 
 ### Added
 
+- Block and unblock author profile URLs globally or per channel through Microsub, `ek`, and MCP. Blocking deletes that author's stored entries in scope and keeps future entries from being stored; `BlockGetList` returns the blocked authors as cards.
+
 - Mute and unmute author profile URLs globally or per channel through Microsub, `ek`, and MCP. Muted posts are retained but hidden from timelines, content search, unread counts, and new-item events.
 
 - Content search supports structured author, category, kind and source filters, cursor paging and limits over GET or POST, with Go client, `ek query`, and MCP `search_items` support. See `docs/content-search.md`.

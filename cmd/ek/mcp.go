@@ -61,6 +61,13 @@ type muteInput struct {
 type muteListInput struct {
 	Channel *string `json:"channel,omitempty" jsonschema:"Channel UID; defaults to global"`
 }
+type blockInput struct {
+	Channel *string `json:"channel,omitempty" jsonschema:"Channel UID; defaults to global"`
+	URL     string  `json:"url" jsonschema:"Author profile URL to block or unblock"`
+}
+type blockListInput struct {
+	Channel *string `json:"channel,omitempty" jsonschema:"Channel UID; defaults to global"`
+}
 type previewInput struct {
 	URL string `json:"url" jsonschema:"Website or feed URL to preview"`
 }
@@ -94,6 +101,9 @@ type followsOutput struct {
 }
 type mutesOutput struct {
 	URLs []string `json:"urls" jsonschema:"Muted URLs"`
+}
+type blocksOutput struct {
+	URLs []string `json:"urls" jsonschema:"Blocked author URLs"`
 }
 type channelResult struct {
 	UID         string `json:"uid" jsonschema:"Channel UID"`
@@ -154,6 +164,9 @@ func newMCPServer(c *client.Client) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{Name: "list_mutes", Description: "List muted URLs, globally or for a channel.", Annotations: readOnly}, tools.listMutes)
 	mcp.AddTool(server, &mcp.Tool{Name: "mute_url", Description: "Mute a URL, globally or for a channel.", Annotations: write}, tools.muteURL)
 	mcp.AddTool(server, &mcp.Tool{Name: "unmute_url", Description: "Unmute a URL, globally or for a channel.", Annotations: write}, tools.unmuteURL)
+	mcp.AddTool(server, &mcp.Tool{Name: "list_blocks", Description: "List blocked author URLs, globally or for a channel.", Annotations: readOnly}, tools.listBlocks)
+	mcp.AddTool(server, &mcp.Tool{Name: "block_url", Description: "Block an author URL, globally or for a channel.", Annotations: write}, tools.blockURL)
+	mcp.AddTool(server, &mcp.Tool{Name: "unblock_url", Description: "Unblock an author URL, globally or for a channel.", Annotations: write}, tools.unblockURL)
 	mcp.AddTool(server, &mcp.Tool{Name: "preview_url", Description: "Preview a website or feed before following it.", Annotations: openSearch}, tools.previewURL)
 	mcp.AddTool(server, &mcp.Tool{Name: "mark_read_through", Description: "Mark an entry and older entries read in a channel.", Annotations: write}, tools.markReadThrough)
 	mcp.AddTool(server, &mcp.Tool{Name: "mark_read", Description: "Mark timeline items as read in a channel.", Annotations: write}, tools.markRead)
@@ -294,6 +307,34 @@ func (t *mcpTools) unmuteURL(ctx context.Context, _ *mcp.CallToolRequest, in mut
 		channel = *in.Channel
 	}
 	err := t.microsub.UnmuteURL(ctx, channel, in.URL)
+	return nil, successOutput{Success: err == nil}, err
+}
+func (t *mcpTools) listBlocks(ctx context.Context, _ *mcp.CallToolRequest, in blockListInput) (*mcp.CallToolResult, blocksOutput, error) {
+	channel := ""
+	if in.Channel != nil {
+		channel = *in.Channel
+	}
+	cards, err := t.microsub.BlockGetList(ctx, channel)
+	urls := make([]string, 0, len(cards))
+	for _, card := range cards {
+		urls = append(urls, card.URL)
+	}
+	return nil, blocksOutput{URLs: urls}, err
+}
+func (t *mcpTools) blockURL(ctx context.Context, _ *mcp.CallToolRequest, in blockInput) (*mcp.CallToolResult, successOutput, error) {
+	channel := ""
+	if in.Channel != nil {
+		channel = *in.Channel
+	}
+	err := t.microsub.BlockURL(ctx, channel, in.URL)
+	return nil, successOutput{Success: err == nil}, err
+}
+func (t *mcpTools) unblockURL(ctx context.Context, _ *mcp.CallToolRequest, in blockInput) (*mcp.CallToolResult, successOutput, error) {
+	channel := ""
+	if in.Channel != nil {
+		channel = *in.Channel
+	}
+	err := t.microsub.UnblockURL(ctx, channel, in.URL)
 	return nil, successOutput{Success: err == nil}, err
 }
 func (t *mcpTools) previewURL(ctx context.Context, _ *mcp.CallToolRequest, in previewInput) (*mcp.CallToolResult, previewOutput, error) {
