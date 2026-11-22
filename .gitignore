@@ -13,3 +13,7 @@ database-data/
 
 # bleve search index written at runtime
 items.bleve/
+
+# Go build/module caches for CI, kept inside the workspace so the cache
+# action can see them; they are mounted into the build container.
+/.cache/
