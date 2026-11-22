@@ -221,5 +221,5 @@ func (timeline *redisSortedSetTimeline) MarkRead(uids []string) error {
 }
 
 func (timeline *redisSortedSetTimeline) MarkUnread(uids []string) error {
-	panic("implement me")
+	return microsub.ErrUnsupported
 }

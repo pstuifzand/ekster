@@ -28,10 +28,21 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pstuifzand/ekster/pkg/observability"
 	"github.com/pstuifzand/ekster/pkg/server"
+	"github.com/pstuifzand/ekster/pkg/sse"
 )
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+}
+
+// In unauthenticated mode the published URL explicitly selects the user;
+// anyone with access to the server can select any user. It is not authorization.
+func microsubRoute(backend *memoryBackend, authEnabled bool) (http.Handler, *sse.Broker) {
+	handler, broker := server.NewMicrosubHandler(backend)
+	if authEnabled {
+		return WithAuth(handler, backend), broker
+	}
+	return withoutAuthIdentity(handler), broker
 }
 
 // App is the main app structure
@@ -86,10 +97,7 @@ func NewApp(options AppOptions) (*App, error) {
 		pool:    options.pool,
 	}, nil))
 
-	handler, broker := server.NewMicrosubHandler(app.backend)
-	if options.AuthEnabled {
-		handler = WithAuth(handler, app.backend)
-	}
+	handler, broker := microsubRoute(app.backend, options.AuthEnabled)
 
 	app.backend.broker = broker
 

@@ -1,0 +1,105 @@
+//go:build integration
+
+package main
+
+import (
+	"context"
+	"database/sql"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"testing"
+
+	"github.com/pstuifzand/ekster/pkg/client"
+	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/pstuifzand/ekster/pkg/server"
+	"github.com/pstuifzand/ekster/pkg/sse"
+	"github.com/pstuifzand/ekster/pkg/userid"
+)
+
+func TestMarkUnreadChannelIsolationIntegration(t *testing.T) {
+	dsn := os.Getenv("DATABASE_TEST_URL")
+	if dsn == "" {
+		t.Skip("set DATABASE_TEST_URL")
+	}
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	for _, q := range []string{
+		`CREATE TEMP TABLE channels (id int primary key, uid text unique, user_id int)`,
+		`CREATE TEMP TABLE feeds (id int, channel_id int, url text)`,
+		`CREATE TEMP TABLE items (id int primary key, channel_id int, uid text unique, data jsonb, created_at timestamptz, is_read int, published_at timestamptz)`,
+		`INSERT INTO channels VALUES (1,'one',1),(2,'two',1)`,
+		`INSERT INTO items VALUES (1,1,'a','{"type":"entry"}',now(),1,now()),(2,1,'b','{"type":"entry"}',now(),1,now()),(3,2,'c','{"type":"entry"}',now(),1,now())`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	backend := &memoryBackend{database: db, broker: &sse.Broker{Notifier: make(chan sse.Message, 10)}}
+	h, _ := server.NewMicrosubHandler(backend)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.ServeHTTP(w, r.WithContext(userid.NewContext(r.Context(), 1)))
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	c := &client.Client{MicrosubEndpoint: u}
+	ctx := context.Background()
+	if err := c.MarkUnread(ctx, "one", []string{"a", "b", "c", "absent"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		channel string
+		states  map[string]bool
+	}{{"one", map[string]bool{"a": false, "b": false}}, {"two", map[string]bool{"c": true}}} {
+		page, err := c.TimelineGet(ctx, "", "", tc.channel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Items) != len(tc.states) {
+			t.Fatalf("%s items: %v", tc.channel, page.Items)
+		}
+		for _, item := range page.Items {
+			want, ok := tc.states[item.ID]
+			if !ok || item.Read != want {
+				t.Fatalf("%s %s read=%v", tc.channel, item.ID, item.Read)
+			}
+		}
+	}
+	msg := <-backend.broker.Notifier
+	ch, ok := msg.Object.(microsub.Channel)
+	if !ok || ch.UID != "one" || ch.Unread.UnreadCount != 2 {
+		t.Fatalf("count notification: %#v", msg)
+	}
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM items WHERE channel_id=1 AND is_read=0`).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("unread count=%d err=%v", count, err)
+	}
+	if err := c.MarkUnread(ctx, "one", []string{"a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE items SET is_read=0 WHERE uid='c'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.MarkRead(ctx, "one", []string{"a", "c"}); err != nil {
+		t.Fatal(err)
+	}
+	var a, cstate int
+	if err := db.QueryRow(`SELECT is_read FROM items WHERE uid='a'`).Scan(&a); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT is_read FROM items WHERE uid='c'`).Scan(&cstate); err != nil {
+		t.Fatal(err)
+	}
+	if a != 1 || cstate != 0 {
+		t.Fatalf("read states a=%d c=%d", a, cstate)
+	}
+	if err := c.MarkUnread(ctx, "missing", []string{"c"}); err == nil {
+		t.Fatal("unknown channel succeeded")
+	}
+}

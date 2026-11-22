@@ -42,6 +42,12 @@ type Message struct {
 	Event  string
 	Data   string
 	Object interface{}
+	UserID *int
+}
+
+type registration struct {
+	channel MessageChan
+	userID  *int
 }
 
 type pingMessage struct {
@@ -56,13 +62,13 @@ type Broker struct {
 	Notifier chan Message
 
 	// New client connections
-	newClients chan MessageChan
+	newClients chan registration
 
 	// Closed client connections
 	closingClients chan MessageChan
 
 	// Client connections registry
-	clients map[MessageChan]bool
+	clients map[MessageChan]*int
 }
 
 // Listen on different channels and act accordingly
@@ -80,7 +86,7 @@ func (broker *Broker) listen() {
 		case s := <-broker.newClients:
 			// A new client has connected.
 			// Register their message channel
-			broker.clients[s] = true
+			broker.clients[s.channel] = s.userID
 			slog.Debug("client added", "clients", len(broker.clients))
 		case s := <-broker.closingClients:
 			// A client has detached and we want to
@@ -90,8 +96,10 @@ func (broker *Broker) listen() {
 		case event := <-broker.Notifier:
 			// We got a new event from the outside!
 			// Send event to all connected clients
-			for clientMessageChan := range broker.clients {
-				clientMessageChan <- event
+			for clientMessageChan, userID := range broker.clients {
+				if event.UserID == nil || (userID != nil && *event.UserID == *userID) {
+					clientMessageChan <- event
+				}
 			}
 		}
 	}
@@ -103,9 +111,9 @@ func NewBroker() (broker *Broker) {
 	// Instantiate a broker
 	broker = &Broker{
 		Notifier:       make(chan Message, 1),
-		newClients:     make(chan MessageChan),
+		newClients:     make(chan registration),
 		closingClients: make(chan MessageChan),
-		clients:        make(map[MessageChan]bool),
+		clients:        make(map[MessageChan]*int),
 	}
 
 	// Set it running - listening and broadcasting events
@@ -125,8 +133,15 @@ func StartConnection(broker *Broker) (MessageChan, error) {
 	messageChan := make(MessageChan)
 
 	// Signal the broker that we have a new connection
-	broker.newClients <- messageChan
+	broker.newClients <- registration{channel: messageChan}
 
+	return messageChan, nil
+}
+
+// StartUserConnection registers a connection for user-scoped events.
+func StartUserConnection(broker *Broker, userID int) (MessageChan, error) {
+	messageChan := make(MessageChan)
+	broker.newClients <- registration{channel: messageChan, userID: &userID}
 	return messageChan, nil
 }
 

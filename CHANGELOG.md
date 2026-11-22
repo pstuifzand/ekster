@@ -4,6 +4,8 @@
 
 ### Added
 
+- Mark entries unread per channel through Microsub, `ek mark-unread UID ENTRY...`, and MCP `mark_unread`; mark-read updates are also restricted to the selected channel.
+
 - Timeline page size requests via Microsub `limit`, `ek timeline UID -limit N`, and the `get_timeline` MCP tool. Omitted limits retain the 20-item default; positive limits are capped at 100. Invalid limits return an error.
 
 - Channel ordering through Microsub, `ek channels -order UID...`, and the `order_channels` MCP tool. Partial reorders preserve other positions and notifications stay first.

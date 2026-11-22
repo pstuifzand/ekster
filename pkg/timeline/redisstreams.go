@@ -124,6 +124,5 @@ func (timeline *redisStreamTimeline) MarkRead(uids []string) error {
 }
 
 func (timeline *redisStreamTimeline) MarkUnread(uids []string) error {
-	// panic("implement me")
-	return nil
+	return microsub.ErrUnsupported
 }

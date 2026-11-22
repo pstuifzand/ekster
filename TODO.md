@@ -13,7 +13,6 @@
 
 Implement the protocol methods and expose them through the HTTP endpoint and client:
 
-- `MarkUnread` — mark entries unread.
 - `MarkReadThrough` — mark an entry and earlier entries read using `last_read_entry`.
 - `TimelineRemove` — remove entries from a channel.
 - `ItemSearchWithOptions` — support content search filters (`author`, `category`, `kind`, `source`), paging and `limit`; also accept GET requests.
@@ -23,6 +22,8 @@ Implement the protocol methods and expose them through the HTTP endpoint and cli
 The remaining interface methods currently return `ErrUnsupported`.
 
 ## DONE
+
+- `MarkUnread` — mark entries unread through Microsub, `ek`, and MCP.
 
 - `TimelineGetWithLimit` — request a timeline page size through Microsub, `ek`, and MCP.
 

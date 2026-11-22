@@ -15,7 +15,7 @@ Read tools: `list_channels`, `get_timeline`, `search_feeds`, `search_items`,
 `list_follows`, and `preview_url`.
 
 Mutation tools: `create_channel`, `update_channel`, `delete_channel`, `order_channels`,
-`follow_url`, `unfollow_url`, and `mark_read`. These operate on the configured
+`follow_url`, `unfollow_url`, `mark_read`, and `mark_unread`. These operate on the configured
 Microsub account; destructive and state-changing operations are annotated as
 non-read-only, but MCP annotations are not a security boundary.
 

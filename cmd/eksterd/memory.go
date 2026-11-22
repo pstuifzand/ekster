@@ -1287,24 +1287,70 @@ func (b *memoryBackend) PreviewURL(ctx context.Context, previewURL string) (micr
 }
 
 func (b *memoryBackend) MarkRead(ctx context.Context, channel string, uids []string) error {
-	tl, err := b.getTimeline(channel)
+	return b.setReadState(ctx, channel, uids, 1)
+}
+
+func (b *memoryBackend) MarkUnread(ctx context.Context, channel string, uids []string) error {
+	return b.setReadState(ctx, channel, uids, 0)
+}
+
+// Resolve the requesting user's channel once and use its database identity for
+// both the mutation and count. Never resolve a UID globally: UIDs can overlap.
+func (b *memoryBackend) setReadState(ctx context.Context, channel string, uids []string, state int) error {
+	userID, ok := userid.FromContext(ctx)
+	if !ok {
+		return fmt.Errorf("missing user identity")
+	}
+	tx, err := b.database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-
-	if err = tl.MarkRead(uids); err != nil {
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM channels WHERE uid = $1 AND user_id = $2 FOR UPDATE`, channel, userID)
+	if err != nil {
 		return err
 	}
-
-	if err = b.updateChannelUnreadCount(ctx, channel); err != nil {
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
 		return err
 	}
-
+	if len(ids) != 1 {
+		return fmt.Errorf("channel %q: %w", channel, microsub.ErrNotFound)
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE items SET is_read = $1 WHERE channel_id = $2 AND uid = ANY($3)`, state, ids[0], pq.Array(uids)); err != nil {
+		return err
+	}
+	var count int
+	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items WHERE channel_id = $1 AND is_read = 0`, ids[0]).Scan(&count); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	select {
+	case b.broker.Notifier <- sse.Message{Event: "new item in channel", Object: microsub.Channel{UID: channel, Unread: microsub.Unread{Type: microsub.UnreadCount, UnreadCount: count}}, UserID: &userID}:
+	default:
+		slog.WarnContext(ctx, "read-state notification dropped: broker busy", "channel", channel, "user_id", userID)
+	}
 	return nil
 }
 
 func (b *memoryBackend) Events(ctx context.Context) (chan sse.Message, error) {
-	return sse.StartConnection(b.broker)
+	userID, ok := userid.FromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("missing user identity")
+	}
+	return sse.StartUserConnection(b.broker, userID)
 }
 
 // ProcessSourcedItems processes items and adds the Source

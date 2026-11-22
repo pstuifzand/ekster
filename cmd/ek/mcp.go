@@ -53,6 +53,11 @@ type markReadInput struct {
 	Channel string   `json:"channel" jsonschema:"Channel UID"`
 	Entries []string `json:"entries" jsonschema:"Stable item IDs to mark read"`
 }
+type markUnreadInput struct {
+	Channel string   `json:"channel" jsonschema:"Channel UID"`
+	Entries []string `json:"entries" jsonschema:"Item IDs to mark unread"`
+}
+
 type feedOutput struct {
 	Feed microsub.Feed `json:"feed" jsonschema:"Followed feed"`
 }
@@ -125,6 +130,7 @@ func newMCPServer(c *client.Client) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{Name: "unfollow_url", Description: "Unfollow a URL in a channel.", Annotations: write}, tools.unfollowURL)
 	mcp.AddTool(server, &mcp.Tool{Name: "preview_url", Description: "Preview a website or feed before following it.", Annotations: openSearch}, tools.previewURL)
 	mcp.AddTool(server, &mcp.Tool{Name: "mark_read", Description: "Mark timeline items as read in a channel.", Annotations: write}, tools.markRead)
+	mcp.AddTool(server, &mcp.Tool{Name: "mark_unread", Description: "Mark timeline items as unread in a channel.", Annotations: write}, tools.markUnread)
 	return server
 }
 
@@ -234,6 +240,11 @@ func (t *mcpTools) previewURL(ctx context.Context, _ *mcp.CallToolRequest, in pr
 }
 func (t *mcpTools) markRead(ctx context.Context, _ *mcp.CallToolRequest, in markReadInput) (*mcp.CallToolResult, successOutput, error) {
 	err := t.microsub.MarkRead(ctx, in.Channel, in.Entries)
+	return nil, successOutput{Success: err == nil}, err
+}
+
+func (t *mcpTools) markUnread(ctx context.Context, _ *mcp.CallToolRequest, in markUnreadInput) (*mcp.CallToolResult, successOutput, error) {
+	err := t.microsub.MarkUnread(ctx, in.Channel, in.Entries)
 	return nil, successOutput{Success: err == nil}, err
 }
 

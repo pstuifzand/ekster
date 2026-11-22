@@ -156,6 +156,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				slog.ErrorContext(r.Context(), "could not start the event stream", "error", err)
 				http.Error(w, "could not start sse connection", http.StatusInternalServerError)
+				return
 			}
 
 			// Remove this client from the map of connected clients
@@ -294,6 +295,24 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if action == "timeline" || r.PostForm.Get("action") == "timeline" {
 			method := values.Get("method")
 
+			// Reject ambiguous requests before dispatch: ParseForm merges body and
+			// query values, and silently preferring either can invert a read action.
+			methods := r.Form["method"]
+			readState := false
+			for _, m := range methods {
+				if m == "mark_read" || m == "mark_unread" {
+					readState = true
+				}
+			}
+			if readState {
+				for _, m := range methods {
+					if m != methods[0] {
+						http.Error(w, "conflicting timeline methods", http.StatusBadRequest)
+						return
+					}
+				}
+			}
+
 			if method == "thread" || r.PostForm.Get("method") == "thread" {
 				// A client that only POSTs still gets thread: the method
 				// parameter is what names it, and the form is where the
@@ -302,7 +321,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if method == "mark_read" || r.PostForm.Get("method") == "mark_read" {
+			if method == "mark_read" || method == "mark_unread" || r.PostForm.Get("method") == "mark_read" || r.PostForm.Get("method") == "mark_unread" {
+				method = r.Form.Get("method")
 				values = r.Form
 				channel := values.Get("channel")
 				var markAsRead []string
@@ -320,17 +340,38 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					markAsRead = uids
 				}
 
+				if method == "mark_unread" {
+					if channel == "" || len(markAsRead) == 0 {
+						http.Error(w, "mark_unread requires a channel and at least one entry", http.StatusBadRequest)
+						return
+					}
+					for _, uid := range markAsRead {
+						if uid == "" {
+							http.Error(w, "mark_unread requires nonempty entries", http.StatusBadRequest)
+							return
+						}
+					}
+				}
 				if len(markAsRead) > 0 {
-					err := h.backend.MarkRead(r.Context(), channel, markAsRead)
+					var err error
+					if method == "mark_unread" {
+						err = h.backend.MarkUnread(r.Context(), channel, markAsRead)
+					} else {
+						err = h.backend.MarkRead(r.Context(), channel, markAsRead)
+					}
 					if err != nil {
-						http.Error(w, err.Error(), http.StatusInternalServerError)
+						if errors.Is(err, microsub.ErrNotFound) {
+							http.Error(w, "channel not found", http.StatusNotFound)
+						} else {
+							http.Error(w, err.Error(), http.StatusInternalServerError)
+						}
 						return
 					}
 				} else {
 					// A client that drops its body (no Content-Type, say) used to get 200
 					// here and report success; the entries stayed unread with no way to tell.
-					slog.WarnContext(r.Context(), "mark_read called without any entries", "channel", channel)
-					http.Error(w, "mark_read requires at least one entry", http.StatusBadRequest)
+					slog.WarnContext(r.Context(), "mark called without any entries", "method", method, "channel", channel)
+					http.Error(w, method+" requires at least one entry", http.StatusBadRequest)
 					return
 				}
 			} else {

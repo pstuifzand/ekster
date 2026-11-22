@@ -81,6 +81,23 @@ func deny(w http.ResponseWriter, msg string, code int) {
 	http.Error(w, msg, code)
 }
 
+// withoutAuthIdentity selects the identity in the public endpoint path. It
+// must only be used when authentication is explicitly disabled.
+func withoutAuthIdentity(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			handler.ServeHTTP(w, r)
+			return
+		}
+		id, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/microsub/"))
+		if !strings.HasPrefix(r.URL.Path, "/microsub/") || err != nil || id <= 0 {
+			deny(w, "No user id found in url", http.StatusBadRequest)
+			return
+		}
+		handler.ServeHTTP(w, r.WithContext(userid.NewContext(r.Context(), id)))
+	})
+}
+
 // WithAuth adds authorization to a http.Handler
 func WithAuth(handler http.Handler, b *memoryBackend) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +166,7 @@ func main() {
 	var options AppOptions
 
 	flag.IntVar(&options.Port, "port", 80, "port for serving api")
-	flag.BoolVar(&options.AuthEnabled, "auth", true, "use auth")
+	flag.BoolVar(&options.AuthEnabled, "auth", true, "use auth (if disabled, any caller can select any user via /microsub/{id})")
 	flag.BoolVar(&options.Headless, "headless", false, "disable frontend")
 	flag.StringVar(&options.RedisServer, "redis", "redis:6379", "redis server")
 	flag.StringVar(&options.BaseURL, "baseurl", "", "http server baseurl")

@@ -477,6 +477,21 @@ func (c *Client) MarkRead(ctx context.Context, channel string, uids []string) er
 	return nil
 }
 
+// MarkUnread marks entries unread in the given channel.
+func (c *Client) MarkUnread(ctx context.Context, channel string, uids []string) error {
+	args := map[string]string{"channel": channel, "method": "mark_unread"}
+	data := url.Values{}
+	for _, uid := range uids {
+		data.Add("entry[]", uid)
+	}
+	res, err := c.microsubPostFormRequest(ctx, "timeline", args, data)
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
+	return nil
+}
+
 // Events open an event channel to the server.
 func (c *Client) Events(ctx context.Context) (chan sse.Message, error) {
 

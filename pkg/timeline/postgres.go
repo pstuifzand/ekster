@@ -56,10 +56,9 @@ func (p *postgresStream) Init() error {
 
 	row := conn.QueryRowContext(ctx, `SELECT "id" FROM "channels" WHERE "uid" = $1`, p.channel)
 	err = row.Scan(&p.channelID)
-	// if err == sql.ErrNoRows {
-	// 	return fmt.Errorf("channel %s not found: %w", p.channel, err)
-	// }
-
+	if err != nil {
+		return fmt.Errorf("channel %s: %w", p.channel, err)
+	}
 	return nil
 }
 
@@ -402,9 +401,18 @@ func (p *postgresStream) MarkRead(uids []string) error {
 		return fmt.Errorf("getting connection: %w", err)
 	}
 	defer conn.Close()
-	_, err = conn.ExecContext(context.Background(), `UPDATE "items" SET is_read = 1 WHERE "uid" = ANY($1)`, pq.Array(uids))
+	_, err = conn.ExecContext(context.Background(), `UPDATE "items" SET is_read = 1 WHERE "channel_id" = $1 AND "uid" = ANY($2)`, p.channelID, pq.Array(uids))
 	if err != nil {
 		return fmt.Errorf("while marking as read: %w", err)
+	}
+	return nil
+}
+
+// MarkUnread changes only entries belonging to this channel.
+func (p *postgresStream) MarkUnread(uids []string) error {
+	_, err := p.database.Exec(`UPDATE "items" SET is_read = 0 WHERE "channel_id" = $1 AND "uid" = ANY($2)`, p.channelID, pq.Array(uids))
+	if err != nil {
+		return fmt.Errorf("while marking as unread: %w", err)
 	}
 	return nil
 }

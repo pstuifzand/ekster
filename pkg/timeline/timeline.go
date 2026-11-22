@@ -44,8 +44,7 @@ type Backend interface {
 	MarkRead(uids []string) error
 	ItemsByUID(uid []string) ([]microsub.Item, error)
 
-	// Not used at the moment
-	// MarkUnread(uids []string) error
+	MarkUnread(uids []string) error
 }
 
 // Create creates a channel of the specified type. Return nil when the type

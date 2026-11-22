@@ -54,6 +54,8 @@ func (timeline *nullTimeline) Count() (int, error) {
 func (timeline *nullTimeline) MarkRead(uids []string) error {
 	return nil
 }
+func (timeline *nullTimeline) MarkUnread(uids []string) error { return nil }
+
 func (timeline *nullTimeline) ItemsByUID(uid []string) ([]microsub.Item, error) {
 	return nil, ErrItemNotFound
 }
