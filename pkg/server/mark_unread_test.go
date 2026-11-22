@@ -15,11 +15,20 @@ type unreadRecorder struct {
 	NullBackend
 	channel string
 	entries []string
+	method  string
 }
 
 func (b *unreadRecorder) MarkUnread(_ context.Context, channel string, entries []string) error {
 	b.channel = channel
 	b.entries = append([]string(nil), entries...)
+	b.method = "mark_unread"
+	return nil
+}
+
+func (b *unreadRecorder) MarkRead(_ context.Context, channel string, entries []string) error {
+	b.channel = channel
+	b.entries = append([]string(nil), entries...)
+	b.method = "mark_read"
 	return nil
 }
 
@@ -53,12 +62,12 @@ func TestMarkUnreadHTTP(t *testing.T) {
 	}
 }
 
-func TestReadStateRejectsConflictingMethods(t *testing.T) {
-	for _, tc := range []struct{ query, body string }{
-		{"mark_read", "method=mark_unread&channel=one&entry=a"},
-		{"mark_read", "method=delete&channel=one&entry=a"},
-		{"thread", "method=mark_unread&channel=one&entry=a"},
-		{"mark_unread", "method=thread&channel=one&entry=a"},
+func TestReadStateFormValuesPreferBody(t *testing.T) {
+	for _, tc := range []struct{ query, body, want string }{
+		{"mark_read", "method=mark_unread&channel=one&entry=a", "mark_unread"},
+		{"mark_unread", "method=mark_read&channel=one&entry=a", "mark_read"},
+		{"thread", "method=mark_unread&channel=one&entry=a", "mark_unread"},
+		{"mark_unread", "channel=one&entry=a", "mark_unread"},
 	} {
 		b := &unreadRecorder{}
 		h, _ := NewMicrosubHandler(b)
@@ -66,8 +75,8 @@ func TestReadStateRejectsConflictingMethods(t *testing.T) {
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
-		if w.Code != http.StatusBadRequest || b.entries != nil {
-			t.Fatalf("query %q body %q: status %d, entries %v", tc.query, tc.body, w.Code, b.entries)
+		if w.Code != http.StatusOK || b.method != tc.want || b.channel != "one" || !reflect.DeepEqual(b.entries, []string{"a"}) {
+			t.Fatalf("query %q body %q: status %d, method %q, channel %q, entries %v", tc.query, tc.body, w.Code, b.method, b.channel, b.entries)
 		}
 	}
 }

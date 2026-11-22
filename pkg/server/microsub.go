@@ -187,11 +187,11 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 
 		values := r.Form
-		action := values.Get("action")
+		action := r.FormValue("action")
 		if action == "channels" {
-			name := values.Get("name")
-			method := values.Get("method")
-			uid := values.Get("channel")
+			name := r.FormValue("name")
+			method := r.FormValue("method")
+			uid := r.FormValue("channel")
 			if method == "order" {
 				if err := h.backend.ChannelsOrder(r.Context(), values["channels[]"]); err != nil {
 					if errors.Is(err, microsub.ErrInvalidChannelOrder) {
@@ -233,8 +233,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				respondJSON(w, channel)
 			}
 		} else if action == "follow" {
-			uid := values.Get("channel")
-			url := values.Get("url")
+			uid := r.FormValue("channel")
+			url := r.FormValue("url")
 			// h.HubIncomingBackend.CreateFeed(url, uid)
 			feed, err := h.backend.FollowURL(r.Context(), uid, url)
 			if err != nil {
@@ -247,8 +247,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			respondJSON(w, feed)
 		} else if action == "unfollow" {
-			uid := values.Get("channel")
-			url := values.Get("url")
+			uid := r.FormValue("channel")
+			url := r.FormValue("url")
 			err := h.backend.UnfollowURL(r.Context(), uid, url)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -256,15 +256,15 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			respondJSON(w, []string{})
 		} else if action == "preview" {
-			timeline, err := h.backend.PreviewURL(r.Context(), values.Get("url"))
+			timeline, err := h.backend.PreviewURL(r.Context(), r.FormValue("url"))
 			if err != nil {
 				http.Error(w, err.Error(), previewStatus(err))
 				return
 			}
 			respondJSON(w, timeline)
 		} else if action == "search" {
-			query := values.Get("query")
-			channel := values.Get("channel")
+			query := r.FormValue("query")
+			channel := r.FormValue("channel")
 			if channel == "" {
 				feeds, err := h.backend.Search(r.Context(), query)
 				if err != nil {
@@ -292,28 +292,10 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"items": items,
 				})
 			}
-		} else if action == "timeline" || r.PostForm.Get("action") == "timeline" {
-			method := values.Get("method")
+		} else if action == "timeline" {
+			method := r.FormValue("method")
 
-			// Reject ambiguous requests before dispatch: ParseForm merges body and
-			// query values, and silently preferring either can invert a read action.
-			methods := r.Form["method"]
-			readState := false
-			for _, m := range methods {
-				if m == "mark_read" || m == "mark_unread" {
-					readState = true
-				}
-			}
-			if readState {
-				for _, m := range methods {
-					if m != methods[0] {
-						http.Error(w, "conflicting timeline methods", http.StatusBadRequest)
-						return
-					}
-				}
-			}
-
-			if method == "thread" || r.PostForm.Get("method") == "thread" {
+			if method == "thread" {
 				// A client that only POSTs still gets thread: the method
 				// parameter is what names it, and the form is where the
 				// parameters are.
@@ -321,10 +303,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if method == "mark_read" || method == "mark_unread" || r.PostForm.Get("method") == "mark_read" || r.PostForm.Get("method") == "mark_unread" {
-				method = r.Form.Get("method")
-				values = r.Form
-				channel := values.Get("channel")
+			if method == "mark_read" || method == "mark_unread" {
+				channel := r.FormValue("channel")
 				var markAsRead []string
 				if uids, e := values["entry"]; e {
 					markAsRead = uids
