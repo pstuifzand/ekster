@@ -149,16 +149,17 @@ Commands:
 	channels -delete UID         delete channel with UID
 	channels -order UID...       reorder the specified channels
 
-	timeline UID [-before CURSOR] [-after CURSOR] [-limit N]  show a timeline page
+	timeline UID                 show posts for channel UID
+	  [-before CURSOR] [-after CURSOR] [-limit N]
 	mark-read UID                mark all posts in channel UID as read
 	mark-unread UID ENTRY...     mark specified entries unread
 	remove UID ENTRY...          remove specified entries from a channel
 	mark-read-through UID ENTRY  mark entry and older entries read
-	timeline UID -after AFTER    show posts for channel UID starting from AFTER
-	timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
 
 	search QUERY                 search for feeds from QUERY
-	query [QUERY] [CHANNEL] [-author URL] [-category TAG] [-kind KIND] [-source URL] [-before CURSOR] [-after CURSOR] [-limit N]
+	query [QUERY] [CHANNEL]      search for items in a channel
+	  [-author URL] [-category TAG] [-kind KIND] [-source URL]
+	  [-before CURSOR] [-after CURSOR] [-limit N]
 
 	preview URL                  show items from the feed at URL
 
