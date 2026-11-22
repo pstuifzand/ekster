@@ -20,6 +20,9 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -118,6 +121,72 @@ func TestFailureDelayBacksOffAndCaps(t *testing.T) {
 	}
 	if got := failureDelay(50); got != maxFailureDelay {
 		t.Errorf("failureDelay(50) = %s, want the cap %s", got, maxFailureDelay)
+	}
+}
+
+// A 502 from a host that renders its answer when asked is a moment, not a
+// broken feed: hnrss.org serves the same query seconds later. Coming back in
+// half a minute turns that into a fetch that succeeds instead of a feed that
+// climbs to a four-hour interval.
+func TestTransientFailuresComeBackQuickly(t *testing.T) {
+	if got := failureSchedule(transientFailure, 0); got != transientFailureFirstDelay {
+		t.Errorf("first transient failure retried in %s, want %s", got, transientFailureFirstDelay)
+	}
+
+	// The short rung replaces the ladder's first rung rather than adding a
+	// schedule beside it: a host that keeps failing still climbs 4m, 8m, … to
+	// the same cap.
+	if got := failureSchedule(transientFailure, 1); got != 4*time.Minute {
+		t.Errorf("second transient failure retried in %s, want 4m", got)
+	}
+	if got := failureSchedule(transientFailure, 40); got != maxFailureDelay {
+		t.Errorf("a long transient run was not capped: %s", got)
+	}
+
+	// A terminal failure will fail identically next time, so it starts on the
+	// ordinary ladder.
+	if got := failureSchedule(terminalFailure, 0); got != minFailureDelay {
+		t.Errorf("first terminal failure retried in %s, want %s", got, minFailureDelay)
+	}
+	if got := failureSchedule(terminalFailure, 2); got != 8*time.Minute {
+		t.Errorf("third terminal failure retried in %s, want 8m", got)
+	}
+}
+
+// 5xx and 429 say the host could not serve this request now; every other
+// non-2xx says the URL or the permission is wrong.
+func TestFailureKindForStatus(t *testing.T) {
+	cases := map[int]failureKind{
+		http.StatusInternalServerError: transientFailure,
+		http.StatusBadGateway:          transientFailure,
+		http.StatusServiceUnavailable:  transientFailure,
+		http.StatusTooManyRequests:     transientFailure,
+		http.StatusUnauthorized:        terminalFailure,
+		http.StatusForbidden:           terminalFailure,
+		http.StatusNotFound:            terminalFailure,
+		http.StatusGone:                terminalFailure,
+	}
+	for status, want := range cases {
+		if got := failureKindForStatus(status); got != want {
+			t.Errorf("failureKindForStatus(%d) = %v, want %v", status, got, want)
+		}
+	}
+}
+
+// A timeout or a reset connection is worth one fast retry; a name that does not
+// resolve will not start resolving in thirty seconds.
+func TestFailureKindForError(t *testing.T) {
+	if got := failureKindForError(context.DeadlineExceeded); got != transientFailure {
+		t.Errorf("a timeout was classified %v, want transient", got)
+	}
+	if got := failureKindForError(errors.New("connection reset by peer")); got != transientFailure {
+		t.Errorf("a reset connection was classified %v, want transient", got)
+	}
+
+	// Through the fetch wrapper's %w, which is what carries the DNS error here.
+	dns := &net.DNSError{Err: "no such host", Name: "zettelkasten", IsNotFound: true}
+	if got := failureKindForError(fmt.Errorf("fetch failed: %w", dns)); got != terminalFailure {
+		t.Errorf("a name that does not resolve was classified %v, want terminal", got)
 	}
 }
 

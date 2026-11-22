@@ -665,7 +665,8 @@ func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
 	// channel page at any moment.
 	resp, fetchErr := fetchFeedResponse(ctx, f.URL, f.ETag, f.LastModified, b.feedTokenFor(ctx, f.UID, f.URL))
 	if fetchErr != nil {
-		return b.feedFailed(ctx, f, fmt.Errorf("fetch of %s: %w", f.URL, fetchErr))
+		return b.feedFailed(ctx, f, fmt.Errorf("fetch of %s: %w", f.URL, fetchErr),
+			failureKindForError(fetchErr))
 	}
 	defer resp.Body.Close()
 	httpStatus = resp.StatusCode
@@ -691,13 +692,14 @@ func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
 		// and looked like a quiet blog, which is exactly the case this page
 		// exists for.
 		err = fmt.Errorf("fetch of %s returned %s", f.URL, resp.Status)
-		delay := failureDelay(f.Failures + 1)
+		kind := failureKindForStatus(httpStatus)
 		if httpStatus == http.StatusTooManyRequests || httpStatus == http.StatusServiceUnavailable {
 			// The host asked us to go away for a while; taking it literally
 			// is cheaper than being blocked.
-			delay = retryAfterDelay(resp, delay, time.Now())
+			delay := retryAfterDelay(resp, failureSchedule(kind, f.Failures), time.Now())
+			return b.feedFailedAfter(ctx, f, err, delay)
 		}
-		return b.feedFailedAfter(ctx, f, err, delay)
+		return b.feedFailed(ctx, f, err, kind)
 	}
 
 	f.ETag = resp.Header.Get("ETag")
@@ -706,7 +708,9 @@ func (b *memoryBackend) refreshFeed(ctx context.Context, f feed) (err error) {
 	var changed bool
 	changed, itemCount, err = b.ProcessContent(ctx, f.UID, fmt.Sprintf("%d", f.ID), f.URL, resp.Header.Get("Content-Type"), resp.Body)
 	if err != nil {
-		return b.feedFailedAfter(ctx, f, fmt.Errorf("in ProcessContent of %s: %w", f.URL, err), failureDelay(f.Failures+1))
+		// The body arrived and was not a feed we can read: that is a fact about
+		// the feed, not about the moment.
+		return b.feedFailed(ctx, f, fmt.Errorf("in ProcessContent of %s: %w", f.URL, err), terminalFailure)
 	}
 	succeeded = true
 	f.Failures = 0
@@ -822,8 +826,8 @@ func (b *memoryBackend) scheduleNextFetch(ctx context.Context, f *feed, changed 
 // the feed's next_fetch_at never advances when a fetch errors, so a feed that
 // answers 404 is fetched on every ticker tick: a request a minute, forever,
 // from a reader the host cannot even identify.
-func (b *memoryBackend) feedFailed(ctx context.Context, f feed, err error) error {
-	return b.feedFailedAfter(ctx, f, err, failureDelay(f.Failures+1))
+func (b *memoryBackend) feedFailed(ctx context.Context, f feed, err error, kind failureKind) error {
+	return b.feedFailedAfter(ctx, f, err, failureSchedule(kind, f.Failures))
 }
 
 func (b *memoryBackend) feedFailedAfter(ctx context.Context, f feed, err error, delay time.Duration) error {
@@ -833,6 +837,10 @@ func (b *memoryBackend) feedFailedAfter(ctx context.Context, f feed, err error, 
 		slog.ErrorContext(ctx, "could not record the failed fetch",
 			"feed_id", f.ID, "url", f.URL, "error", errorString(uerr))
 	}
+	// One line per failed attempt, at WARN, no matter how transient the reason:
+	// the span for that attempt says error too, and a journal that stays quiet
+	// where the traces do not is a dashboard disagreeing with itself. Fewer
+	// warnings have to come from fewer failures, not from quieter logging.
 	slog.WarnContext(ctx, "feed fetch failed, retrying",
 		"feed_id", f.ID, "url", f.URL,
 		"retry_in", delay.Round(time.Second).String(), "failure", f.Failures,

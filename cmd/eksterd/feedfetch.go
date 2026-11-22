@@ -20,7 +20,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -54,6 +56,58 @@ const (
 	maxFailureDelay = 6 * time.Hour
 	maxRetryAfter   = 24 * time.Hour
 )
+
+// transientFailureFirstDelay is the first rung for a failure that says nothing
+// about the feed itself: a timeout, a reset connection, or a 5xx from a host
+// that renders its answer when it is asked. The ordinary ladder starts at two
+// minutes, which is longer than such a dependency stays broken — hnrss.org
+// answers 502 for a few seconds and then serves the same query — so the first
+// attempt after a transient failure comes back in half a minute. It is a
+// schedule, not a retry: one request per attempt, as before, and a host that
+// keeps failing climbs the same 2m/4m/8m ladder from there.
+const transientFailureFirstDelay = 30 * time.Second
+
+// failureKind says whether a failed fetch describes the moment or the feed. A
+// transient failure is worth coming back for quickly; a terminal one will fail
+// identically next time, so it belongs on the ordinary ladder.
+type failureKind int
+
+const (
+	transientFailure failureKind = iota
+	terminalFailure
+)
+
+// failureKindForStatus classifies what the host answered. A 5xx or a 429 says
+// the host could not serve this request now; every other non-2xx says the URL
+// is wrong, the feed is gone, or we are not allowed to read it.
+func failureKindForStatus(status int) failureKind {
+	if status >= 500 || status == http.StatusTooManyRequests {
+		return transientFailure
+	}
+	return terminalFailure
+}
+
+// failureKindForError classifies a transport failure. A timeout, a reset or a
+// refused connection is the network or the host having a moment; a name that
+// does not resolve is a feed nobody will ever be able to fetch, so retrying it
+// quickly only repeats the same DNS answer.
+func failureKindForError(err error) failureKind {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
+		return terminalFailure
+	}
+	return transientFailure
+}
+
+// failureSchedule picks the wait before the next attempt. failures counts the
+// consecutive failures *before* this one, so only a transient failure on the
+// first attempt gets the short rung; everything else takes the ladder.
+func failureSchedule(kind failureKind, failures int) time.Duration {
+	if kind == transientFailure && failures < 1 {
+		return transientFailureFirstDelay
+	}
+	return failureDelay(failures + 1)
+}
 
 // userAgent reports the User-Agent to send. EKSTER_USER_AGENT overrides the
 // default, so an operator can point at their own site or a contact address.
@@ -122,7 +176,10 @@ func fetchFeedResponse(ctx context.Context, fetchURL, etag, lastModified, token 
 	client := http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetch failed: %s", err)
+		// %w, not %s: the wrapped *url.Error is what tells a timeout from a
+		// name that does not resolve, and the caller decides how soon to come
+		// back from that.
+		return nil, fmt.Errorf("fetch failed: %w", err)
 	}
 
 	return resp, nil
