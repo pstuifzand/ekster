@@ -320,6 +320,25 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					markAsRead = uids
 				}
 
+				through := r.FormValue("last_read_entry")
+				_, hasThrough := values["last_read_entry"]
+				if hasThrough {
+					if method != "mark_read" || channel == "" || through == "" || len(markAsRead) != 0 {
+						http.Error(w, "last_read_entry requires mark_read, a channel, and no entry list", http.StatusBadRequest)
+						return
+					}
+					if err := h.backend.MarkReadThrough(r.Context(), channel, through); err != nil {
+						if errors.Is(err, microsub.ErrNotFound) {
+							http.Error(w, "channel or entry not found", http.StatusNotFound)
+						} else {
+							http.Error(w, err.Error(), http.StatusInternalServerError)
+						}
+						return
+					}
+					respondJSON(w, []string{})
+					return
+				}
+
 				if method == "mark_unread" {
 					if channel == "" || len(markAsRead) == 0 {
 						http.Error(w, "mark_unread requires a channel and at least one entry", http.StatusBadRequest)

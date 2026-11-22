@@ -51,3 +51,40 @@ func TestMarkUnreadCLIAndMCP(t *testing.T) {
 		t.Fatalf("MCP: %v", got)
 	}
 }
+
+func TestMarkReadThroughCLIAndMCP(t *testing.T) {
+	var got string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.FormValue("action") == "channels" {
+			w.Write([]byte(`{"channels":[{"uid":"one","name":"One"}]}`))
+			return
+		}
+		if r.FormValue("method") != "mark_read" || r.FormValue("channel") != "one" {
+			t.Errorf("unexpected request %s", r.URL)
+		}
+		got = r.FormValue("last_read_entry")
+		w.Write([]byte(`[]`))
+	}))
+	defer s.Close()
+	u, _ := url.Parse(s.URL)
+	c := &client.Client{MicrosubEndpoint: u}
+	performCommands(c, []string{"mark-read-through", "One", "a"})
+	if got != "a" {
+		t.Fatal(got)
+	}
+	st, ct := mcp.NewInMemoryTransports()
+	ss, err := newMCPServer(c).Connect(context.Background(), st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ss.Close()
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil).Connect(context.Background(), ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+	result, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "mark_read_through", Arguments: map[string]any{"channel": "one", "last_read_entry": "b"}})
+	if err != nil || result.IsError || got != "b" {
+		t.Fatalf("result=%v err=%v got=%q", result, err, got)
+	}
+}

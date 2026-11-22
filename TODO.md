@@ -13,7 +13,6 @@
 
 Implement the protocol methods and expose them through the HTTP endpoint and client:
 
-- `MarkReadThrough` — mark an entry and earlier entries read using `last_read_entry`.
 - `TimelineRemove` — remove entries from a channel.
 - `ItemSearchWithOptions` — support content search filters (`author`, `category`, `kind`, `source`), paging and `limit`; also accept GET requests.
 - `MuteGetList`, `MuteURL`, `UnmuteURL` — list, mute and unmute users.
@@ -22,6 +21,8 @@ Implement the protocol methods and expose them through the HTTP endpoint and cli
 The remaining interface methods currently return `ErrUnsupported`.
 
 ## DONE
+
+- `MarkReadThrough` — mark an entry and earlier entries read using `last_read_entry`.
 
 - `MarkUnread` — mark entries unread through Microsub, `ek`, and MCP.
 

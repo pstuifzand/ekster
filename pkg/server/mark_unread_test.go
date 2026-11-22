@@ -95,3 +95,46 @@ func TestMarkUnreadClient(t *testing.T) {
 		t.Fatalf("%q %v", b.channel, b.entries)
 	}
 }
+
+type throughRecorder struct {
+	NullBackend
+	channel, entry string
+}
+
+func (b *throughRecorder) MarkReadThrough(_ context.Context, channel, entry string) error {
+	b.channel, b.entry = channel, entry
+	return nil
+}
+func TestMarkReadThroughHTTP(t *testing.T) {
+	for _, tc := range []struct {
+		query, body string
+		status      int
+		entry       string
+	}{
+		{"?action=timeline&method=mark_read&channel=one&last_read_entry=query", "last_read_entry=body", 200, "body"},
+		{"", "action=timeline&method=mark_read&channel=one&last_read_entry=a", 200, "a"},
+		{"", "action=timeline&method=mark_read&channel=one&last_read_entry=", 400, ""},
+		{"", "action=timeline&method=mark_read&last_read_entry=a", 400, ""},
+		{"", "action=timeline&method=mark_read&channel=one&last_read_entry=a&entry=b", 400, ""},
+		{"", "action=timeline&method=mark_unread&channel=one&last_read_entry=a", 400, ""},
+	} {
+		b := &throughRecorder{}
+		h, _ := NewMicrosubHandler(b)
+		r := httptest.NewRequest(http.MethodPost, "/"+tc.query, strings.NewReader(tc.body))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != tc.status || b.entry != tc.entry {
+			t.Fatalf("%s %s: %d %q", tc.query, tc.body, w.Code, b.entry)
+		}
+	}
+	b := &throughRecorder{}
+	h, _ := NewMicrosubHandler(b)
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	c := &client.Client{MicrosubEndpoint: u}
+	if err := c.MarkReadThrough(context.Background(), "one", "id"); err != nil || b.channel != "one" || b.entry != "id" {
+		t.Fatalf("%v %#v", err, b)
+	}
+}

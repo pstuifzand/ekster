@@ -152,6 +152,7 @@ Commands:
 	timeline UID [-before CURSOR] [-after CURSOR] [-limit N]  show a timeline page
 	mark-read UID                mark all posts in channel UID as read
 	mark-unread UID ENTRY...     mark specified entries unread
+	mark-read-through UID ENTRY  mark entry and older entries read
 	timeline UID -after AFTER    show posts for channel UID starting from AFTER
 	timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
 
@@ -342,6 +343,20 @@ func performCommands(sub microsub.Microsub, commands []string) {
 			}
 			fmt.Printf("Channel updated %s %s\n", channel.Name, channel.UID)
 		}
+	}
+
+	if len(commands) > 0 && commands[0] == "mark-read-through" {
+		if len(commands) != 3 {
+			fail(fmt.Errorf("usage: ek mark-read-through UID ENTRY"))
+		}
+		channel, err := channelID(ctx, sub, commands[1])
+		if err != nil {
+			fail(err)
+		}
+		if err := sub.MarkReadThrough(ctx, channel, commands[2]); err != nil {
+			fail(err)
+		}
+		fmt.Printf("Marked entries through %s as read in channel %s\n", commands[2], channel)
 	}
 
 	if len(commands) > 0 && commands[0] == "mark-unread" && len(commands) < 3 {

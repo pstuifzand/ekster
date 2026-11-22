@@ -1287,16 +1287,24 @@ func (b *memoryBackend) PreviewURL(ctx context.Context, previewURL string) (micr
 }
 
 func (b *memoryBackend) MarkRead(ctx context.Context, channel string, uids []string) error {
-	return b.setReadState(ctx, channel, uids, 1)
+	return b.setReadState(ctx, channel, uids, 1, "")
 }
 
 func (b *memoryBackend) MarkUnread(ctx context.Context, channel string, uids []string) error {
-	return b.setReadState(ctx, channel, uids, 0)
+	return b.setReadState(ctx, channel, uids, 0, "")
+}
+
+// MarkReadThrough marks the boundary and all older items in timeline order.
+func (b *memoryBackend) MarkReadThrough(ctx context.Context, channel, entry string) error {
+	if entry == "" {
+		return fmt.Errorf("empty entry: %w", microsub.ErrNotFound)
+	}
+	return b.setReadState(ctx, channel, nil, 1, entry)
 }
 
 // Resolve the requesting user's channel once and use its database identity for
 // both the mutation and count. Never resolve a UID globally: UIDs can overlap.
-func (b *memoryBackend) setReadState(ctx context.Context, channel string, uids []string, state int) error {
+func (b *memoryBackend) setReadState(ctx context.Context, channel string, uids []string, state int, through string) error {
 	userID, ok := userid.FromContext(ctx)
 	if !ok {
 		return fmt.Errorf("missing user identity")
@@ -1327,7 +1335,21 @@ func (b *memoryBackend) setReadState(ctx context.Context, channel string, uids [
 	if len(ids) != 1 {
 		return fmt.Errorf("channel %q: %w", channel, microsub.ErrNotFound)
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE items SET is_read = $1 WHERE channel_id = $2 AND uid = ANY($3)`, state, ids[0], pq.Array(uids)); err != nil {
+	if through != "" {
+		var boundaryID int64
+		var published time.Time
+		err = tx.QueryRowContext(ctx, `SELECT id, published_at FROM items WHERE channel_id = $1 AND uid = $2`, ids[0], through).Scan(&boundaryID, &published)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("entry %q: %w", through, microsub.ErrNotFound)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE items SET is_read = 1 WHERE channel_id = $1 AND (published_at, id) <= ($2, $3)`, ids[0], published, boundaryID)
+	} else {
+		_, err = tx.ExecContext(ctx, `UPDATE items SET is_read = $1 WHERE channel_id = $2 AND uid = ANY($3)`, state, ids[0], pq.Array(uids))
+	}
+	if err != nil {
 		return err
 	}
 	var count int

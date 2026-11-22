@@ -477,6 +477,17 @@ func (c *Client) MarkRead(ctx context.Context, channel string, uids []string) er
 	return nil
 }
 
+// MarkReadThrough marks the boundary entry and all earlier entries read.
+func (c *Client) MarkReadThrough(ctx context.Context, channel, entry string) error {
+	args := map[string]string{"channel": channel, "method": "mark_read"}
+	res, err := c.microsubPostFormRequest(ctx, "timeline", args, url.Values{"last_read_entry": {entry}})
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
+	return nil
+}
+
 // MarkUnread marks entries unread in the given channel.
 func (c *Client) MarkUnread(ctx context.Context, channel string, uids []string) error {
 	args := map[string]string{"channel": channel, "method": "mark_unread"}
