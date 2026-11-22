@@ -373,11 +373,18 @@ func itemIdentity(channel, id string) string {
 // AddItem
 func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 	ctx := context.Background()
-	conn, err := p.database.Conn(ctx)
+	tx, err := p.database.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
 	}
-	defer conn.Close()
+	defer tx.Rollback()
+
+	// Serialize ingestion with removal, which locks the same channel row before
+	// creating tombstones and deleting items. A check alone would race deletion.
+	var channelID int
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM channels WHERE id = $1 FOR UPDATE`, p.channelID).Scan(&channelID); err != nil {
+		return false, fmt.Errorf("lock channel: %w", err)
+	}
 
 	t, err := parsePublished(item.Published)
 	if err != nil {
@@ -408,9 +415,10 @@ func (p *postgresStream) AddItem(item microsub.Item) (bool, error) {
 	// xmax is zero only for a fresh insert, which is what the caller reports as
 	// a new item; an update is a correction, not news.
 	var inserted bool
-	err = conn.QueryRowContext(context.Background(), `
+	err = tx.QueryRowContext(ctx, `
 INSERT INTO "items" ("channel_id", "feed_id", "uid", "data", "published_at", "created_at")
-VALUES ($1, $2, $3, $4, $5, DEFAULT)
+SELECT $1, $2, $3::varchar, $4, $5, current_timestamp
+WHERE NOT EXISTS (SELECT 1 FROM item_tombstones WHERE channel_id = $1 AND uid = $3::varchar)
 ON CONFLICT ON CONSTRAINT "items_uid_key" DO UPDATE
 SET "data" = EXCLUDED."data", "published_at" = EXCLUDED."published_at", "feed_id" = EXCLUDED."feed_id"
 WHERE "items"."data" IS DISTINCT FROM EXCLUDED."data"
@@ -421,6 +429,9 @@ RETURNING (xmax = 0)
 	}
 	if err != nil {
 		return false, fmt.Errorf("insert item: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
 	}
 
 	return inserted, nil

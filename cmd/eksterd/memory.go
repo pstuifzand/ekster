@@ -1554,6 +1554,11 @@ func (b *memoryBackend) TimelineRemove(ctx context.Context, channel string, uids
 	if len(ids) != 1 {
 		return fmt.Errorf("channel %q: %w", channel, microsub.ErrNotFound)
 	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO item_tombstones (channel_id, uid)
+SELECT channel_id, uid FROM items WHERE channel_id = $1 AND uid = ANY($2)
+ON CONFLICT DO NOTHING`, ids[0], pq.Array(uids)); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM items WHERE channel_id = $1 AND uid = ANY($2)`, ids[0], pq.Array(uids)); err != nil {
 		return err
 	}
