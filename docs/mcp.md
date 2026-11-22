@@ -12,7 +12,8 @@ explicit typed output schemas, and structured tool results (`structuredContent`)
 ## Tools
 
 Read tools: `list_channels`, `get_timeline`, `search_feeds`, `search_items`,
-`list_follows`, and `preview_url`.
+`list_follows`, and `preview_url`. `search_items` supports structured filters and
+paging; see [content search](content-search.md) for fields and examples.
 
 Mutation tools: `create_channel`, `update_channel`, `delete_channel`, `order_channels`,
 `follow_url`, `unfollow_url`, `mark_read`, `mark_read_through`, `mark_unread`, and `remove_entries`. These operate on the configured

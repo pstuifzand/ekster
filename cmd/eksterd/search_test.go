@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -26,37 +27,27 @@ import (
 	"github.com/pstuifzand/ekster/pkg/microsub"
 )
 
-func TestQuerySearchReturnsMatchingIDs(t *testing.T) {
+func TestSearchCandidateIDs(t *testing.T) {
 	idx, err := bleve.NewMemOnly(bleve.NewIndexMapping())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer idx.Close()
-
 	previous := index
 	index = idx
 	t.Cleanup(func() { index = previous })
-
-	for id, channel := range map[string]string{"home-item": "home", "other-item": "elsewhere"} {
-		if err := idx.Index(id, indexItem{Item: microsub.Item{Type: "entry", Name: "Sit Like a Buddha"}, Channel: channel}); err != nil {
+	for _, id := range []string{"allowed", "not-allowed"} {
+		if err := idx.Index(id, indexItem{Item: microsub.Item{ID: id, Name: "Sit Like a Buddha"}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-
-	ids, err := querySearch("Buddha")
-	if err != nil {
-		t.Fatal(err)
+	ids, err := searchCandidateIDs(context.Background(), "Buddha", []string{"allowed", "missing"})
+	if err != nil || len(ids) != 1 || !ids["allowed"] {
+		t.Fatalf("hits=%v err=%v", ids, err)
 	}
-	if len(ids) != 2 {
-		t.Fatalf("querySearch returned %#v, want both items", ids)
-	}
-
-	missing, err := querySearch("nomatchterm")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(missing) != 0 {
-		t.Fatalf("querySearch for a missing term returned %#v", missing)
+	ids, err = searchCandidateIDs(context.Background(), "nomatchterm", []string{"allowed"})
+	if err != nil || len(ids) != 0 {
+		t.Fatalf("hits=%v err=%v", ids, err)
 	}
 }
 

@@ -89,6 +89,8 @@ type Item struct {
 	Author     *Card           `json:"author,omitempty" mf2:"author"`
 	Category   []string        `json:"category,omitempty" mf2:"category"`
 	Photo      []string        `json:"photo,omitempty" mf2:"photo"`
+	Video      []string        `json:"video,omitempty" mf2:"video"`
+	Audio      []string        `json:"audio,omitempty" mf2:"audio"`
 	LikeOf     []string        `json:"like-of,omitempty" mf2:"like-of"`
 	BookmarkOf []string        `json:"bookmark-of,omitempty" mf2:"bookmark-of"`
 	RepostOf   []string        `json:"repost-of,omitempty" mf2:"repost-of"`

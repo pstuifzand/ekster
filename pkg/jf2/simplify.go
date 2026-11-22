@@ -162,6 +162,10 @@ func itemPtr(item *microsub.Item, key string) *[]string {
 		return &item.MentionOf
 	} else if key == "photo" {
 		return &item.Photo
+	} else if key == "video" {
+		return &item.Video
+	} else if key == "audio" {
+		return &item.Audio
 	} else if key == "category" {
 		return &item.Category
 	}
@@ -208,7 +212,7 @@ func simplifyToItem(itemType string, item map[string][]interface{}, author micro
 					}
 				}
 			}
-		case "photo":
+		case "photo", "video", "audio":
 			if resultPtr := itemPtr(&feedItem, k); resultPtr != nil {
 				for _, c := range v {
 					if photo, ok := c.(string); ok {

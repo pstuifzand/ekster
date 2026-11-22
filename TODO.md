@@ -13,13 +13,14 @@
 
 Implement the protocol methods and expose them through the HTTP endpoint and client:
 
-- `ItemSearchWithOptions` — support content search filters (`author`, `category`, `kind`, `source`), paging and `limit`; also accept GET requests.
 - `MuteGetList`, `MuteURL`, `UnmuteURL` — list, mute and unmute users.
 - `BlockGetList`, `BlockURL`, `UnblockURL` — list, block and unblock users.
 
 The remaining interface methods currently return `ErrUnsupported`.
 
 ## DONE
+
+- `ItemSearchWithOptions` — content search filters, paging and limits through Microsub, `ek`, and MCP.
 
 - `TimelineRemove` — remove entries from a channel through Microsub, `ek`, and MCP.
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -26,8 +27,15 @@ type searchFeedsInput struct {
 	Query string `json:"query" jsonschema:"Feed search text"`
 }
 type searchItemsInput struct {
-	Query   string  `json:"query" jsonschema:"Text to search for in timeline items"`
-	Channel *string `json:"channel,omitempty" jsonschema:"Channel UID to search; defaults to global"`
+	Query    string   `json:"query,omitempty" jsonschema:"Text to search"`
+	Channel  *string  `json:"channel,omitempty" jsonschema:"Channel UID; defaults to global"`
+	Author   []string `json:"author,omitempty" jsonschema:"Alternative author URLs"`
+	Category []string `json:"category,omitempty" jsonschema:"Alternative categories"`
+	Kind     []string `json:"kind,omitempty" jsonschema:"Alternative post kinds"`
+	Source   []string `json:"source,omitempty" jsonschema:"Alternative source feed URLs"`
+	Before   string   `json:"before,omitempty" jsonschema:"Newer than cursor"`
+	After    string   `json:"after,omitempty" jsonschema:"Older than cursor"`
+	Limit    *int     `json:"limit,omitempty" jsonschema:"Positive page size"`
 }
 type channelNameInput struct {
 	Name string `json:"name" jsonschema:"Channel name"`
@@ -111,7 +119,8 @@ type feedsOutput struct {
 	Feeds []microsub.Feed `json:"feeds" jsonschema:"Matching feeds"`
 }
 type itemsOutput struct {
-	Items []itemResult `json:"items" jsonschema:"Matching items"`
+	Items  []itemResult `json:"items" jsonschema:"Matching items"`
+	Paging pagingResult `json:"paging" jsonschema:"Search paging cursors"`
 }
 
 func newMCPServer(c *client.Client) *mcp.Server {
@@ -202,11 +211,18 @@ func (t *mcpTools) searchItems(ctx context.Context, _ *mcp.CallToolRequest, inpu
 	if input.Channel != nil && *input.Channel != "" {
 		channel = *input.Channel
 	}
-	items, err := t.microsub.ItemSearch(ctx, channel, input.Query)
+	options := microsub.ItemSearchOptions{Channel: channel, Query: input.Query, Author: input.Author, Category: input.Category, Kind: input.Kind, Source: input.Source, Before: input.Before, After: input.After}
+	if input.Limit != nil {
+		if *input.Limit <= 0 {
+			return nil, itemsOutput{}, fmt.Errorf("limit must be positive")
+		}
+		options.Limit = *input.Limit
+	}
+	timeline, err := t.microsub.ItemSearchWithOptions(ctx, options)
 	if err != nil {
 		return nil, itemsOutput{}, err
 	}
-	return nil, itemsOutput{Items: mapItems(items)}, nil
+	return nil, itemsOutput{Items: mapItems(timeline.Items), Paging: pagingResult{Before: timeline.Paging.Before, After: timeline.Paging.After}}, nil
 }
 
 func (t *mcpTools) createChannel(ctx context.Context, _ *mcp.CallToolRequest, in channelNameInput) (*mcp.CallToolResult, channelOutput, error) {

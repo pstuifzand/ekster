@@ -1047,60 +1047,12 @@ func getPossibleURLs(ctx context.Context, query string) []string {
 }
 
 func (b *memoryBackend) ItemSearch(ctx context.Context, channel, query string) ([]microsub.Item, error) {
-	userID, _ := userid.FromContext(ctx)
-
-	ids, err := querySearch(query)
-	if err != nil {
-		return nil, fmt.Errorf("querySearch failed: %w", err)
+	// The legacy API has no cursor, so return at most its historical 100 hits.
+	if channel == "" {
+		channel = "global"
 	}
-	if len(ids) == 0 {
-		return []microsub.Item{}, nil
-	}
-
-	// The bleve index covers every user's items and is not authoritative about
-	// who may read them. Resolve the hits against "items" joined to "channels"
-	// so the scope is the user's channels, and a channel uid they do not own is
-	// "no matches" rather than a way into someone else's timeline.
-	channelFilter := ""
-	if channel != "" && channel != "global" {
-		var owned bool
-		err := b.database.QueryRow(`SELECT true FROM "channels" WHERE "uid" = $1 AND "user_id" = $2`, channel, userID).Scan(&owned)
-		if err == sql.ErrNoRows {
-			return []microsub.Item{}, nil
-		} else if err != nil {
-			return nil, fmt.Errorf("querySearch failed: %w", err)
-		}
-		channelFilter = channel
-	}
-
-	rows, err := b.database.Query(`
-SELECT i."uid", i."data", i."is_read", i."published_at"
-FROM "items" AS "i"
-INNER JOIN "channels" AS "c" ON c."id" = i."channel_id"
-WHERE i."uid" = ANY($1) AND c."user_id" = $2 AND ($3 = '' OR c."uid" = $3)
-ORDER BY i."published_at" DESC NULLS LAST, i."id" DESC
-`, pq.Array(ids), userID, channelFilter)
-	if err != nil {
-		return nil, fmt.Errorf("querySearch failed: %w", err)
-	}
-	defer rows.Close()
-
-	items := []microsub.Item{}
-	for rows.Next() {
-		var item microsub.Item
-		var uid string
-		var isRead int
-		var publishedAt time.Time
-		if err := rows.Scan(&uid, &item, &isRead, &publishedAt); err != nil {
-			return nil, fmt.Errorf("querySearch failed: %w", err)
-		}
-		item.ID = uid
-		item.Read = isRead == 1
-		item.Published = publishedAt.UTC().Format(time.RFC3339)
-		items = append(items, item)
-	}
-
-	return items, rows.Err()
+	page, err := b.ItemSearchWithOptions(ctx, microsub.ItemSearchOptions{Channel: channel, Query: query, Limit: 100})
+	return page.Items, err
 }
 
 // hackerNewsFeedURL wraps a Hacker News search in the RSS that ekster already

@@ -103,6 +103,8 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respondJSON(w, map[string][]microsub.Channel{
 				"channels": channels,
 			})
+		} else if action == "search" {
+			h.handleSearch(w, r)
 		} else if action == "timeline" {
 			// thread is a read about a post, so it belongs on the GET side
 			// even though mark_read and friends are POSTs.
@@ -263,35 +265,7 @@ func (h *microsubHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			respondJSON(w, timeline)
 		} else if action == "search" {
-			query := r.FormValue("query")
-			channel := r.FormValue("channel")
-			if channel == "" {
-				feeds, err := h.backend.Search(r.Context(), query)
-				if err != nil {
-					respondJSON(w, map[string]interface{}{
-						"query": query,
-						"error": err.Error(),
-					})
-					return
-				}
-				respondJSON(w, map[string][]microsub.Feed{
-					"results": feeds,
-				})
-			} else {
-				items, err := h.backend.ItemSearch(r.Context(), channel, query)
-				if err != nil {
-					respondJSON(w, map[string]interface{}{
-						"query": query,
-						"error": err.Error(),
-					})
-					return
-				}
-				slog.DebugContext(r.Context(), "search", "query", query, "channel", channel, "results", len(items))
-				respondJSON(w, map[string]interface{}{
-					"query": query,
-					"items": items,
-				})
-			}
+			h.handleSearch(w, r)
 		} else if action == "timeline" {
 			method := r.FormValue("method")
 

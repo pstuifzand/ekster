@@ -433,29 +433,31 @@ func (c *Client) Search(ctx context.Context, query string) ([]microsub.Feed, err
 
 // ItemSearch send a search request to the server
 func (c *Client) ItemSearch(ctx context.Context, channel, query string) ([]microsub.Item, error) {
-	args := make(map[string]string)
-	args["query"] = query
-	args["channel"] = channel
-	res, err := c.microsubPostRequest(ctx, "search", args)
-	if err != nil {
-		return []microsub.Item{}, err
+	// Historically this method returned up to 100 hits and has no cursor in
+	// its return type. Follow smaller server pages rather than silently losing
+	// matches when the endpoint defaults to 20 or caps the requested limit.
+	items := make([]microsub.Item, 0)
+	after := ""
+	seen := map[string]bool{}
+	for len(items) < 100 {
+		page, err := c.ItemSearchWithOptions(ctx, microsub.ItemSearchOptions{Channel: channel, Query: query, Limit: 100 - len(items), After: after})
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, page.Items...)
+		if len(items) >= 100 {
+			return items[:100], nil
+		}
+		if page.Paging.After == "" {
+			break
+		}
+		if seen[page.Paging.After] {
+			return nil, fmt.Errorf("search paging cursor did not advance")
+		}
+		seen[page.Paging.After] = true
+		after = page.Paging.After
 	}
-	type searchResponse struct {
-		Items []microsub.Item `json:"items"`
-	}
-	defer res.Body.Close()
-	var response searchResponse
-	dec := json.NewDecoder(res.Body)
-	err = dec.Decode(&response)
-	if err != nil {
-		return []microsub.Item{}, err
-	}
-	if response.Items == nil {
-		// No hits encode as null; callers range over the result and some
-		// validate it against an array schema.
-		return []microsub.Item{}, nil
-	}
-	return response.Items, nil
+	return items, nil
 }
 
 // MarkRead marks an item read on the server.

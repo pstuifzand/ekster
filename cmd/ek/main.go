@@ -158,7 +158,7 @@ Commands:
 	timeline UID -before BEFORE  show posts for channel UID ending at BEFORE
 
 	search QUERY                 search for feeds from QUERY
-	query QUERY CHANNEL          search for items matching QUERY in CHANNEL
+	query [QUERY] [CHANNEL] [-author URL] [-category TAG] [-kind KIND] [-source URL] [-before CURSOR] [-after CURSOR] [-limit N]
 
 	preview URL                  show items from the feed at URL
 
@@ -532,22 +532,22 @@ func performCommands(sub microsub.Microsub, commands []string) {
 		}
 	}
 
-	if len(commands) >= 2 && len(commands) <= 3 && commands[0] == "query" {
-		query := commands[1]
-		var channel string
-		if len(commands) == 3 {
-			channel, _ = channelID(ctx, sub, commands[2])
-		} else {
-			channel = "global"
-		}
-		items, err := sub.ItemSearch(ctx, channel, query)
+	if len(commands) >= 1 && commands[0] == "query" {
+		options, err := parseQueryOptions(commands[1:])
 		if err != nil {
 			fail(err)
 		}
-
-		for _, item := range items {
+		if options.Channel != "global" {
+			options.Channel, _ = channelID(ctx, sub, options.Channel)
+		}
+		result, err := sub.ItemSearchWithOptions(ctx, options)
+		if err != nil {
+			fail(err)
+		}
+		for _, item := range result.Items {
 			showItem(&item)
 		}
+		fmt.Printf("Before: %s, After: %s\n", result.Paging.Before, result.Paging.After)
 	}
 
 	if len(commands) == 2 && commands[0] == "preview" {

@@ -4,6 +4,8 @@
 
 ### Added
 
+- Content search supports structured author, category, kind and source filters, cursor paging and limits over GET or POST, with Go client, `ek query`, and MCP `search_items` support. See `docs/content-search.md`.
+
 - Remove channel entries through Microsub `timeline/remove`, `ek remove UID ENTRY...`, and MCP `remove_entries`. Removal deletes stored entries; a later feed refresh may reintroduce them.
 
 - Support marking a timeline entry and older entries read with `last_read_entry`, including the Go client, `ek mark-read-through`, and MCP `mark_read_through`.
