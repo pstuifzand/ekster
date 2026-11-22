@@ -5,10 +5,8 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -20,48 +18,8 @@ import (
 // attempt actually does, so assert on the row the scheduler reads, not on the
 // helper that computed it.
 func TestFailureScheduleReachesTheFeedRow(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL to run the PostgreSQL feed retry integration test")
-	}
-
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	if err := db.Ping(); err != nil {
-		t.Fatal(err)
-	}
-
-	// TEMP tables shadow the real ones for the duration of the connection.
-	for _, stmt := range []string{
-		`CREATE TEMP TABLE feeds (
-			id serial PRIMARY KEY,
-			channel_id integer NOT NULL,
-			url character varying(512) NOT NULL UNIQUE,
-			tier integer,
-			unmodified integer,
-			next_fetch_at timestamptz,
-			etag text,
-			last_modified text,
-			consecutive_failures integer DEFAULT 0,
-			last_fetch_at timestamptz,
-			last_http_status integer,
-			last_error text,
-			last_success_at timestamptz,
-			last_item_count integer
-		)`,
-		`CREATE TEMP TABLE channel_settings (
-			uid text PRIMARY KEY, setting text
-		)`,
-	} {
-		if _, err := db.Exec(stmt); err != nil {
-			t.Fatalf("%s: %v", stmt, err)
-		}
-	}
+	db := integrationDB(t)
+	seedChannels(t, db, testChannel{UID: "chan-a", Name: "A"})
 
 	newFeed := func(url string, failures int) int {
 		var id int

@@ -25,7 +25,6 @@ import (
 	"context"
 	"database/sql"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/pstuifzand/ekster/pkg/userid"
@@ -35,45 +34,9 @@ import (
 // A source is a bearer token, so a channel uid from another user must not be
 // enough to create one, list it, or delete it.
 func TestSourcesAreScopedToTheirUser(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL to run the micropub sources integration test")
-	}
+	db := integrationDB(t)
 
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	if err := db.Ping(); err != nil {
-		t.Fatal(err)
-	}
-
-	statements := []string{
-		`CREATE TEMP TABLE channels (
-			id int primary key generated always as identity,
-			uid varchar(64) not null unique,
-			name varchar(255) not null,
-			user_id int not null default 1
-		)`,
-		`CREATE TEMP TABLE sources (
-			id int primary key generated always as identity,
-			channel_id int not null,
-			auth_code varchar(64) not null,
-			name varchar(128) not null default '',
-			created_at timestamp default current_timestamp,
-			updated_at timestamp default current_timestamp,
-			last_used_at timestamp with time zone
-		)`,
-		`INSERT INTO channels (uid, name, user_id) VALUES ('mine', 'Mine', 1), ('theirs', 'Theirs', 2)`,
-	}
-	for _, statement := range statements {
-		if _, err := db.Exec(statement); err != nil {
-			t.Fatalf("%s: %v", statement, err)
-		}
-	}
+	seedChannels(t, db, testChannel{UID: "mine", Name: "Mine"}, testChannel{UID: "theirs", Name: "Theirs", User: 2})
 
 	backend := &memoryBackend{database: db}
 	mine := userid.NewContext(context.Background(), 1)

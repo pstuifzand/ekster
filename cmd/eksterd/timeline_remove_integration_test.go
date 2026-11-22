@@ -4,11 +4,9 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -20,26 +18,19 @@ import (
 )
 
 func TestTimelineRemoveIsolationIntegration(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL")
-	}
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
+	db := integrationDB(t)
+	// Channel and item UIDs are unique across the instance, so the two users'
+	// channels and items carry distinct identifiers.
+	seedChannels(t, db,
+		testChannel{UID: "shared", Name: "Shared"},
+		testChannel{UID: "shared-two", Name: "Shared two", User: 2},
+		testChannel{UID: "private", Name: "Private", User: 2},
+		testChannel{UID: "other", Name: "Other"})
+	if _, err := db.Exec(`INSERT INTO items (id, channel_id, uid, is_read, data) OVERRIDING SYSTEM VALUE VALUES
+		(1,1,'same',0,'{"type":"entry"}'),(2,2,'same-two',0,'{"type":"entry"}'),
+		(3,3,'secret',0,'{"type":"entry"}'),(4,4,'other-item',0,'{"type":"entry"}'),
+		(5,1,'keep',0,'{"type":"entry"}')`); err != nil {
 		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	for _, q := range []string{
-		`CREATE TEMP TABLE channels (id int primary key, uid text, user_id int)`,
-		`CREATE TEMP TABLE mutes (user_id int, channel_id int, url text)`,
-		`CREATE TEMP TABLE items (id int primary key, channel_id int, uid text, is_read int, data jsonb)`,
-		`INSERT INTO channels VALUES (1,'shared',1),(2,'shared',2),(3,'private',2),(4,'other',1)`,
-		`INSERT INTO items (id,channel_id,uid,is_read) VALUES (1,1,'same',0),(2,2,'same',0),(3,3,'secret',0),(4,4,'other-item',0),(5,1,'keep',0)`,
-	} {
-		if _, err := db.Exec(q); err != nil {
-			t.Fatal(err)
-		}
 	}
 	backend := &memoryBackend{database: db, broker: &sse.Broker{Notifier: make(chan sse.Message, 10)}}
 	h, _ := server.NewMicrosubHandler(backend)
@@ -56,6 +47,9 @@ func TestTimelineRemoveIsolationIntegration(t *testing.T) {
 	}
 	if call(1, "private", "secret") != 404 || call(0, "shared", "same") == 200 || call(1, "missing", "same") != 404 {
 		t.Fatal("invalid identity/channel accepted")
+	}
+	if call(2, "shared", "same") != 404 {
+		t.Fatal("foreign channel uid accepted")
 	}
 	if call(1, "shared", "same", "secret", "other-item", "absent") != 200 {
 		t.Fatal("remove failed")
@@ -84,11 +78,11 @@ func TestTimelineRemoveIsolationIntegration(t *testing.T) {
 	if !ok || msg.UserID == nil || *msg.UserID != 1 || ch.Unread.UnreadCount != 1 {
 		t.Fatalf("notification %#v", msg)
 	}
-	if _, err := db.Exec(`INSERT INTO channels VALUES (5,'shared',1)`); err != nil {
-		t.Fatal(err)
-	}
-	if call(1, "shared", "keep") != 404 {
-		t.Fatal("ambiguous channel accepted")
+	// A second channel with the same uid cannot exist in the real schema, so
+	// there is no ambiguous-channel case to fail closed on. Assert the
+	// constraint and that the item survives the rejected insert.
+	if _, err := db.Exec(`INSERT INTO channels (uid, name, user_id) VALUES ('shared', 'Duplicate', 1)`); err == nil {
+		t.Fatal("schema accepted a duplicate channel uid")
 	}
 	var count int
 	if err := db.QueryRow(`SELECT count(*) FROM items WHERE id=5`).Scan(&count); err != nil || count != 1 {

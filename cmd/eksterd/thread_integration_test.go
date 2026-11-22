@@ -29,7 +29,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
@@ -40,45 +39,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// threadTestBackend builds the backend against TEMP tables, so the queries
-// under test run against the real column types and constraints without a
-// production schema.
+// threadTestBackend uses a migrated disposable database.
 func threadTestBackend(t *testing.T) (*sql.DB, *memoryBackend) {
 	t.Helper()
 
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL to run the thread integration test")
-	}
-
-	db, err := sql.Open("postgres", dsn)
-	require.NoError(t, err)
-	t.Cleanup(func() { db.Close() })
-
-	// The temp tables live on one connection; a second pooled connection would
-	// not see them.
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	require.NoError(t, db.Ping())
+	db := integrationDB(t)
 
 	statements := []string{
-		`CREATE TEMP TABLE channels (
-			id int primary key generated always as identity,
-			uid varchar(64) not null unique,
-			name varchar(255) not null,
-			user_id int not null default 1
-		)`,
-		`CREATE TEMP TABLE items (
-			id int primary key generated always as identity,
-			channel_id int not null,
-			uid varchar(512) not null unique,
-			data jsonb,
-			is_read int default 0,
-			created_at timestamptz default current_timestamp,
-			updated_at timestamptz,
-			published_at timestamptz
-		)`,
-		`INSERT INTO channels (uid, name, user_id) VALUES ('home', 'Home', 1), ('other', 'Other', 2)`,
+		`UPDATE channels SET uid='other', name='Other', user_id=2 WHERE id=2`,
 	}
 	for _, statement := range statements {
 		_, err := db.Exec(statement)

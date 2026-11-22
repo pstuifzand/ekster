@@ -4,12 +4,10 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -19,34 +17,31 @@ import (
 )
 
 func TestReadStateProductionRoutesIntegration(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL")
-	}
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	db := integrationDB(t)
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"me":"https://one.example/","scope":"read"}`)
+		me := "https://one.example/"
+		if strings.HasSuffix(r.URL.Path, "/two") {
+			me = "https://two.example/"
+		}
+		fmt.Fprintf(w, `{"me":%q,"scope":"read"}`, me)
 	}))
 	defer tokenServer.Close()
-	for _, q := range []string{
-		`CREATE TEMP TABLE users (id int, url text, token_endpoint text)`,
-		`CREATE TEMP TABLE channels (id int, uid text, user_id int)`,
-		`CREATE TEMP TABLE items (id int, channel_id int, uid text, is_read int)`,
-		`INSERT INTO channels VALUES (1,'shared',1),(2,'shared',2),(3,'private',2)`,
-		`INSERT INTO items VALUES (1,1,'item',1),(2,2,'item',1),(3,3,'secret',1)`,
-	} {
-		if _, err := db.Exec(q); err != nil {
-			t.Fatal(err)
-		}
+	seedUsers(t, db, "https://one.example/", "https://two.example/")
+	// token_endpoint is unique per user, so both users get their own path on
+	// the same stub token server.
+	if _, err := db.Exec(`UPDATE users SET token_endpoint = $1 WHERE id = 1`, tokenServer.URL+"/one"); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO users VALUES (1,'https://one.example/',$1),(2,'https://two.example/',$1)`, tokenServer.URL); err != nil {
+	if _, err := db.Exec(`UPDATE users SET token_endpoint = $1 WHERE id = 2`, tokenServer.URL+"/wrong"); err != nil {
+		t.Fatal(err)
+	}
+	seedChannels(t, db,
+		testChannel{UID: "shared", Name: "Shared"},
+		testChannel{UID: "second", Name: "Second", User: 2},
+		testChannel{UID: "private", Name: "Private", User: 2})
+	if _, err := db.Exec(`INSERT INTO items (id, channel_id, uid, is_read) OVERRIDING SYSTEM VALUE VALUES
+		(1,1,'item',1),(2,2,'item-two',1),(3,3,'secret',1)`); err != nil {
 		t.Fatal(err)
 	}
 	pool := &redis.Pool{Dial: func() (redis.Conn, error) { return &fakeRedis{}, nil }}
@@ -55,9 +50,9 @@ func TestReadStateProductionRoutesIntegration(t *testing.T) {
 	unauth, broker := microsubRoute(backend, false)
 	backend.broker = broker
 	auth, _ := microsubRoute(backend, true)
-	call := func(h http.Handler, user, method, channel, token string) int {
+	call := func(h http.Handler, user, method, channel, token, entry string) int {
 		t.Helper()
-		v := url.Values{"action": {"timeline"}, "method": {method}, "channel": {channel}, "entry[]": {"item"}}
+		v := url.Values{"action": {"timeline"}, "method": {method}, "channel": {channel}, "entry[]": {entry}}
 		req := httptest.NewRequest(http.MethodPost, "/microsub/"+user, strings.NewReader(v.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		if token != "" {
@@ -75,21 +70,22 @@ func TestReadStateProductionRoutesIntegration(t *testing.T) {
 		}
 	}
 	for _, tc := range []struct {
-		h                            http.Handler
-		user, method, channel, token string
-		status                       int
+		h                                   http.Handler
+		user, method, channel, token, entry string
+		status                              int
 	}{
-		{unauth, "1", "mark_unread", "shared", "", 200},
-		{unauth, "1", "mark_read", "shared", "", 200},
-		{unauth, "1", "mark_unread", "private", "", 404},
-		{unauth, "1", "mark_read", "missing", "", 404},
-		{unauth, "", "mark_read", "shared", "", 400},
-		{auth, "1", "mark_unread", "shared", "", 403},
-		{auth, "2", "mark_unread", "shared", "abc", 403},
-		{auth, "1", "mark_unread", "private", "abc", 404},
-		{auth, "1", "mark_unread", "shared", "abc", 200},
+		{unauth, "1", "mark_unread", "shared", "", "item", 200},
+		{unauth, "1", "mark_read", "shared", "", "item", 200},
+		{unauth, "1", "mark_unread", "private", "", "secret", 404},
+		{unauth, "1", "mark_read", "missing", "", "item", 404},
+		{unauth, "", "mark_read", "shared", "", "item", 400},
+		{auth, "1", "mark_unread", "shared", "", "item", 403},
+		{auth, "2", "mark_unread", "second", "abc", "item-two", 403},
+		{auth, "2", "mark_unread", "shared", "abc", "item", 403},
+		{auth, "1", "mark_unread", "private", "abc", "secret", 404},
+		{auth, "1", "mark_unread", "shared", "abc", "item", 200},
 	} {
-		if got := call(tc.h, tc.user, tc.method, tc.channel, tc.token); got != tc.status {
+		if got := call(tc.h, tc.user, tc.method, tc.channel, tc.token, tc.entry); got != tc.status {
 			t.Fatalf("%+v got %d", tc, got)
 		}
 		check(2, 1)
@@ -107,7 +103,7 @@ func TestReadStateProductionRoutesIntegration(t *testing.T) {
 	// A stalled broker must not hold a committed write or its HTTP response.
 	backend.broker = &sse.Broker{Notifier: make(chan sse.Message)}
 	done := make(chan int, 1)
-	go func() { done <- call(unauth, "1", "mark_read", "shared", "") }()
+	go func() { done <- call(unauth, "1", "mark_read", "shared", "", "item") }()
 	select {
 	case status := <-done:
 		if status != 200 {

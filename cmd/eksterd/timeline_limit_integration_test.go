@@ -4,11 +4,9 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"testing"
 
 	"github.com/pstuifzand/ekster/pkg/client"
@@ -17,28 +15,11 @@ import (
 )
 
 func TestTimelineLimitIntegration(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL")
-	}
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
+	db := integrationDB(t)
+	seedChannels(t, db, testChannel{UID: "home", Name: "Home"})
+	if _, err := db.Exec(`INSERT INTO items (id, channel_id, uid, data, created_at, is_read, published_at) OVERRIDING SYSTEM VALUE
+		SELECT i,1,i::text,'{"type":"entry"}'::jsonb,now(),0,'2026-01-01T00:00:00Z'::timestamptz FROM generate_series(1, 105) i`); err != nil {
 		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	for _, q := range []string{
-		`CREATE TEMP TABLE channels (id int primary key, uid text, user_id int)`,
-		`CREATE TEMP TABLE feeds (id int, channel_id int, url text)`,
-		`CREATE TEMP TABLE mutes (user_id int, channel_id int, url text)`,
-		`CREATE TEMP TABLE items (id int primary key, channel_id int, uid text, data jsonb, created_at timestamptz, is_read int, published_at timestamptz)`,
-		`INSERT INTO channels VALUES (1,'home',1)`,
-		`INSERT INTO items SELECT i,1,i::text,'{"type":"entry"}'::jsonb,now(),0,'2026-01-01T00:00:00Z'::timestamptz FROM generate_series(1, 105) i`,
-	} {
-		if _, err := db.Exec(q); err != nil {
-			t.Fatal(err)
-		}
 	}
 	h, _ := server.NewMicrosubHandler(&memoryBackend{database: db})
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

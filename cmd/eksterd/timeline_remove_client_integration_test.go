@@ -4,11 +4,9 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 
@@ -20,28 +18,12 @@ import (
 )
 
 func TestTimelineRemoveClientIntegration(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL")
-	}
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
+	db := integrationDB(t)
+	seedChannels(t, db, testChannel{UID: "one", Name: "One"}, testChannel{UID: "two", Name: "Two"})
+	if _, err := db.Exec(`INSERT INTO items (id, channel_id, uid, data, created_at, is_read, published_at) OVERRIDING SYSTEM VALUE VALUES
+		(1,1,'a','{"type":"entry"}',now(),1,now()),(2,1,'b','{"type":"entry"}',now(),1,now()),
+		(3,2,'c','{"type":"entry"}',now(),1,now())`); err != nil {
 		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	for _, q := range []string{
-		`CREATE TEMP TABLE channels (id int primary key, uid text unique, user_id int)`,
-		`CREATE TEMP TABLE feeds (id int, channel_id int, url text)`,
-		`CREATE TEMP TABLE mutes (user_id int, channel_id int, url text)`,
-		`CREATE TEMP TABLE items (id int primary key, channel_id int, uid text unique, data jsonb, created_at timestamptz, is_read int, published_at timestamptz)`,
-		`INSERT INTO channels VALUES (1,'one',1),(2,'two',1)`,
-		`INSERT INTO items VALUES (1,1,'a','{"type":"entry"}',now(),1,now()),(2,1,'b','{"type":"entry"}',now(),1,now()),(3,2,'c','{"type":"entry"}',now(),1,now())`,
-	} {
-		if _, err := db.Exec(q); err != nil {
-			t.Fatal(err)
-		}
 	}
 	backend := &memoryBackend{database: db, broker: &sse.Broker{Notifier: make(chan sse.Message, 10)}}
 	h, _ := server.NewMicrosubHandler(backend)

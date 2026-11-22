@@ -4,11 +4,9 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 
@@ -19,27 +17,18 @@ import (
 )
 
 func TestReadStateUserIsolationIntegration(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL")
-	}
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
+	db := integrationDB(t)
+	// Channel UIDs and item UIDs are globally unique in the migrated schema, so
+	// each user's channels and items need their own identifiers. The isolation
+	// being tested is ownership, not name collision.
+	seedChannels(t, db,
+		testChannel{UID: "shared", Name: "Shared"},
+		testChannel{UID: "shared-two", Name: "Shared two", User: 2},
+		testChannel{UID: "private", Name: "Private", User: 2},
+		testChannel{UID: "other", Name: "Other"})
+	if _, err := db.Exec(`INSERT INTO items (id, channel_id, uid, is_read, data) OVERRIDING SYSTEM VALUE VALUES
+		(1,1,'same',1,NULL),(2,2,'same-two',1,NULL),(3,3,'secret',1,NULL),(4,4,'other-item',1,NULL)`); err != nil {
 		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	for _, q := range []string{
-		`CREATE TEMP TABLE channels (id int primary key, uid text, user_id int)`,
-		`CREATE TEMP TABLE items (id int primary key, channel_id int, uid text, is_read int, data jsonb)`,
-		`CREATE TEMP TABLE mutes (user_id int, channel_id int, url text)`,
-		`INSERT INTO channels VALUES (1,'shared',1),(2,'shared',2),(3,'private',2),(4,'other',1)`,
-		`INSERT INTO items VALUES (1,1,'same',1,NULL),(2,2,'same',1,NULL),(3,3,'secret',1,NULL),(4,4,'other-item',1,NULL)`,
-	} {
-		if _, err := db.Exec(q); err != nil {
-			t.Fatal(err)
-		}
 	}
 	backend := &memoryBackend{database: db, broker: &sse.Broker{Notifier: make(chan sse.Message, 20)}}
 	h, _ := server.NewMicrosubHandler(backend)
@@ -92,7 +81,7 @@ func TestReadStateUserIsolationIntegration(t *testing.T) {
 	}
 	check(0, 1, 1, 1)
 	notification(1, 1)
-	if status := call(2, "mark_unread", "shared", "same"); status != 200 {
+	if status := call(2, "mark_unread", "shared-two", "same-two"); status != 200 {
 		t.Fatal(status)
 	}
 	check(0, 0, 1, 1)
@@ -102,7 +91,7 @@ func TestReadStateUserIsolationIntegration(t *testing.T) {
 	}
 	check(1, 0, 1, 1)
 	notification(1, 0)
-	if status := call(2, "mark_read", "shared", "same"); status != 200 {
+	if status := call(2, "mark_read", "shared-two", "same-two"); status != 200 {
 		t.Fatal(status)
 	}
 	check(1, 1, 1, 1)
@@ -110,6 +99,9 @@ func TestReadStateUserIsolationIntegration(t *testing.T) {
 	for _, method := range []string{"mark_read", "mark_unread"} {
 		if call(1, method, "private", "secret") == 200 {
 			t.Fatal("foreign channel accepted", method)
+		}
+		if call(2, method, "shared", "same") == 200 {
+			t.Fatal("foreign channel uid accepted", method)
 		}
 		if call(0, method, "shared", "same") == 200 {
 			t.Fatal("missing identity accepted", method)
@@ -119,12 +111,14 @@ func TestReadStateUserIsolationIntegration(t *testing.T) {
 		}
 	}
 	check(1, 1, 1, 1)
-	// Ambiguous identities within one user's data fail closed, too.
-	if _, err := db.Exec(`INSERT INTO channels VALUES (5,'shared',1)`); err != nil {
-		t.Fatal(err)
+	// Channel UIDs are unique in the real schema, so a second channel with the
+	// same uid for another user cannot exist. Prove the constraint instead of
+	// testing an ambiguity the database rejects.
+	if _, err := db.Exec(`INSERT INTO channels (uid, name, user_id) VALUES ('shared', 'Duplicate', 2)`); err == nil {
+		t.Fatal("schema accepted a duplicate channel uid")
 	}
-	if call(1, "mark_unread", "shared", "same") == 200 {
-		t.Fatal("ambiguous channel accepted")
+	if call(1, "mark_read", "shared", "same") != 200 {
+		t.Fatal("original channel stopped resolving")
 	}
 	check(1, 1, 1, 1)
 	if err := backend.MarkRead(context.Background(), "shared", []string{"same"}); err == nil {

@@ -4,11 +4,9 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"testing"
 
 	"github.com/pstuifzand/ekster/pkg/client"
@@ -18,26 +16,16 @@ import (
 )
 
 func TestMarkReadThroughIsolationIntegration(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL")
-	}
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
+	db := integrationDB(t)
+	seedChannels(t, db,
+		testChannel{UID: "shared", Name: "Shared"},
+		testChannel{UID: "other", Name: "Other"},
+		testChannel{UID: "shared-two", Name: "Shared two", User: 2})
+	if _, err := db.Exec(`INSERT INTO items (id, channel_id, uid, published_at, is_read) OVERRIDING SYSTEM VALUE VALUES
+		(1,1,'old','2024-01-01',0),(2,1,'tie-old','2024-01-02',0),(3,1,'boundary','2024-01-02',0),
+		(4,1,'tie-new','2024-01-02',0),(5,1,'new','2024-01-03',0),(6,2,'other-boundary','2024-01-01',0),
+		(7,3,'shared-boundary','2024-01-01',0),(8,3,'secret','2024-01-01',0)`); err != nil {
 		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	for _, q := range []string{
-		`CREATE TEMP TABLE channels (id int primary key, uid text, user_id int)`,
-		`CREATE TEMP TABLE items (id int primary key, channel_id int, uid text, published_at timestamptz, is_read int)`,
-		`INSERT INTO channels VALUES (1,'shared',1),(2,'other',1),(3,'shared',2)`,
-		`INSERT INTO items VALUES (1,1,'old','2024-01-01',0),(2,1,'tie-old','2024-01-02',0),(3,1,'boundary','2024-01-02',0),(4,1,'tie-new','2024-01-02',0),(5,1,'new','2024-01-03',0),(6,2,'boundary','2024-01-01',0),(7,3,'boundary','2024-01-01',0),(8,3,'secret','2024-01-01',0)`,
-	} {
-		if _, err := db.Exec(q); err != nil {
-			t.Fatal(err)
-		}
 	}
 	b := &memoryBackend{database: db, broker: &sse.Broker{Notifier: make(chan sse.Message, 10)}}
 	h, _ := server.NewMicrosubHandler(b)

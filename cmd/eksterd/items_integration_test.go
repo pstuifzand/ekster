@@ -23,11 +23,9 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -40,51 +38,13 @@ import (
 // Location: it must resolve for the source token that created the item, and
 // answer 404 for everyone else.
 func TestItemPermalinkIsPrivate(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL to run the item permalink integration test")
-	}
+	db := integrationDB(t)
 
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	require.NoError(t, db.Ping())
-
-	statements := []string{
-		`CREATE TEMP TABLE channels (
-			id int primary key generated always as identity,
-			uid varchar(64) not null unique,
-			name varchar(255) not null,
-			user_id int not null default 1
-		)`,
-		`CREATE TEMP TABLE sources (
-			id int primary key generated always as identity,
-			channel_id int not null,
-			auth_code varchar(64) not null,
-			name varchar(128) not null default '',
-			created_at timestamp default current_timestamp,
-			updated_at timestamp default current_timestamp,
-			last_used_at timestamp with time zone
-		)`,
-		`CREATE TEMP TABLE items (
-			id int primary key generated always as identity,
-			channel_id int not null,
-			uid varchar(512) not null unique,
-			data jsonb,
-			is_read int default 0,
-			created_at timestamptz default current_timestamp,
-			updated_at timestamptz,
-			published_at timestamptz
-		)`,
-		`INSERT INTO channels (uid, name, user_id) VALUES ('home', 'Home', 1), ('other', 'Other', 1)`,
+	seedChannels(t, db, testChannel{UID: "home", Name: "Home"}, testChannel{UID: "other", Name: "Other"})
+	for _, statement := range []string{
 		`INSERT INTO sources (channel_id, auth_code, name) VALUES (1, 'token-home', 'Gmail')`,
 		`INSERT INTO sources (channel_id, auth_code, name) VALUES (2, 'token-other', 'Elsewhere')`,
-	}
-	for _, statement := range statements {
+	} {
 		_, err := db.Exec(statement)
 		require.NoError(t, err, statement)
 	}

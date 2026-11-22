@@ -4,13 +4,11 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -58,31 +56,27 @@ func (i *observingSearchIndex) SearchInContext(ctx context.Context, req *bleve.S
 }
 
 func TestItemSearchOptionsIntegration(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL")
-	}
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	db := integrationDB(t)
+	seedChannels(t, db,
+		testChannel{UID: "home", Name: "Home"},
+		testChannel{UID: "other", Name: "Other"},
+		testChannel{UID: "private", Name: "Private", User: 2})
 	for _, q := range []string{
-		`CREATE TEMP TABLE channels (id int primary key, uid text, user_id int)`,
-		`CREATE TEMP TABLE feeds (id int primary key, channel_id int, url text)`,
-		`CREATE TEMP TABLE items (id int primary key, channel_id int, feed_id int, uid text, data jsonb, is_read int, published_at timestamptz)`,
-		`INSERT INTO channels VALUES (1,'home',1),(2,'other',1),(3,'private',2)`,
-		`INSERT INTO feeds VALUES (1,1,'https://example.com/feed'),(2,2,'https://other/feed'),(3,3,'https://secret/feed')`,
-		`INSERT INTO items SELECT n,1,1,'item-'||n, jsonb_build_object('type','entry','name','unicorn','author',jsonb_build_object('url','https://alice/'),'category',jsonb_build_array('go','indieweb'),'in-reply-to',jsonb_build_array('https://target/'),'photo',jsonb_build_array('https://photo/'),'_source',jsonb_build_object('url','https://example.com/')),0,'2026-01-01T00:00:00.123456Z'::timestamptz FROM generate_series(1,130) n`,
+		`INSERT INTO feeds (id, channel_id, url) OVERRIDING SYSTEM VALUE VALUES
+		 (1,1,'https://example.com/feed'),(2,2,'https://other/feed'),(3,3,'https://secret/feed')`,
+		`INSERT INTO items (id, channel_id, feed_id, uid, data, is_read, published_at) OVERRIDING SYSTEM VALUE
+		 SELECT n,1,1,'item-'||n, jsonb_build_object('type','entry','name','unicorn','author',jsonb_build_object('url','https://alice/'),'category',jsonb_build_array('go','indieweb'),'in-reply-to',jsonb_build_array('https://target/'),'photo',jsonb_build_array('https://photo/'),'_source',jsonb_build_object('url','https://example.com/')),0,'2026-01-01T00:00:00.123456Z'::timestamptz FROM generate_series(1,130) n`,
 		`UPDATE items SET data = data || '{"like-of":["x"],"repost-of":["x"],"bookmark-of":["x"],"checkin":{"name":"place"},"audio":["a"]}'::jsonb WHERE id=1`,
-		`INSERT INTO items VALUES (131,2,2,'other','{"type":"entry","name":"unicorn","author":{"url":"https://bob/"},"category":["misc"],"video":["v"]}',0,'2026-01-02'),(132,3,3,'secret','{"type":"entry","name":"unicorn","author":{"url":"https://alice/"},"category":["go"]}',0,'2026-01-03')`,
+		`INSERT INTO items (id, channel_id, feed_id, uid, data, is_read, published_at) OVERRIDING SYSTEM VALUE VALUES
+		 (131,2,2,'other','{"type":"entry","name":"unicorn","author":{"url":"https://bob/"},"category":["misc"],"video":["v"]}',0,'2026-01-02'),
+		 (132,3,3,'secret','{"type":"entry","name":"unicorn","author":{"url":"https://alice/"},"category":["go"]}',0,'2026-01-03')`,
 	} {
 		if _, err := db.Exec(q); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
+	syncIdentity(t, db, "feeds")
+	syncIdentity(t, db, "items")
 	idx, err := bleve.New(filepath.Join(t.TempDir(), "items.bleve"), bleve.NewIndexMapping())
 	if err != nil {
 		t.Fatal(err)
@@ -220,7 +214,8 @@ func TestItemSearchOptionsIntegration(t *testing.T) {
 	// after within that same bound until all newly arrived items are read.
 	for n := 200; n < 245; n++ {
 		uid := fmt.Sprintf("new-%d", n)
-		_, err := db.Exec(`INSERT INTO items SELECT $1,1,1,$2,data,0,'2026-02-01T00:00:00.123456Z'::timestamptz FROM items WHERE id=1`, n, uid)
+		_, err := db.Exec(`INSERT INTO items (id, channel_id, feed_id, uid, data, is_read, published_at) OVERRIDING SYSTEM VALUE
+			SELECT $1,1,1,$2,data,0,'2026-02-01T00:00:00.123456Z'::timestamptz FROM items WHERE id=1`, n, uid)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -259,7 +254,8 @@ func TestItemSearchOptionsIntegration(t *testing.T) {
 
 	// Many newer DB rows do not match the index. Scanning them must remain
 	// bounded, retain ownership and find an older hit beyond several batches.
-	_, err = db.Exec(`INSERT INTO items SELECT n,1,1,'unindexed-'||n,(SELECT data FROM items WHERE id=1),0,'2026-03-01T00:00:00Z'::timestamptz FROM generate_series(1000,1399) n`)
+	_, err = db.Exec(`INSERT INTO items (id, channel_id, feed_id, uid, data, is_read, published_at) OVERRIDING SYSTEM VALUE
+		SELECT n,1,1,'unindexed-'||n,(SELECT data FROM items WHERE id=1),0,'2026-03-01T00:00:00Z'::timestamptz FROM generate_series(1000,1399) n`)
 	if err != nil {
 		t.Fatal(err)
 	}

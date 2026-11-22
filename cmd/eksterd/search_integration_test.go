@@ -23,8 +23,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"os"
 	"testing"
 
 	"github.com/blevesearch/bleve/v2"
@@ -37,46 +35,12 @@ import (
 // context. Without that, "global" search in a multi-user instance returns other
 // people's items.
 func TestItemSearchScopesToUser(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL to run the item search integration test")
-	}
+	db := integrationDB(t)
 
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
+	seedChannels(t, db, testChannel{UID: "home", Name: "Home"}, testChannel{UID: "theirs", Name: "Theirs", User: 2})
+	if _, err := db.Exec(`INSERT INTO items (channel_id, uid, data, published_at)
+		 VALUES (2, 'secret-item', '{"type":"entry","name":"Secret Buddha"}'::jsonb, now())`); err != nil {
 		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	if err := db.Ping(); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, statement := range []string{
-		`CREATE TEMP TABLE channels (
-			id int primary key generated always as identity,
-			uid varchar(64) not null unique,
-			name varchar(255) not null,
-			user_id int not null default 1
-		)`,
-		`CREATE TEMP TABLE items (
-			id int primary key generated always as identity,
-			channel_id int not null,
-			uid varchar(512) not null unique,
-			data jsonb,
-			is_read int default 0,
-			created_at timestamptz default current_timestamp,
-			updated_at timestamptz,
-			published_at timestamptz
-		)`,
-		`INSERT INTO channels (uid, name, user_id) VALUES ('home', 'Home', 1), ('theirs', 'Theirs', 2)`,
-		`INSERT INTO items (channel_id, uid, data, published_at)
-		 VALUES (2, 'secret-item', '{"type":"entry","name":"Secret Buddha"}'::jsonb, now())`,
-	} {
-		if _, err := db.Exec(statement); err != nil {
-			t.Fatalf("%s: %v", statement, err)
-		}
 	}
 
 	idx, err := bleve.NewMemOnly(bleve.NewIndexMapping())

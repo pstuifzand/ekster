@@ -5,9 +5,7 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/pstuifzand/ekster/pkg/microsub"
@@ -18,39 +16,9 @@ import (
 // constraint violation as a 500: it is a no-op inside the same channel and
 // ErrFeedAlreadyFollowed in another channel.
 func TestFollowURLDuplicate(t *testing.T) {
-	dsn := os.Getenv("DATABASE_TEST_URL")
-	if dsn == "" {
-		t.Skip("set DATABASE_TEST_URL to run the PostgreSQL follow integration test")
-	}
+	db := integrationDB(t)
 
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	if err := db.Ping(); err != nil {
-		t.Fatal(err)
-	}
-
-	// TEMP tables shadow the real ones for the duration of the connection.
-	for _, stmt := range []string{
-		`CREATE TEMP TABLE channels (id serial PRIMARY KEY, uid text NOT NULL UNIQUE, name text NOT NULL)`,
-		`CREATE TEMP TABLE feeds (
-			id serial PRIMARY KEY,
-			channel_id integer NOT NULL,
-			url character varying(512) NOT NULL UNIQUE,
-			tier integer,
-			unmodified integer,
-			next_fetch_at timestamptz
-		)`,
-		`INSERT INTO channels (uid, name) VALUES ('chan-a', 'A'), ('chan-b', 'B')`,
-	} {
-		if _, err := db.Exec(stmt); err != nil {
-			t.Fatalf("setup: %v", err)
-		}
-	}
+	seedChannels(t, db, testChannel{UID: "chan-a", Name: "A"}, testChannel{UID: "chan-b", Name: "B"})
 
 	const feedURL = "https://ramblinggit.com/"
 	if _, err := db.Exec(`INSERT INTO feeds (channel_id, url, tier, unmodified, next_fetch_at)
@@ -74,7 +42,7 @@ VALUES (1, $1, 1, 0, now())`, feedURL); err != nil {
 	}
 
 	// Another channel: a clean, typed conflict instead of a driver error.
-	_, err = backend.FollowURL(ctx, "chan-b", feedURL)
+	_, err := backend.FollowURL(ctx, "chan-b", feedURL)
 	if !errors.Is(err, microsub.ErrFeedAlreadyFollowed) {
 		t.Fatalf("follow in another channel: err = %v, want ErrFeedAlreadyFollowed", err)
 	}
