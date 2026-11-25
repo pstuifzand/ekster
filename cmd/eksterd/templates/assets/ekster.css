@@ -231,6 +231,21 @@ pre {
 
 .table-wrap { overflow-x: auto; margin-bottom: 1.25rem; }
 
+/* ---- item media -------------------------------------------------------- */
+
+.item-photos {
+    display: grid;
+    gap: .75rem;
+    margin-top: 1rem;
+}
+.item-photos img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+}
+
 /* ---- sign in ----------------------------------------------------------- */
 
 .signin {

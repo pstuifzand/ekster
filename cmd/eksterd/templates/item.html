@@ -41,6 +41,11 @@
             </div>
         {{ end }}
 
+        {{ if .Item.Photo }}
+            <div class="item-photos">
+                {{ range .Item.Photo }}<img src="{{ . }}" alt="" loading="lazy" decoding="async">{{ end }}
+            </div>
+        {{ end }}
     </div>
 
     <p class="hint">

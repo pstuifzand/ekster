@@ -25,6 +25,8 @@ import (
 	"testing"
 
 	"github.com/pstuifzand/ekster/pkg/microsub"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // page fixtures: one logged-in view per page, because every page is rendered
@@ -253,4 +255,35 @@ func TestItemPageShowsTheBodyAsMarkup(t *testing.T) {
 			t.Errorf("%s body lost its formatting", name)
 		}
 	}
+}
+
+// TestItemPageShowsUploadedMedia covers the other half of a photo post: the
+// media endpoint stores the file, and the item page is where it becomes visible.
+func TestItemPageShowsUploadedMedia(t *testing.T) {
+	photo := "http://ekster.example/media/0123456789abcdef0123456789abcdef"
+
+	var body bytes.Buffer
+	err := renderPage(&body, "item.html", itemPage{
+		Item:        microsub.Item{Name: "A photo", Photo: []string{photo}},
+		Body:        itemBody(&microsub.Content{Text: "Look at this"}),
+		ChannelUID:  "home",
+		ChannelName: "Home",
+	})
+	require.NoError(t, err)
+
+	out := body.String()
+	assert.Contains(t, out, `src="`+photo+`"`)
+	assert.Contains(t, out, "item-photos")
+}
+
+// TestItemPageNeutralizesUnsafeMediaURLs: photo URLs come from Micropub clients
+// and feeds, so html/template must refuse a javascript: source.
+func TestItemPageNeutralizesUnsafeMediaURLs(t *testing.T) {
+	var body bytes.Buffer
+	err := renderPage(&body, "item.html", itemPage{
+		Item: microsub.Item{Name: "Bad", Photo: []string{"javascript:alert(1)"}},
+	})
+	require.NoError(t, err)
+
+	assert.NotContains(t, body.String(), `src="javascript:`)
 }

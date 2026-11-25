@@ -40,6 +40,25 @@ anyone else. `GET /micropub?q=config` describes the endpoint, and
 `GET /micropub?q=source` lists what a token posted, or returns one item when
 given `url=`.
 
+## Media
+
+`q=config` advertises a media endpoint at `/media`. POST a
+`multipart/form-data` body with one part named `file`, authenticated with the
+same token, to store a photo or recording and get its URL back in `Location`:
+
+```shell
+curl -X POST http://localhost:8089/media \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@photo.png;type=image/png"
+```
+
+Use that URL as `photo=`, `video=` or `audio=` in a Micropub request. The bytes
+live in Postgres (up to 10 MiB per file), and the URL is unguessable and public:
+an `<img src>` cannot send a token, so the URL is the capability. Ekster labels
+the file by sniffing its bytes rather than by trusting the client, serves
+images/audio/video inline, and everything else — SVG and HTML included — as an
+attachment. See [docs/micropub-media.md](docs/micropub-media.md).
+
 ```shell
 docker-compose up -d
 docker-compose logs -f web

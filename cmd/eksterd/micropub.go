@@ -303,9 +303,10 @@ func (h *micropubHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	switch r.FormValue("q") {
 	case "config":
 		writeJSON(w, micropubConfig{
-			PostTypes:   []micropubPostType{{Type: "entry", Name: "Note"}},
-			Visibility:  []string{"private"},
-			SyndicateTo: []string{},
+			PostTypes:     []micropubPostType{{Type: "entry", Name: "Note"}},
+			Visibility:    []string{"private"},
+			SyndicateTo:   []string{},
+			MediaEndpoint: mediaEndpointURL(h.BaseURL),
 		})
 	case "source":
 		h.handleSourceQuery(w, r, target)
@@ -360,9 +361,10 @@ func (h *micropubHandler) handleSourceQuery(w http.ResponseWriter, r *http.Reque
 }
 
 type micropubConfig struct {
-	PostTypes   []micropubPostType `json:"post-types"`
-	Visibility  []string           `json:"visibility"`
-	SyndicateTo []string           `json:"syndicate-to"`
+	PostTypes     []micropubPostType `json:"post-types"`
+	Visibility    []string           `json:"visibility"`
+	SyndicateTo   []string           `json:"syndicate-to"`
+	MediaEndpoint string             `json:"media-endpoint,omitempty"`
 }
 
 type micropubPostType struct {

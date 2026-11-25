@@ -92,6 +92,17 @@ func NewApp(options AppOptions) (*App, error) {
 		pool:    options.pool,
 	}, nil))
 
+	// The media endpoint is one handler on both paths: POST /media stores an
+	// upload, GET /media/<uid> answers it. Micropub clients learn the first URL
+	// from q=config and the second from the Location header.
+	media := &mediaHandler{
+		database: options.database,
+		BaseURL:  options.BaseURL,
+		pool:     options.pool,
+	}
+	http.Handle("/media", observability.Handler("/media", media, nil))
+	http.Handle("/media/", observability.Handler("/media/", media, nil))
+
 	http.Handle("/i/", observability.Handler("/i/", &itemHandler{
 		Backend: app.backend,
 		pool:    options.pool,
