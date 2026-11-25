@@ -10,16 +10,19 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.15.1
 	github.com/gomodule/redigo v1.8.2
 	github.com/lib/pq v1.10.1
+	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v0.8.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
+	github.com/yuin/goldmark v1.8.7
 	golang.org/x/net v0.43.0
 	golang.org/x/text v0.28.0
 	willnorris.com/go/microformats v1.2.0
 )
 
 require (
+	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -28,6 +31,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/jsonschema-go v0.3.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/css v1.0.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect

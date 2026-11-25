@@ -219,3 +219,38 @@ func TestTokenHint(t *testing.T) {
 		}
 	}
 }
+
+// TestItemPageShowsTheBodyAsMarkup is the regression guard for the item page: a
+// Micropub post arrives as HTML or Markdown, and both used to reach the browser
+// as escaped text — tags and asterisks visible in the panel.
+func TestItemPageShowsTheBodyAsMarkup(t *testing.T) {
+	cases := map[string]*microsub.Content{
+		"html": {HTML: "<p>Hello <b>there</b></p>"},
+		"markdown": {
+			Text: "Hello **there**\n\nSecond paragraph",
+		},
+	}
+
+	for name, content := range cases {
+		var body bytes.Buffer
+		err := renderPage(&body, "item.html", itemPage{
+			Item:        microsub.Item{Name: "A note"},
+			Body:        itemBody(content),
+			ChannelUID:  "home",
+			ChannelName: "Home",
+		})
+		if err != nil {
+			t.Fatalf("render %s: %v", name, err)
+		}
+		out := body.String()
+
+		for _, unwanted := range []string{"&lt;b&gt;", "&lt;p&gt;", "**"} {
+			if strings.Contains(out, unwanted) {
+				t.Errorf("%s body reached the page as text: %q present", name, unwanted)
+			}
+		}
+		if !strings.Contains(out, "there</b>") && !strings.Contains(out, "there</strong>") {
+			t.Errorf("%s body lost its formatting", name)
+		}
+	}
+}

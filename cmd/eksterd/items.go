@@ -99,7 +99,7 @@ type itemHandler struct {
 
 type itemPage struct {
 	Item        microsub.Item
-	Text        string
+	Body        template.HTML
 	ChannelUID  string
 	ChannelName string
 	SourceName  string
@@ -143,7 +143,7 @@ func (h *itemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ChannelName: stored.ChannelName,
 	}
 	if stored.Item.Content != nil {
-		page.Text = firstNonEmpty(stored.Item.Content.Text, stored.Item.Content.HTML)
+		page.Body = itemBody(stored.Item.Content)
 	}
 	if stored.Item.Source != nil {
 		page.SourceName = stored.Item.Source.Name

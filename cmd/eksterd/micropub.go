@@ -93,6 +93,7 @@ func (h *micropubHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	fillContentHTML(item.Content)
 	*item = h.enrichReferences(r.Context(), *item)
 
 	if item.Published == "" {
@@ -269,6 +270,7 @@ func applyMicropubUpdate(item microsub.Item, form map[string][]string) (microsub
 	if contains(form["delete[]"], "content") || form["delete[content]"] != nil {
 		item.Content = nil
 	}
+	fillContentHTML(item.Content)
 	if item.Content != nil && item.Content.Text == "" && item.Content.HTML == "" {
 		item.Content = nil
 	}

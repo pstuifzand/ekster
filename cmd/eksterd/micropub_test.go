@@ -135,6 +135,8 @@ func TestApplyMicropubUpdate(t *testing.T) {
 	assert.Equal(t, []string{"two", "three"}, updated.Category)
 	require.NotNil(t, updated.Content)
 	assert.Equal(t, "new body", updated.Content.Text)
+	assert.Contains(t, updated.Content.HTML, "<p>new body</p>",
+		"a replaced content is stored as HTML as well as text")
 }
 
 func TestApplyMicropubUpdateRejectsUnsupportedAndScalarAdd(t *testing.T) {

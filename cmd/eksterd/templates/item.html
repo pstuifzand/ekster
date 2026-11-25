@@ -33,13 +33,14 @@
     </div>
 
     <div class="panel content">
-        {{ if .Text }}<p>{{ .Text }}</p>{{ else }}<p class="has-text-grey">No content.</p>{{ end }}
+        {{ if .Body }}{{ .Body }}{{ else }}<p class="has-text-grey">No content.</p>{{ end }}
 
         {{ if .Item.Category }}
             <div class="tags">
                 {{ range .Item.Category }}<span class="tag">{{ . }}</span>{{ end }}
             </div>
         {{ end }}
+
     </div>
 
     <p class="hint">
